@@ -11,6 +11,9 @@ All notable changes to this plugin are documented here. The format follows
 - A complete Persian (`fa_IR`) translation of all 368 strings, shipped as a `.po` source and a
   compiled `.mo` catalogue. The plugin loads its own text domain on `init` and a language pack
   installed in `wp-content/languages/plugins` still wins.
+- The compiled catalogue carries the standard hash-less MO layout, including the hash table fields
+  WordPress derives its read offsets from (`MO::import_from_file()` refuses a catalogue that leaves
+  them empty), and `bin/make-mo.php` now verifies that layout before writing anything.
 - `bin/make-mo.php` compiles the catalogues without any dependency, refuses a translation that drops
   or invents a placeholder, and refuses to write a file that does not read back entry for entry. CI
   runs it with `--check` and the release workflow fails when the shipped catalogues are missing from

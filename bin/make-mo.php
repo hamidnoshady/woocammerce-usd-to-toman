@@ -193,10 +193,16 @@ function usdtf_mo_build( array $headers, array $entries ) {
 	$count    = count( $ids );
 
 	// Header: magic, revision, count, offset of the id table, offset of the
-	// string table, size of the (unused) hash table, offset of the hash table.
-	// The hash table fields are mandatory: without them every offset in the
-	// file is read eight bytes late.
-	$output = pack( 'Iiiiiii', 0x950412de, 0, $count, 28, 28 + ( $count * 8 ), 0, 0 );
+	// string table, size of the hash table, offset of the hash table.
+	//
+	// The last two fields are not optional. WordPress reads the catalogue by
+	// deriving the length of the string table from the hash table offset and the
+	// start of the string data from the hash table size, so a file that leaves
+	// them at zero is refused outright (`MO::import_from_file()` returns false).
+	// The layout here is the standard hash-less one: both tables, then the
+	// strings, with the "hash table" sitting exactly at the start of the string
+	// data and being zero entries long.
+	$output = pack( 'Iiiiiii', 0x950412de, 0, $count, 28, 28 + ( $count * 8 ), 0, 28 + ( $count * 16 ) );
 
 	// The two lookup tables are followed by the ids and then by the messages.
 	// The message offsets only start after the last id, so the size of the id
@@ -268,7 +274,7 @@ function usdtf_mo_verify( $binary, array $entries ) {
 		return 'the catalogue is too short to contain a header';
 	}
 
-	$header = unpack( 'Vmagic/Vrevision/Vcount/Vid_table/Vstring_table', substr( $binary, 0, 20 ) );
+	$header = unpack( 'Vmagic/Vrevision/Vcount/Vid_table/Vstring_table/Vhash_size/Vhash_table', substr( $binary, 0, 28 ) );
 
 	if ( 0x950412de !== $header['magic'] ) {
 		return 'the catalogue does not start with the GNU MO magic number';
@@ -278,6 +284,21 @@ function usdtf_mo_verify( $binary, array $entries ) {
 
 	if ( count( $expected ) !== $header['count'] ) {
 		return sprintf( 'the catalogue holds %d entries, expected %d', $header['count'], count( $expected ) );
+	}
+
+	// WordPress derives the string table length and the start of the string data
+	// from these two fields, so they have to describe a hash-less catalogue that
+	// starts its strings right after the two tables.
+	if ( 28 + ( $header['count'] * 16 ) !== $header['hash_table'] ) {
+		return sprintf(
+			'the hash table offset (%d) does not point at the end of the string table (%d); WordPress cannot read such a catalogue',
+			$header['hash_table'],
+			28 + ( $header['count'] * 16 )
+		);
+	}
+
+	if ( $header['string_table'] !== $header['id_table'] + ( $header['count'] * 8 ) ) {
+		return 'the string table does not follow the id table';
 	}
 
 	$found = 0;
