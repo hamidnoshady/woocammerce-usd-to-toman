@@ -120,7 +120,7 @@ jobs:
           set -euo pipefail
           listing="$(unzip -Z1 dist/*.zip)"
           echo "$listing"
-          if echo "$listing" | grep -Eq '^(tests|bin|\.github)/|phpcs\.xml|composer\.(json|lock)|\.distignore|\.git'; then
+          if echo "$listing" | grep -Eq '^(tests|bin|\.github|wordpress-org)/|phpcs\.xml|composer\.(json|lock)|\.distignore|\.git'; then
             echo "::error::The distribution archive contains development files."
             exit 1
           fi
