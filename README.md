@@ -100,6 +100,7 @@ plugin slug, which is what WordPress expects for an upload.
 php bin/build-dist.php            # dist/<slug>.<version>.zip + .sha256
 php bin/build-dist.php --list     # what would be packaged
 php bin/build-dist.php --check    # validate the archive that exists
+php bin/build-dist.php --source-date=1759680000   # byte identical rebuild
 ```
 
 The file list comes from `.distignore`, so what ships is reviewable in one place. The builder also

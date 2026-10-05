@@ -105,7 +105,7 @@ jobs:
           tools: none
 
       - name: Build the distribution
-        run: php bin/build-dist.php
+        run: php bin/build-dist.php --source-date="$(git log -1 --format=%cI)"
 
       - name: Validate the archive
         run: php bin/build-dist.php --check

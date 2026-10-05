@@ -71,7 +71,9 @@ jobs:
           php bin/make-pot.php --check
 
       - name: Build the clean distribution
-        run: php bin/build-dist.php
+        # The commit date is baked into the archive comment instead of the build
+        # time, so rebuilding the same tag reproduces the same checksum.
+        run: php bin/build-dist.php --source-date="$(git log -1 --format=%cI)"
 
       - name: Validate the distribution
         run: |
@@ -152,7 +154,7 @@ jobs:
           tools: none
 
       - name: Build the clean distribution
-        run: php bin/build-dist.php
+        run: php bin/build-dist.php --source-date="$(git log -1 --format=%cI)"
 
       - name: Unpack the archive that will be deployed
         run: |

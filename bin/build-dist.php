@@ -12,6 +12,11 @@
  *
  *   --output=DIR   Directory for the archive (default: dist).
  *   --version=X    Override the version read from the plugin header.
+ *   --source-date=DATE
+ *                  Timestamp recorded in the archive comment: a unix epoch or
+ *                  anything strtotime() understands (default: SOURCE_DATE_EPOCH,
+ *                  then the current time). Rebuilding with the same value
+ *                  produces a byte identical archive.
  *   --check        Do not build; validate the newest existing archive.
  *   --list         Print the files that would be packaged and exit.
  *   --quiet        Only print errors.
@@ -26,11 +31,12 @@
 $usdtf_root = dirname( __DIR__ );
 
 $usdtf_args    = array(
-	'output'  => 'dist',
-	'version' => '',
-	'check'   => false,
-	'list'    => false,
-	'quiet'   => false,
+	'output'      => 'dist',
+	'version'     => '',
+	'source-date' => '',
+	'check'       => false,
+	'list'        => false,
+	'quiet'       => false,
 );
 $usdtf_unknown = array();
 
@@ -61,6 +67,12 @@ foreach ( array_slice( $argv, 1 ) as $usdtf_arg ) {
 
 	if ( 0 === strpos( $usdtf_arg, '--version=' ) ) {
 		$usdtf_args['version'] = trim( substr( $usdtf_arg, 10 ) );
+
+		continue;
+	}
+
+	if ( 0 === strpos( $usdtf_arg, '--source-date=' ) ) {
+		$usdtf_args['source-date'] = trim( substr( $usdtf_arg, 14 ) );
 
 		continue;
 	}
@@ -111,6 +123,36 @@ function usdtf_size_format( $bytes, $precision = 1 ) {
 	$power = min( $power, count( $units ) - 1 );
 
 	return round( $bytes / pow( 1024, $power ), $precision ) . ' ' . $units[ $power ];
+}
+
+/**
+ * Build the timestamp that is written into the archive comment.
+ *
+ * @param string $source Explicit --source-date value, empty to fall back.
+ * @return string
+ */
+function usdtf_build_stamp( $source ) {
+	$source = trim( (string) $source );
+
+	if ( '' === $source ) {
+		$environment = getenv( 'SOURCE_DATE_EPOCH' );
+
+		if ( false !== $environment && '' !== trim( $environment ) ) {
+			$source = trim( $environment );
+		}
+	}
+
+	if ( '' === $source ) {
+		return gmdate( 'Y-m-d H:i:s' ) . ' UTC';
+	}
+
+	$timestamp = ctype_digit( $source ) ? (int) $source : strtotime( $source );
+
+	if ( false === $timestamp ) {
+		usdtf_fail( '--source-date must be a unix timestamp or a date strtotime() understands.' );
+	}
+
+	return gmdate( 'Y-m-d H:i:s', $timestamp ) . ' UTC';
 }
 
 /**
@@ -489,7 +531,7 @@ if ( true !== $usdtf_zip->open( $usdtf_zip_path, ZipArchive::CREATE ) ) {
 	usdtf_fail( 'could not create the archive: ' . $usdtf_zip_path );
 }
 
-$usdtf_stamp = gmdate( 'Y-m-d H:i:s' ) . ' UTC';
+$usdtf_stamp = usdtf_build_stamp( $usdtf_args['source-date'] );
 
 foreach ( $usdtf_files as $usdtf_relative ) {
 	$usdtf_absolute = $usdtf_root . '/' . $usdtf_relative;
@@ -499,8 +541,8 @@ foreach ( $usdtf_files as $usdtf_relative ) {
 		usdtf_fail( 'could not add ' . $usdtf_relative . ' to the archive.' );
 	}
 
-	// Reproducible metadata: a fixed timestamp, so rebuilding a tag produces the
-	// same archive.
+	// Reproducible metadata: a fixed timestamp for every entry, so the archive
+	// only depends on the file contents and --source-date.
 	if ( method_exists( $usdtf_zip, 'setMtimeName' ) ) {
 		$usdtf_zip->setMtimeName( $usdtf_entry, 315532800 ); // 1980-01-01, the zip epoch.
 	}
