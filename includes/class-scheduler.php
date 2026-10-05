@@ -237,6 +237,12 @@ final class Scheduler {
 	 * @return int
 	 */
 	public function pending_count() {
+		$count = self::action_scheduler_count( 'pending' );
+
+		if ( null !== $count ) {
+			return $count;
+		}
+
 		if ( self::is_action_scheduler_available() && function_exists( 'as_get_scheduled_actions' ) ) {
 			$ids = as_get_scheduled_actions(
 				array(
@@ -274,6 +280,12 @@ final class Scheduler {
 	 * @return int
 	 */
 	public function failed_count() {
+		$count = self::action_scheduler_count( 'failed' );
+
+		if ( null !== $count ) {
+			return $count;
+		}
+
 		if ( ! self::is_action_scheduler_available() || ! function_exists( 'as_get_scheduled_actions' ) ) {
 			return 0;
 		}
@@ -290,6 +302,36 @@ final class Scheduler {
 		);
 
 		return is_array( $ids ) ? count( $ids ) : 0;
+	}
+
+	/**
+	 * Exact number of plugin actions in a status, or null when the store cannot
+	 * count. Listing actions is capped by per_page, so a busy store would be
+	 * under-reported.
+	 *
+	 * @param string $status Action Scheduler status.
+	 * @return int|null
+	 */
+	private static function action_scheduler_count( $status ) {
+		if ( ! self::is_action_scheduler_available() || ! class_exists( '\ActionScheduler' ) ) {
+			return null;
+		}
+
+		$store = \ActionScheduler::store();
+
+		if ( ! $store || ! method_exists( $store, 'query_actions' ) ) {
+			return null;
+		}
+
+		$count = $store->query_actions(
+			array(
+				'group'  => self::GROUP,
+				'status' => $status,
+			),
+			'count'
+		);
+
+		return is_numeric( $count ) ? (int) $count : null;
 	}
 
 	/**

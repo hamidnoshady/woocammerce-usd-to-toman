@@ -6,7 +6,7 @@ Tested up to: 6.6
 Requires PHP: 7.4
 WC requires at least: 7.0
 WC tested up to: 9.9
-Stable tag: 1.0.1
+Stable tag: 1.0.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -123,6 +123,10 @@ Yes. Every string uses the `usd-to-toman-price-sync-for-woocommerce` text domain
 
 == Changelog ==
 
+= 1.0.2 =
+* The diagnostics count the background queue exactly. Listing actions is capped, so a busy store saw a queue depth of 500 whatever the real number was.
+* Integration coverage for the worker queue, the loopback diagnostics, the admin screens and the product panel.
+
 = 1.0.1 =
 * Fixed: the REST API routes the admin screen uses (rate, preview, update, jobs, health, product search) were never registered, so every action on the admin screen failed.
 * Fixed: the rate change percentage was always computed as -100%, which made the typo guard ask for confirmation on any rate change.
@@ -143,6 +147,9 @@ Yes. Every string uses the `usd-to-toman-price-sync-for-woocommerce` text domain
 * Diagnostics for the queue, the lock and the configured batch size.
 
 == Upgrade Notice ==
+
+= 1.0.2 =
+Reports the real size of the background queue in the diagnostics.
 
 = 1.0.1 =
 Fixes the admin screen: the REST API it uses was not registered in 1.0.0. Also fixes the rate change percentage used by the typo guard and the diagnostics section.

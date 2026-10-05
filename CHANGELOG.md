@@ -4,6 +4,23 @@ All notable changes to this plugin are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.2] - 2026-10-05
+
+### Fixed
+
+- The diagnostics counted the background queue by listing actions, which Action Scheduler caps.
+  A store with a longer queue always saw 500. The counts now ask the store for an exact count and
+  fall back to the listing when the store cannot answer.
+
+### Added
+
+- Integration coverage for the worker queue (the action, its hook, its group and the job id it
+  carries, plus the async actions that carry no date), a job that was cancelled ignoring a leftover
+  worker action while a paused job resumes, the loopback diagnostic against a reachable, a failing
+  and an unreachable site, every admin tab including output escaping and the capability gate, the
+  script wiring, and the product panel (meta box, saving, refusals, bulk actions, list column).
+  34 scenario groups in total.
+
 ## [1.0.1] - 2026-10-05
 
 ### Fixed
@@ -84,5 +101,6 @@ First release, implementing the specification in
   template, the distribution archive and a WordPress + WooCommerce integration suite that also runs
   against the built zip. Tagging a version publishes the zip and its checksum to a GitHub release.
 
+[1.0.2]: https://github.com/hamidnoshady/woocammerce-usd-to-toman/releases/tag/1.0.2
 [1.0.1]: https://github.com/hamidnoshady/woocammerce-usd-to-toman/releases/tag/1.0.1
 [1.0.0]: https://github.com/hamidnoshady/woocammerce-usd-to-toman/releases/tag/1.0.0

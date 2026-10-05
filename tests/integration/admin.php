@@ -394,10 +394,13 @@ usdtf_it_assert( \USDTF\Database::table_exists( $jobs_table ), 'the tables must 
 usdtf_it_assert_same( 0, $meta_count( $source_key ), 'the explicit opt in must remove the plugin metadata' );
 usdtf_it_assert_same( 1, $meta_count( 'usdtf_it_foreign_key' ), 'a purge must not touch meta the plugin does not own' );
 
+// What activating the plugin again does.
 \USDTF\Installer::create_tables();
 \USDTF\Installer::seed_options();
+\USDTF\Cron::schedule();
 usdtf_it_reset_plugin_state();
 
 usdtf_it_assert( \USDTF\Database::table_exists( \USDTF\Database::jobs_table() ), 'the suite must leave a working installation behind' );
+usdtf_it_assert( false !== wp_next_scheduled( \USDTF\Cron::EVENT_TICK ), 'activating again must restore the maintenance events' );
 
 usdtf_it_pass( 'uninstall keeps the Toman prices unless the store owner opts in' );

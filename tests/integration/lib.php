@@ -445,6 +445,17 @@ function usdtf_it_reset_plugin_state() {
 
 	delete_option( \USDTF\Lock::OPTION );
 
+	// Worker actions queued by earlier scenarios. Job ids are reused after the
+	// jobs table is emptied, and a leftover action for the same hook and
+	// arguments would make the queue think the new job is already scheduled.
+	if ( function_exists( 'as_unschedule_all_actions' ) ) {
+		as_unschedule_all_actions( '', array(), \USDTF\Scheduler::GROUP );
+	}
+
+	foreach ( array( \USDTF\Sync_Runner::HOOK_DISCOVER, \USDTF\Sync_Runner::HOOK_PROCESS, \USDTF\Sync_Runner::HOOK_FINALIZE ) as $hook ) {
+		wp_clear_scheduled_hook( $hook );
+	}
+
 	usdtf_plugin()->products()->flush_counts_cache();
 }
 
