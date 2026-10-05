@@ -16,6 +16,11 @@ on:
         required: false
         default: true
         type: boolean
+      svn:
+        description: 'Also push the archive to the WordPress.org plugin directory.'
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: write
@@ -109,6 +114,24 @@ jobs:
             echo
             echo "Install it through **Plugins → Add New → Upload Plugin**, or copy the extracted"
             echo "\`${PLUGIN_SLUG}\` directory into \`wp-content/plugins/\`."
+
+            # Include the matching CHANGELOG section so the release describes
+            # itself instead of only linking to the archive.
+            if [ -f CHANGELOG.md ]; then
+              section="$(awk -v version="${version}" '
+                /^## / {
+                  if (found) { exit }
+                  if (index($0, version) > 0) { found = 1; next }
+                }
+                found { print }
+              ' CHANGELOG.md)"
+
+              if [ -n "${section//[[:space:]]/}" ]; then
+                echo
+                echo "$section"
+              fi
+            fi
+
             echo
             echo "Checksums:"
             echo
@@ -133,11 +156,12 @@ jobs:
     name: Deploy to the WordPress.org plugin directory
     runs-on: ubuntu-latest
     needs: release
-    # Publishing to the plugin directory is opt-in: run the workflow manually
-    # with "publish" enabled, provide the SVN credentials in a protected
-    # environment, and the same zip that was attached to the GitHub release is
-    # pushed to trunk and tagged there.
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish }}
+    # Publishing to the plugin directory is a separate, explicit opt-in: run the
+    # workflow manually with "svn" enabled, provide the SVN credentials in a
+    # protected environment, and the same zip that was attached to the GitHub
+    # release is pushed to trunk and tagged there. Re-running the workflow just
+    # to refresh a release never touches WordPress.org.
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.svn }}
     environment: wordpress-org
     steps:
       - name: Check out the tagged source
