@@ -676,4 +676,6 @@ $external = usdtf_it_meta( $fixture->get_id(), \USDTF\Product_Pricing::META_EXTE
 usdtf_it_assert_same( '5000000', $external, 'a foreign source value must stay untouched' );
 usdtf_it_pass( 'an existing Toman catalog can be onboarded without data loss' );
 
+require __DIR__ . '/extra.php';
+
 echo "\nAll integration scenarios passed.\n";
