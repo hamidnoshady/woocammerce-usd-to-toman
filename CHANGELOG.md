@@ -18,6 +18,10 @@ All notable changes to this plugin are documented here. The format follows
 - Integration coverage for the fresh install default and the upgrade behaviour, and for the bundled
   catalogue (template coverage, readability, loading and a translated string coming back in
   Persian). 37 scenario groups in total.
+- The WordPress.org listing artwork is generated from source instead of being drawn by hand:
+  `wordpress-org/make-artwork.py` writes the icon, the banner and five screenshots and refuses a file
+  with the wrong dimensions. It never ships in the zip; the CI and release checks now also refuse a
+  distribution that contains the folder.
 
 ### Changed
 
