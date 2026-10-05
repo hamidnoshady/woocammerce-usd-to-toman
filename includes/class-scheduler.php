@@ -212,8 +212,14 @@ final class Scheduler {
 
 			if ( $pending ) {
 				$action = \ActionScheduler::store()->fetch_action( reset( $pending ) );
+
 				if ( $action ) {
-					$health['oldest_pending'] = max( 0, time() - $action->get_schedule()->get_date()->getTimestamp() );
+					$schedule = $action->get_schedule();
+					$date     = $schedule ? $schedule->get_date() : null;
+
+					if ( $date instanceof \DateTimeInterface ) {
+						$health['oldest_pending'] = max( 0, time() - $date->getTimestamp() );
+					}
 				}
 			}
 		}

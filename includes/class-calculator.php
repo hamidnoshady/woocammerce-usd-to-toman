@@ -450,6 +450,6 @@ final class Calculator {
 			return null;
 		}
 
-		return ( ( $new - $old ) / $old ) * 100;
+		return ( ( $updated - $old ) / $old ) * 100;
 	}
 }

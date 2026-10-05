@@ -241,3 +241,136 @@ require_once ABSPATH . 'wp-admin/includes/user.php';
 
 wp_delete_user( (int) $subscriber );
 usdtf_it_pass( 'the REST API requires the pricing capability' );
+
+// ---------------------------------------------------------------------------
+// 20. Audit trail, diagnostics and the "changed since" scope.
+// ---------------------------------------------------------------------------
+usdtf_it_delete_products();
+usdtf_it_reset_plugin_state();
+
+$admin_ids     = get_users(
+	array(
+		'role'   => 'administrator',
+		'number' => 1,
+		'fields' => 'ID',
+	)
+);
+$audit_admin   = $admin_ids ? (int) $admin_ids[0] : 0;
+$created_admin = false;
+
+if ( $audit_admin <= 0 ) {
+	$audit_admin   = (int) wp_insert_user(
+		array(
+			'user_login' => 'usdtf_admin_' . wp_rand( 1000, 999999 ),
+			'user_pass'  => wp_generate_password( 20 ),
+			'role'       => 'administrator',
+		)
+	);
+	$created_admin = true;
+}
+
+wp_set_current_user( $audit_admin );
+$rates->save_rate( 270000 );
+
+$rate_row = $rates->history( 1 );
+usdtf_it_assert_same( $audit_admin, (int) $rate_row[0]['user_id'], 'the rate history must record which admin saved the rate' );
+
+$audit_product = usdtf_it_make_simple_product( 'Audited product', 2700000 );
+$audit_job     = $runner->create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
+
+usdtf_it_assert_same( $audit_admin, (int) $audit_job['user_id'], 'the job must remember who started it' );
+
+usdtf_it_run_job( (int) $audit_job['id'] );
+
+$completed_row = $rates->history( 1 );
+usdtf_it_assert_same( $audit_admin, (int) $completed_row[0]['user_id'], 'the completed sync must stay attributed to that admin' );
+usdtf_it_assert_same( 1, (int) $completed_row[0]['products_checked'], 'the history must record how many products were checked' );
+usdtf_it_assert_same( 1, (int) $completed_row[0]['products_changed'], 'the history must record how many products changed' );
+usdtf_it_assert_same( 'completed', (string) $completed_row[0]['status'], 'the history must record the completion status' );
+
+// The diagnostics tab reads these checks.
+$checks = usdtf_plugin()->health()->checks();
+$ids    = wp_list_pluck( $checks, 'id' );
+
+foreach ( array( 'rate', 'scheduler', 'queue_depth', 'lock', 'batch_size', 'memory', 'last_error' ) as $expected_check ) {
+	usdtf_it_assert( in_array( $expected_check, $ids, true ), 'the diagnostics section must report ' . $expected_check );
+}
+
+foreach ( $checks as $check ) {
+	usdtf_it_assert( isset( $check['label'], $check['status'], $check['description'] ), 'every diagnostic must carry a label, a status and a description' );
+}
+
+usdtf_it_pass( 'the audit trail and the diagnostics section are complete' );
+
+usdtf_it_delete_products();
+usdtf_it_reset_plugin_state();
+$rates->save_rate( 270000 );
+
+$untouched = usdtf_it_make_simple_product( 'Untouched since the last sync', 2700000 );
+$modified  = usdtf_it_make_simple_product( 'Modified since the last sync', 5400000 );
+
+$three_days_ago = gmdate( 'Y-m-d H:i:s', time() - ( 3 * DAY_IN_SECONDS ) );
+
+$wpdb->update(
+	$wpdb->posts,
+	array(
+		'post_modified'     => $three_days_ago,
+		'post_modified_gmt' => $three_days_ago,
+	),
+	array( 'ID' => $untouched->get_id() )
+);
+clean_post_cache( $untouched->get_id() );
+
+$changed_job = $runner->create_job(
+	array(
+		'type'  => \USDTF\Job::TYPE_SYNC,
+		'scope' => array(
+			'changed_since' => time() - DAY_IN_SECONDS,
+			'label'         => 'Changed since yesterday',
+		),
+	)
+);
+usdtf_it_run_job( (int) $changed_job['id'] );
+
+$changed_ids = usdtf_it_item_statuses( (int) $changed_job['id'] );
+
+usdtf_it_assert_same( '20', usdtf_it_price( $modified->get_id() ), 'a product changed since the last sync must be updated' );
+usdtf_it_assert_same( '', usdtf_it_price( $untouched->get_id() ), 'a product that did not change must be left alone' );
+usdtf_it_assert( isset( $changed_ids[ $modified->get_id() ] ), 'the changed product must appear in the job' );
+usdtf_it_assert( ! isset( $changed_ids[ $untouched->get_id() ] ), 'the untouched product must not be queued at all' );
+
+if ( $created_admin ) {
+	require_once ABSPATH . 'wp-admin/includes/user.php';
+
+	wp_delete_user( $audit_admin );
+}
+
+wp_set_current_user( 0 );
+usdtf_it_pass( 'the changed-since scope skips products nobody touched' );
+
+// ---------------------------------------------------------------------------
+// 21. The typo guard only reacts to large moves.
+// ---------------------------------------------------------------------------
+usdtf_it_reset_plugin_state();
+$rates->save_rate( 270000 );
+
+usdtf_it_assert( null === \USDTF\Calculator::percent_change( 0, 270000 ), 'a store without a previous rate has no percentage' );
+usdtf_it_assert_same( 0.0, round( (float) \USDTF\Calculator::percent_change( 270000, 270000 ), 6 ), 'an unchanged rate must report no movement' );
+
+$small_move = (float) \USDTF\Calculator::percent_change( 270000, 271000 );
+usdtf_it_assert( abs( $small_move - 0.3704 ) < 0.01, 'a small move must be reported with its real percentage' );
+
+$minor = \USDTF\Rate_Guard::assess( '271000', 270000 );
+usdtf_it_assert( $minor['ok'], 'a 0.37% move must be stored without confirmation' );
+usdtf_it_assert( ! $minor['requires_confirmation'], 'a small move must not ask for the confirmation phrase' );
+
+$major = \USDTF\Rate_Guard::assess( '27000', 270000 );
+usdtf_it_assert( $major['requires_confirmation'], 'a 90% move must require confirmation' );
+usdtf_it_assert( abs( (float) $major['change_percent'] + 90.0 ) < 0.01, 'the reported change must be the real signed percentage' );
+
+foreach ( array( '0', '-270000', 'abc', '' ) as $invalid_rate ) {
+	$invalid = \USDTF\Rate_Guard::assess( $invalid_rate, 270000 );
+	usdtf_it_assert( ! $invalid['valid'], 'the rate ' . $invalid_rate . ' must be rejected' );
+}
+
+usdtf_it_pass( 'the typo guard reacts to large moves only' );
