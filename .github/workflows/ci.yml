@@ -73,7 +73,7 @@ jobs:
         run: composer phpcs -- --report=source
 
   translations:
-    name: Translation template
+    name: Translations
     runs-on: ubuntu-latest
     steps:
       - name: Check out the repository
@@ -88,6 +88,11 @@ jobs:
 
       - name: Regenerate and compare the .pot file
         run: php bin/make-pot.php --check
+
+      - name: Verify the compiled catalogues are up to date
+        # Compares the shipped .mo files with a fresh compilation of their .po
+        # sources, and refuses catalogues that do not read back byte for byte.
+        run: php bin/make-mo.php --check
 
   dist:
     name: Release zip
@@ -124,6 +129,15 @@ jobs:
             echo "::error::The archive must contain exactly one top level directory named ${PLUGIN_SLUG}."
             exit 1
           fi
+          for catalogue in \
+            "languages/${PLUGIN_SLUG}-fa_IR.po" \
+            "languages/${PLUGIN_SLUG}-fa_IR.mo" \
+            "languages/${PLUGIN_SLUG}.pot"; do
+            if ! echo "$listing" | grep -qx "${PLUGIN_SLUG}/${catalogue}"; then
+              echo "::error::The distribution is missing ${catalogue}."
+              exit 1
+            fi
+          done
 
       - name: Upload the release zip
         uses: actions/upload-artifact@v4

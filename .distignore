@@ -33,6 +33,6 @@
 # Build output.
 /dist
 
-# Translation sources. The .pot template ships with the plugin, compiled .mo
-# files from translate.wordpress.org are shipped by WordPress.org itself.
-/languages/*.po
+# The whole languages/ folder ships: the .pot template for translators and the
+# .mo/.po catalogues of the bundled translations (Persian today). Language packs
+# installed on a site still take precedence.

@@ -36,7 +36,7 @@ includes/                                     Plugin classes (USDTF\ namespace)
   admin/                                      Admin screen, REST API, product panel
   frontend/                                   Toman display and Toman transaction mode
 assets/                                       Admin CSS/JS
-languages/                                    Translation template
+languages/                                    Translation template and shipped catalogues
 bin/                                          Build, lint and translation tooling
 tests/integration/                            WordPress + WooCommerce integration suite
 .github/workflows/                            CI and release automation
@@ -53,8 +53,18 @@ composer lint         # parse every PHP file
 composer phpcs        # coding standards
 composer phpcbf       # fix what can be fixed automatically
 composer pot          # regenerate languages/*.pot
-composer check        # standards + translation template (what CI runs)
+composer mo           # compile languages/*.po into .mo
+composer check        # standards + translation template + compiled catalogues
 ```
+
+### Translations
+
+English is the source language: the strings in the code are the `.pot` template, generated with
+`php bin/make-pot.php`. The plugin ships a complete Persian (`fa_IR`) translation, and
+`php bin/make-mo.php` compiles every `languages/*.po` into a binary catalogue. The compiler is plain
+PHP, validates that the result reads back entry for entry, and runs in CI with `--check` so a stale or
+missing `.mo` file fails the build. `WP_LANG_DIR/plugins` still wins over the bundled files, so a site
+that installs a language pack keeps the newer translation.
 
 ### Integration suite
 
@@ -94,8 +104,9 @@ maintenance pass and the uninstall behaviour.
 ## Releases
 
 The zip that is published is the **clean** distribution: source files, assets, the store
-`readme.txt` and the translation template. Tests, CI configuration, build tools and development
-documentation are excluded, and the archive contains a single top level directory named after the
+`readme.txt` and the translation catalogues (the `.pot` template plus the shipped `.po`/`.mo` files of
+the bundled translations). Tests, CI configuration, build tools and development documentation are
+excluded, and the archive contains a single top level directory named after the
 plugin slug, which is what WordPress expects for an upload.
 
 ```bash
@@ -118,7 +129,8 @@ by assuming byte equality.
 Publishing a release:
 
 1. Update the `Version:` header, the `Stable tag:` in `readme.txt` and `CHANGELOG.md`.
-2. `php bin/make-pot.php` and commit the regenerated template.
+2. `php bin/make-pot.php` and `php bin/make-mo.php`, then commit the regenerated template and the
+   compiled catalogues.
 3. Tag the commit with the version, for example `1.0.1`, and push the tag.
 4. The **Release** workflow verifies the tag against the plugin version, lints, checks the
    translation template, builds the zip, validates it and attaches the zip plus its SHA-256
@@ -140,7 +152,7 @@ this repository.
 | --- | --- |
 | `syntax` | Every PHP file parses on PHP 7.4, 8.0, 8.1, 8.2, 8.3 and 8.4. |
 | `standards` | WordPress coding standards, PHPCompatibility and the plugin i18n rules. |
-| `translations` | `languages/*.pot` is up to date with the source. |
+| `translations` | `languages/*.pot` is up to date and every compiled `.mo` matches its `.po` source. |
 | `dist` | The clean zip builds, validates, contains no development file and has one top level directory. |
 | `integration` | The suite passes against WordPress + WooCommerce, first from the working copy and then from the **built zip**. |
 

@@ -496,3 +496,100 @@ $_POST = array();
 $_GET  = array();
 
 usdtf_it_pass( 'the product panel saves, refuses invalid input and drives the bulk actions' );
+
+// ---------------------------------------------------------------------------
+// 30. A fresh install transacts in Toman, an upgrade keeps the stored mode.
+// ---------------------------------------------------------------------------
+usdtf_it_delete_products();
+
+// Simulate a brand new site: no settings option at all, then the installer runs.
+delete_option( \USDTF\Settings::OPTION );
+delete_option( \USDTF\Settings::OPTION_SYNCED_CURRENCY_MODE );
+delete_option( \USDTF\Settings::OPTION_RATE );
+
+\USDTF\Installer::seed_options();
+
+// Force the shared instance to re-read the option, the way a new request would.
+usdtf_plugin()->settings()->all( true );
+$fresh = new \USDTF\Settings();
+
+usdtf_it_assert_same( \USDTF\Settings::MODE_TOMAN, $fresh->get( 'currency_mode' ), 'a fresh install must transact in Toman' );
+usdtf_it_assert( ! $fresh->currency_mode_is_stale(), 'a fresh install must not look like a pending currency switch' );
+usdtf_it_assert_same(
+	\USDTF\Settings::MODE_TOMAN,
+	get_option( \USDTF\Settings::OPTION_SYNCED_CURRENCY_MODE ),
+	'the recorded price field currency must follow the default'
+);
+usdtf_it_assert_same( 'IRT', get_woocommerce_currency(), 'a fresh install must charge in Toman' );
+usdtf_it_assert_same( 'تومان', get_woocommerce_currency_symbol(), 'the default currency symbol must be the Toman label' );
+
+// Products then hold their canonical Toman price in the normal price fields.
+$rates->save_rate( 270000 );
+$fresh_product = usdtf_it_make_simple_product( 'Fresh install product', 5400000 );
+$fresh_job     = $runner->create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
+usdtf_it_run_job( (int) $fresh_job['id'] );
+
+usdtf_it_assert_same( '5400000', usdtf_it_price( $fresh_product->get_id() ), 'the price field must hold the canonical Toman price' );
+usdtf_it_assert_same( '20', usdtf_it_meta( $fresh_product->get_id(), \USDTF\Product_Pricing::META_DERIVED_REGULAR ), 'the derived USD price must stay a reference' );
+
+// An existing store keeps the mode it stored, whatever the new default is.
+update_option( \USDTF\Settings::OPTION, array( 'currency_mode' => \USDTF\Settings::MODE_USD ) );
+update_option( \USDTF\Settings::OPTION_SYNCED_CURRENCY_MODE, \USDTF\Settings::MODE_USD );
+
+\USDTF\Installer::seed_options();
+
+$kept = new \USDTF\Settings();
+usdtf_it_assert_same( \USDTF\Settings::MODE_USD, $kept->get( 'currency_mode' ), 'an upgrade must not switch an existing store to Toman' );
+usdtf_it_assert_same( 10, (int) $kept->get( 'batch_size' ), 'the rest of the defaults must be backfilled' );
+usdtf_it_assert( ! $kept->currency_mode_is_stale(), 'an upgrade must not report a pending currency switch for a stored mode' );
+
+usdtf_it_pass( 'a fresh install transacts in Toman and an upgrade keeps the stored mode' );
+
+// ---------------------------------------------------------------------------
+// 31. The bundled Persian catalogue covers the template and loads.
+// ---------------------------------------------------------------------------
+usdtf_it_reset_plugin_state();
+
+usdtf_it_assert( has_action( 'init', array( usdtf_plugin(), 'load_textdomain' ) ), 'the plugin must load its own text domain' );
+
+$usdtf_it_po  = USDTF_DIR . 'languages/usd-to-toman-price-sync-for-woocommerce-fa_IR.po';
+$usdtf_it_mo  = USDTF_DIR . 'languages/usd-to-toman-price-sync-for-woocommerce-fa_IR.mo';
+$usdtf_it_pot = USDTF_DIR . 'languages/usd-to-toman-price-sync-for-woocommerce.pot';
+
+usdtf_it_assert( is_readable( $usdtf_it_pot ), 'the translation template must ship with the plugin' );
+usdtf_it_assert( is_readable( $usdtf_it_po ), 'the Persian source catalogue must ship with the plugin' );
+usdtf_it_assert( is_readable( $usdtf_it_mo ), 'the compiled Persian catalogue must ship with the plugin' );
+
+if ( ! class_exists( 'PO' ) ) {
+	require_once ABSPATH . WPINC . '/pomo/po.php';
+}
+
+$usdtf_it_template = new \PO();
+$usdtf_it_persian  = new \PO();
+
+usdtf_it_assert( $usdtf_it_template->import_from_file( $usdtf_it_pot ), 'the template must be readable' );
+usdtf_it_assert( $usdtf_it_persian->import_from_file( $usdtf_it_po ), 'the Persian catalogue must be readable' );
+usdtf_it_assert_same( count( $usdtf_it_template->entries ), count( $usdtf_it_persian->entries ), 'every template string must be translated' );
+
+$usdtf_it_untranslated = array();
+
+foreach ( $usdtf_it_persian->entries as $usdtf_it_entry ) {
+	if ( '' === (string) $usdtf_it_entry->translations[0] && '' !== (string) $usdtf_it_entry->singular ) {
+		$usdtf_it_untranslated[] = (string) $usdtf_it_entry->singular;
+	}
+}
+
+usdtf_it_assert_same( array(), $usdtf_it_untranslated, 'no string may be left empty in the Persian catalogue' );
+
+// The compiled catalogue must agree with its source and be loadable.
+$usdtf_it_compiled = new \MO();
+usdtf_it_assert( $usdtf_it_compiled->import_from_file( $usdtf_it_mo ), 'the compiled catalogue must be readable' );
+usdtf_it_assert_same( count( $usdtf_it_persian->entries ), count( $usdtf_it_compiled->entries ), 'the compiled catalogue must hold every translated string' );
+
+usdtf_it_assert( load_textdomain( USDTF_SLUG, $usdtf_it_mo ), 'the compiled catalogue must load' );
+usdtf_it_assert_same( 'تنظیمات', __( 'Settings', USDTF_SLUG ), 'a translated string must come back in Persian' );
+usdtf_it_assert_same( 'نیازی به همگام‌سازی نیست.', __( 'No synchronization required.', USDTF_SLUG ), 'sentences must come back in Persian too' );
+
+unload_textdomain( USDTF_SLUG );
+
+usdtf_it_pass( 'the bundled Persian catalogue covers the template and loads' );

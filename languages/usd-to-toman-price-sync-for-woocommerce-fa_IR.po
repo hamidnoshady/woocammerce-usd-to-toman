@@ -4,1526 +4,1521 @@ msgid ""
 msgstr ""
 "Project-Id-Version: USD to Toman Price Sync for WooCommerce 1.0.3\n"
 "Report-Msgid-Bugs-To: https://github.com/hamidnoshady/woocammerce-usd-to-toman/issues\n"
-"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
-"Language-Team: LANGUAGE <LL@li.org>\n"
+"Last-Translator: Hamid Noshady\n"
+"Language-Team: Persian\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "POT-Creation-Date: 2026-10-05 20:40+0000\n"
-"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Language: fa_IR\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+"PO-Revision-Date: 2026-10-05 20:45+0000\n"
 "X-Generator: bin/make-pot.php\n"
 "X-Domain: usd-to-toman-price-sync-for-woocommerce\n"
 
 #: includes/class-sync-runner.php:942
 msgid "#%1$d %2$s"
-msgstr ""
+msgstr "#%1$d %2$s"
 
 #: includes/class-sync-runner.php:931
 msgid "#%d (deleted)"
-msgstr ""
+msgstr "#%d (حذف‌شده)"
 
 #: includes/class-health.php:345
 #. 1: managed products, 2: managed variations, 3: native products, 4: excluded products, 5: products without a mode.
 msgid "%1$d managed products and %2$d managed variations. %3$d products keep a native USD price, %4$d are excluded and %5$d have no explicit mode yet."
-msgstr ""
+msgstr "%1$d محصول مدیریت‌شده و %2$d گونهٔ مدیریت‌شده. %3$d محصول قیمت دلار بومی دارند، %4$d کنار گذاشته شده‌اند و %5$d هنوز حالت مشخصی ندارند."
 
 #: includes/class-health.php:301
 #. 1: batch size, 2: time budget, 3: PHP execution limit.
 msgid "%1$d products per worker run, %2$d seconds budget, PHP max_execution_time: %3$s."
-msgstr ""
+msgstr "%1$d محصول در هر اجرای کارگر، بودجهٔ زمانی %2$d ثانیه، max_execution_time پی‌اچ‌پی: %3$s."
 
 #: includes/class-health.php:233
 #. 1: pending actions, 2: failed actions.
 msgid "%1$d worker actions are queued and %2$d failed. A long queue can mean that WP-Cron is not running."
-msgstr ""
+msgstr "%1$d کنش کارگر در صف است و %2$d ناموفق. صف طولانی می‌تواند نشان دهد که WP-Cron اجرا نمی‌شود."
 
 #: includes/admin/views/jobs.php:251
 #. 1: failed, 2: conflicts.
 msgid "%1$s / %2$s"
-msgstr ""
+msgstr "%1$s / %2$s"
 
 #: includes/admin/views/dashboard.php:271
 #. 1: processed items, 2: total items, 3: percentage.
 msgid "%1$s / %2$s items (%3$s%%)"
-msgstr ""
+msgstr "%1$s / %2$s مورد (%3$s%%)"
 
 #: includes/admin/views/dashboard.php:134
 #. 1: rate, 2: percentage change, 3: user name.
 msgid "%1$s Toman (%2$s%% change) submitted by %3$s."
-msgstr ""
+msgstr "%1$s تومان (تغییر %2$s%%) ثبت‌شده توسط %3$s."
 
 #: includes/admin/views/dashboard.php:483
 #. 1: checked, 2: changed.
 msgid "%1$s checked / %2$s changed"
-msgstr ""
+msgstr "%1$s بررسی‌شده / %2$s تغییرکرده"
 
 #: includes/admin/views/settings.php:106
 msgid "%d product per run"
-msgid_plural "%d products per run"
-msgstr[0] ""
-msgstr[1] ""
+msgstr "%d محصول در هر اجرا"
 
 #: includes/class-product-repository.php:139
 #. %d: number of selected products.
 msgid "%d selected product"
-msgid_plural "%d selected products"
-msgstr[0] ""
-msgstr[1] ""
+msgstr "%d محصول انتخاب‌شده"
 
 #: includes/admin/views/settings.php:69
 #. %s: increment value.
 msgid "%s USD"
-msgstr ""
+msgstr "%s دلار"
 
 #: includes/admin/views/dashboard.php:87
 #. %s: percentage threshold.
 msgid "A change larger than %s%% must be confirmed explicitly. Saving a rate never rewrites product prices by itself."
-msgstr ""
+msgstr "تغییری بزرگ‌تر از %s%% باید صریحاً تأیید شود. ذخیرهٔ نرخ هرگز خودبه‌خود قیمت محصولات را بازنویسی نمی‌کند."
 
 #: includes/class-product-pricing.php:579
 msgid "A price of zero cannot be converted into a USD price."
-msgstr ""
+msgstr "قیمت صفر را نمی‌توان به قیمت دلاری تبدیل کرد."
 
 #: includes/admin/views/dashboard.php:130
 msgid "A rate is waiting for confirmation:"
-msgstr ""
+msgstr "نرخی در انتظار تأیید است:"
 
 #: includes/class-recorder.php:402
 msgid "A sale price would be added."
-msgstr ""
+msgstr "یک قیمت حراج اضافه می‌شود."
 
 #: includes/admin/views/health.php:28
 msgid "Action Scheduler available"
-msgstr ""
+msgstr "Action Scheduler در دسترس است"
 
 #: includes/class-health.php:402
 msgid "Action Scheduler is missing, so WP-Cron is used. WP-Cron needs site traffic or a real cron job on wp-cron.php."
-msgstr ""
+msgstr "Action Scheduler موجود نیست، پس WP-Cron استفاده می‌شود. WP-Cron به بازدید سایت یا یک کران‌جاب واقعی روی wp-cron.php نیاز دارد."
 
 #: includes/admin/views/jobs.php:114
 msgid "All items"
-msgstr ""
+msgstr "همهٔ موارد"
 
 #: includes/admin/views/jobs.php:207
 msgid "All jobs"
-msgstr ""
+msgstr "همهٔ کارها"
 
 #: includes/admin/class-product-panel.php:439
 msgid "All pricing modes"
-msgstr ""
+msgstr "همهٔ حالت‌های قیمت‌گذاری"
 
 #: includes/admin/views/settings.php:53
 msgid "Always round up (recommended)"
-msgstr ""
+msgstr "همیشه رو به بالا (پیشنهادی)"
 
 #: includes/class-health.php:359
 msgid "Another currency plugin is active"
-msgstr ""
+msgstr "افزونهٔ دیگری برای ارز فعال است"
 
 #: includes/class-sync-runner.php:209
 msgid "Another price update is already running. Only one update can run at a time."
-msgstr ""
+msgstr "یک به‌روزرسانی قیمت دیگر در حال اجراست. هر بار فقط یک به‌روزرسانی می‌تواند اجرا شود."
 
 #: includes/admin/class-admin.php:271
 msgid "Another price update is already running. Showing it instead."
-msgstr ""
+msgstr "یک به‌روزرسانی قیمت دیگر در حال اجراست. به‌جایش همان نمایش داده می‌شود."
 
 #: includes/admin/views/jobs.php:191
 #. %d: attempts.
 msgid "Attempts: %d"
-msgstr ""
+msgstr "تلاش‌ها: %d"
 
 #: includes/admin/views/settings.php:141
 msgid "Automatically manage new products and import their first price as the Toman source"
-msgstr ""
+msgstr "مدیریت خودکار محصولات جدید و درج نخستین قیمت آن به‌عنوان منبع تومانی"
 
 #: includes/admin/views/jobs.php:109
 msgid "Back to all jobs"
-msgstr ""
+msgstr "بازگشت به همهٔ کارها"
 
 #: includes/admin/views/settings.php:146
 msgid "Background fallback"
-msgstr ""
+msgstr "جایگزین پس‌زمینه"
 
 #: includes/admin/views/health.php:19 includes/class-health.php:218
 msgid "Background queue"
-msgstr ""
+msgstr "صف پس‌زمینه"
 
 #: includes/admin/views/settings.php:98 includes/class-health.php:296
 msgid "Batch size"
-msgstr ""
+msgstr "اندازهٔ دسته"
 
 #: includes/admin/views/dashboard.php:459 includes/admin/views/jobs.php:224 includes/admin/views/jobs.php:278
 msgid "By"
-msgstr ""
+msgstr "توسط"
 
 #: includes/admin/views/dashboard.php:121 includes/admin/views/dashboard.php:314 includes/admin/views/jobs.php:97
 msgid "Cancel"
-msgstr ""
+msgstr "لغو"
 
 #: includes/class-job.php:376
 msgid "Cancelled"
-msgstr ""
+msgstr "لغوشده"
 
 #: includes/class-sync-runner.php:1201
 msgid "Cancelled by an administrator."
-msgstr ""
+msgstr "توسط مدیر لغو شد."
 
 #: includes/class-sync-runner.php:1190
 msgid "Cancelled by an administrator. Prices that were already written are kept."
-msgstr ""
+msgstr "توسط مدیر لغو شد. قیمت‌هایی که پیش‌تر نوشته شده‌اند حفظ می‌شوند."
 
 #: includes/admin/views/product-panel.php:65
 msgid "Canonical Toman regular price"
-msgstr ""
+msgstr "قیمت عادی تومانی مرجع"
 
 #: includes/admin/views/product-panel.php:78
 msgid "Canonical Toman sale price"
-msgstr ""
+msgstr "قیمت حراج تومانی مرجع"
 
 #: includes/admin/views/dashboard.php:160
 msgid "Catalog overview"
-msgstr ""
+msgstr "نمای کلی کاتالوگ"
 
 #: includes/admin/views/dashboard.php:222
 msgid "Categories"
-msgstr ""
+msgstr "دسته‌ها"
 
 #: includes/admin/views/dashboard.php:458 includes/admin/views/jobs.php:276
 msgid "Change"
-msgstr ""
+msgstr "تغییر"
 
 #: includes/admin/views/dashboard.php:279 includes/admin/views/dashboard.php:430 includes/admin/views/dashboard.php:460 includes/admin/views/jobs.php:79 includes/admin/views/jobs.php:117 includes/admin/views/jobs.php:221 includes/admin/views/jobs.php:280
 msgid "Changed"
-msgstr ""
+msgstr "تغییرکرده"
 
 #: includes/admin/views/health.php:105
 msgid "Check"
-msgstr ""
+msgstr "بررسی"
 
 #: includes/admin/views/jobs.php:279
 msgid "Checked"
-msgstr ""
+msgstr "بررسی‌شده"
 
 #: includes/admin/views/settings.php:20
 msgid "Checkout and transaction currency"
-msgstr ""
+msgstr "پرداخت و ارز تراکنش"
 
 #: includes/class-job.php:372
 msgid "Completed"
-msgstr ""
+msgstr "تکمیل‌شده"
 
 #: includes/class-job.php:374
 msgid "Completed with errors"
-msgstr ""
+msgstr "تکمیل‌شده با خطا"
 
 #: includes/admin/views/dashboard.php:118
 msgid "Confirm and save"
-msgstr ""
+msgstr "تأیید و ذخیره"
 
 #: includes/admin/views/product-panel.php:194
 msgid "Conflict"
-msgstr ""
+msgstr "تعارض"
 
 #: includes/admin/class-product-panel.php:416
 msgid "Conflict – recalculate"
-msgstr ""
+msgstr "تعارض – محاسبهٔ دوباره"
 
 #: includes/admin/views/dashboard.php:283 includes/admin/views/jobs.php:83 includes/admin/views/jobs.php:121
 msgid "Conflicts"
-msgstr ""
+msgstr "تعارض‌ها"
 
 #: includes/admin/views/settings.php:46
 msgid "Conversion"
-msgstr ""
+msgstr "تبدیل"
 
 #: includes/admin/views/settings.php:187
 msgid "Currency label"
-msgstr ""
+msgstr "برچسب ارز"
 
 #: includes/class-health.php:329
 msgid "Currency mode change pending"
-msgstr ""
+msgstr "تغییر حالت ارز در انتظار انجام"
 
 #: includes/admin/views/dashboard.php:257
 msgid "Current job"
-msgstr ""
+msgstr "کار کنونی"
 
 #: includes/admin/views/dashboard.php:360
 msgid "Current price"
-msgstr ""
+msgstr "قیمت کنونی"
 
 #: includes/admin/class-admin.php:268
 msgid "Currently processing"
-msgstr ""
+msgstr "در حال پردازش"
 
 #: includes/admin/views/jobs.php:63
 msgid "Currently processing:"
-msgstr ""
+msgstr "در حال پردازش:"
 
 #: includes/class-health.php:247
 msgid "DISABLE_WP_CRON is set and Action Scheduler is unavailable. Add a real cron job that requests wp-cron.php, or enable the loopback fallback."
-msgstr ""
+msgstr "DISABLE_WP_CRON فعال است و Action Scheduler در دسترس نیست. یک کران‌جاب واقعی که wp-cron.php را فراخوانی کند اضافه کنید یا جایگزین loopback را روشن کنید."
 
 #: includes/class-health.php:246
 msgid "DISABLE_WP_CRON is set, but Action Scheduler takes care of the queue through its own runner."
-msgstr ""
+msgstr "DISABLE_WP_CRON فعال است، اما Action Scheduler صف را با اجراکنندهٔ خودش اداره می‌کند."
 
 #: includes/admin/class-admin.php:333
 msgid "Dashboard"
-msgstr ""
+msgstr "پیشخوان"
 
 #: includes/admin/views/settings.php:198
 msgid "Data removal"
-msgstr ""
+msgstr "حذف داده‌ها"
 
 #: includes/admin/views/health.php:140
 msgid "Database schema"
-msgstr ""
+msgstr "ساختار پایگاه‌داده"
 
 #: includes/admin/views/settings.php:158
 msgid "Default: manage_woocommerce. Everything this plugin does — changing the rate, running updates, editing Toman prices — requires this capability plus, for products, the normal WordPress edit permission."
-msgstr ""
+msgstr "پیش‌فرض: manage_woocommerce. همهٔ کارهای این افزونه — تغییر نرخ، اجرای به‌روزرسانی‌ها و ویرایش قیمت‌های تومانی — به این دسترسی و برای محصولات به مجوز ویرایش معمول وردپرس نیاز دارد."
 
 #: includes/admin/views/settings.php:113
 msgid "Deliberately capped at 25 products per run. Larger batches are the fastest way to hit PHP time or memory limits on shared hosting."
-msgstr ""
+msgstr "عمداً به ۲۵ محصول در هر اجرا محدود شده است. دسته‌های بزرگ‌تر سریع‌ترین راه برای رسیدن به محدودیت زمان یا حافظهٔ پی‌اچ‌پی در هاست اشتراکی هستند."
 
 #: includes/admin/views/product-panel.php:218
 msgid "Derived USD"
-msgstr ""
+msgstr "دلار محاسبه‌شده"
 
 #: includes/admin/views/product-panel.php:133
 msgid "Derived USD price"
-msgstr ""
+msgstr "قیمت دلاری محاسبه‌شده"
 
 #: includes/admin/views/settings.php:133
 msgid "Detailed per-product job logs are deleted after this period; the rate history is kept forever. Set 0 to keep everything."
-msgstr ""
+msgstr "گزارش‌های تفصیلی هر محصول پس از این مدت حذف می‌شوند؛ تاریخچهٔ نرخ همیشه می‌ماند. برای نگه‌داشتن همه‌چیز مقدار ۰ را بگذارید."
 
 #: includes/admin/views/health.php:107 includes/admin/views/jobs.php:142
 msgid "Details"
-msgstr ""
+msgstr "جزئیات"
 
 #: includes/admin/class-admin.php:335 includes/admin/views/health.php:100
 msgid "Diagnostics"
-msgstr ""
+msgstr "عیب‌یابی"
 
 #: includes/admin/views/health.php:154
 msgid "Disabled"
-msgstr ""
+msgstr "غیرفعال"
 
 #: includes/admin/class-rest-controller.php:605
 msgid "Done."
-msgstr ""
+msgstr "انجام شد."
 
 #: includes/admin/views/jobs.php:106
 msgid "Download CSV"
-msgstr ""
+msgstr "دانلود CSV"
 
 #: includes/admin/views/jobs.php:311
 msgid "Download rate history CSV"
-msgstr ""
+msgstr "دانلود CSV تاریخچهٔ نرخ"
 
 #: includes/admin/views/dashboard.php:149
 msgid "Dry run"
-msgstr ""
+msgstr "اجرای آزمایشی"
 
 #: includes/admin/class-admin.php:263
 msgid "Dry run finished. Nothing was changed."
-msgstr ""
+msgstr "اجرای آزمایشی تمام شد. هیچ چیزی تغییر نکرد."
 
 #: includes/admin/class-rest-controller.php:434
 msgid "Dry run."
-msgstr ""
+msgstr "اجرای آزمایشی."
 
 #: includes/admin/views/product-panel.php:189
 msgid "Editing the price during a running update marks the product as a conflict instead of overwriting the edit."
-msgstr ""
+msgstr "ویرایش قیمت در طول یک به‌روزرسانی در حال اجرا، محصول را به‌جای بازنویسی ویرایش، به‌عنوان تعارض ثبت می‌کند."
 
 #: includes/admin/views/health.php:153
 msgid "Enabled"
-msgstr ""
+msgstr "فعال"
 
 #: includes/class-rate-guard.php:146
 msgid "Enter the exchange rate: how many Toman one US dollar costs."
-msgstr ""
+msgstr "نرخ ارز را وارد کنید: یک دلار آمریکا چند تومان است."
 
 #: includes/class-cron.php:54
 msgid "Every five minutes (USD/Toman pricing maintenance)"
-msgstr ""
+msgstr "هر پنج دقیقه (نگهداری قیمت‌گذاری دلار/تومان)"
 
 #: includes/class-health.php:289
 msgid "Every job either finished or is progressing normally."
-msgstr ""
+msgstr "هر کار یا تمام شده یا به‌طور عادی پیش می‌رود."
 
 #: includes/admin/class-admin.php:284 includes/admin/views/dashboard.php:213 includes/class-product-repository.php:156
 msgid "Every managed product"
-msgstr ""
+msgstr "همهٔ محصولات مدیریت‌شده"
 
 #: includes/class-sync-runner.php:223
 msgid "Every managed product (currency mode change)"
-msgstr ""
+msgstr "همهٔ محصولات مدیریت‌شده (تغییر حالت ارز)"
 
 #: includes/class-sync-runner.php:1357
 msgid "Every managed product (rate rollback)"
-msgstr ""
+msgstr "همهٔ محصولات مدیریت‌شده (بازگردانی نرخ)"
 
 #: includes/class-health.php:185
 msgid "Exchange rate"
-msgstr ""
+msgstr "نرخ ارز"
 
 #: includes/admin/class-admin.php:261
 msgid "Exchange rate saved."
-msgstr ""
+msgstr "نرخ ارز ذخیره شد."
 
 #: includes/admin/class-product-panel.php:372 includes/admin/class-product-panel.php:444
 msgid "Excluded"
-msgstr ""
+msgstr "کنارگذاشته‌شده"
 
 #: includes/admin/views/dashboard.php:181
 msgid "Excluded products"
-msgstr ""
+msgstr "محصولات کنارگذاشته‌شده"
 
 #: includes/admin/views/product-panel.php:29
 msgid "Excluded — do not synchronize"
-msgstr ""
+msgstr "کنارگذاشته‌شده — همگام‌سازی نشود"
 
 #: includes/admin/views/dashboard.php:40
 msgid "External products"
-msgstr ""
+msgstr "محصولات خارجی"
 
 #: includes/admin/views/dashboard.php:282 includes/admin/views/jobs.php:82 includes/admin/views/jobs.php:120 includes/class-job.php:378
 msgid "Failed"
-msgstr ""
+msgstr "ناموفق"
 
 #: includes/admin/views/jobs.php:222
 msgid "Failed / conflicts"
-msgstr ""
+msgstr "ناموفق / تعارض‌ها"
 
 #: includes/admin/views/health.php:36
 msgid "Failed worker actions"
-msgstr ""
+msgstr "کنش‌های ناموفق کارگر"
 
 #: includes/admin/views/health.php:64
 msgid "Free"
-msgstr ""
+msgstr "رایگان"
 
 #: includes/admin/views/dashboard.php:494
 msgid "Full history and CSV export"
-msgstr ""
+msgstr "تاریخچهٔ کامل و خروجی CSV"
 
 #: includes/admin/views/dashboard.php:39
 msgid "Grouped products"
-msgstr ""
+msgstr "محصولات گروهی"
 
 #: includes/admin/views/health.php:58
 #. 1: job ID, 2: age in seconds.
 msgid "Held by job #%1$d, heartbeat %2$ds ago"
-msgstr ""
+msgstr "در دست کار #%1$d، آخرین ضربان %2$d ثانیه پیش"
 
 #: includes/admin/views/health.php:148
 msgid "High-Performance Order Storage"
-msgstr ""
+msgstr "ذخیره‌سازی سفارش پربازده (HPOS)"
 
 #: includes/admin/views/dashboard.php:427 includes/admin/views/jobs.php:216
 msgid "ID"
-msgstr ""
+msgstr "شناسه"
 
 #: includes/admin/views/product-panel.php:45
 msgid "In Toman transaction mode the normal WooCommerce price fields hold the canonical Toman price. Enter the Toman price below (or in the standard price fields) and the plugin keeps both in sync."
-msgstr ""
+msgstr "در حالت تراکنش تومانی، فیلدهای قیمت معمول ووکامرس قیمت مرجع تومانی را نگه می‌دارند. قیمت تومانی را پایین (یا در فیلدهای قیمت استاندارد) وارد کنید و افزونه هر دو را هماهنگ نگه می‌دارد."
 
 #: includes/admin/views/product-panel.php:47
 msgid "In USD transaction mode the normal WooCommerce price fields hold the derived USD price and are calculated by the plugin. Enter the source price in Toman below."
-msgstr ""
+msgstr "در حالت تراکنش دلاری، فیلدهای قیمت معمول ووکامرس قیمت دلاری محاسبه‌شده را نگه می‌دارند و افزونه آن‌ها را محاسبه می‌کند. قیمت منبع را به تومان پایین وارد کنید."
 
 #: includes/admin/views/dashboard.php:251
 msgid "Include variations (recommended)"
-msgstr ""
+msgstr "شامل گونه‌ها (پیشنهادی)"
 
 #: includes/admin/views/settings.php:61
 msgid "Increment"
-msgstr ""
+msgstr "پلهٔ افزایش"
 
 #: includes/admin/views/health.php:69 includes/class-health.php:284
 msgid "Interrupted jobs"
-msgstr ""
+msgstr "کارهای نیمه‌کاره"
 
 #: includes/frontend/class-currency.php:128
 msgid "Iranian Toman"
-msgstr ""
+msgstr "تومان ایران"
 
 #: includes/admin/views/jobs.php:283 includes/admin/views/jobs.php:328
 msgid "Job"
-msgstr ""
+msgstr "کار"
 
 #: includes/class-health.php:261
 #. 1: job ID, 2: age in seconds.
 msgid "Job #%1$d holds the synchronization lock (heartbeat %2$d seconds ago)."
-msgstr ""
+msgstr "کار #%1$d قفل همگام‌سازی را در دست دارد (آخرین ضربان %2$d ثانیه پیش)."
 
 #: includes/admin/views/jobs.php:41
 #. 1: job ID, 2: job type.
 msgid "Job #%1$d — %2$s"
-msgstr ""
+msgstr "کار #%1$d — %2$s"
 
 #: includes/admin/views/settings.php:130
 msgid "Job detail retention"
-msgstr ""
+msgstr "نگهداری جزئیات کار"
 
 #: includes/admin/views/health.php:52 includes/class-health.php:255
 msgid "Job lock"
-msgstr ""
+msgstr "قفل کار"
 
 #: includes/admin/class-admin.php:334
 msgid "Jobs & history"
-msgstr ""
+msgstr "کارها و تاریخچه"
 
 #: includes/admin/views/dashboard.php:330
 msgid "Last dry run"
-msgstr ""
+msgstr "آخرین اجرای آزمایشی"
 
 #: includes/admin/views/health.php:160 includes/admin/views/product-panel.php:200
 msgid "Last error"
-msgstr ""
+msgstr "آخرین خطا"
 
 #: includes/class-health.php:272
 msgid "Last job error"
-msgstr ""
+msgstr "آخرین خطای کار"
 
 #: includes/admin/class-admin.php:269
 msgid "Last product"
-msgstr ""
+msgstr "آخرین محصول"
 
 #: includes/admin/views/product-panel.php:174
 msgid "Last synchronized"
-msgstr ""
+msgstr "آخرین همگام‌سازی"
 
 #: includes/admin/views/product-panel.php:88
 msgid "Leave empty if the product has no sale price."
-msgstr ""
+msgstr "اگر محصول قیمت حراج ندارد خالی بگذارید."
 
 #: includes/admin/views/settings.php:204
 msgid "Left unchecked, uninstalling keeps your Toman prices so a reinstall can pick them up again. Settings and job tables are always removed."
-msgstr ""
+msgstr "اگر تیک نخورد، هنگام حذف افزونه قیمت‌های تومانی شما نگه داشته می‌شود تا نصب دوباره آن‌ها را بازیابی کند. تنظیمات و جدول‌های کار همیشه حذف می‌شوند."
 
 #: includes/admin/views/jobs.php:327
 msgid "Level"
-msgstr ""
+msgstr "سطح"
 
 #: includes/admin/class-product-panel.php:370
 msgid "Managed"
-msgstr ""
+msgstr "مدیریت‌شده"
 
 #: includes/admin/views/dashboard.php:165
 msgid "Managed products"
-msgstr ""
+msgstr "محصولات مدیریت‌شده"
 
 #: includes/admin/views/dashboard.php:169
 msgid "Managed variations"
-msgstr ""
+msgstr "گونه‌های مدیریت‌شده"
 
 #: includes/admin/views/dashboard.php:46
 msgid "Manual exchange rate"
-msgstr ""
+msgstr "نرخ ارز دستی"
 
 #: includes/admin/views/dashboard.php:173
 msgid "May need an update"
-msgstr ""
+msgstr "شاید نیاز به به‌روزرسانی داشته باشد"
 
 #: includes/class-health.php:310
 msgid "Memory limit"
-msgstr ""
+msgstr "محدودیت حافظه"
 
 #: includes/admin/views/jobs.php:329
 msgid "Message"
-msgstr ""
+msgstr "پیام"
 
 #: includes/admin/views/product-panel.php:215
 msgid "Mode"
-msgstr ""
+msgstr "حالت"
 
 #: includes/admin/views/settings.php:28
 msgid "Mode A — USD transaction, Toman display"
-msgstr ""
+msgstr "حالت A — تراکنش دلاری، نمایش تومانی"
 
 #: includes/class-health.php:323
 msgid "Mode A: WooCommerce transacts in USD and the storefront displays the canonical Toman price."
-msgstr ""
+msgstr "حالت A: ووکامرس تراکنش را به دلار انجام می‌دهد و فروشگاه قیمت مرجع تومانی را نمایش می‌دهد."
 
 #: includes/admin/views/settings.php:36
 msgid "Mode B — Toman transaction, USD reference"
-msgstr ""
+msgstr "حالت B — تراکنش تومانی، مرجع دلاری"
 
 #: includes/class-health.php:322
 msgid "Mode B: WooCommerce transacts in Toman and the derived USD price is kept as an internal reference."
-msgstr ""
+msgstr "حالت B: ووکامرس تراکنش را به تومان انجام می‌دهد و قیمت دلاری محاسبه‌شده به‌عنوان مرجع داخلی نگه داشته می‌شود."
 
 #: includes/class-health.php:362
 msgid "Multiple plugins that change the WooCommerce currency can fight over the same hooks. This plugin should be the only currency switcher with Toman mode enabled."
-msgstr ""
+msgstr "چند افزونه که ارز ووکامرس را تغییر می‌دهند می‌توانند بر سر یک قلاب با هم تعارض پیدا کنند. این افزونه باید تنها تغییردهندهٔ ارز با حالت تومان فعال باشد."
 
 #: includes/admin/class-product-panel.php:371 includes/admin/class-product-panel.php:443
 msgid "Native USD"
-msgstr ""
+msgstr "دلار بومی"
 
 #: includes/admin/views/dashboard.php:177
 msgid "Native USD products"
-msgstr ""
+msgstr "محصولات با دلار بومی"
 
 #: includes/admin/views/product-panel.php:28
 msgid "Native USD — never synchronized by this plugin"
-msgstr ""
+msgstr "دلار بومی — هرگز توسط این افزونه همگام‌سازی نمی‌شود"
 
 #: includes/admin/views/product-panel.php:180
 msgid "Never"
-msgstr ""
+msgstr "هرگز"
 
 #: includes/admin/views/dashboard.php:361 includes/admin/views/jobs.php:141
 msgid "New price"
-msgstr ""
+msgstr "قیمت جدید"
 
 #: includes/admin/views/settings.php:137
 msgid "New products"
-msgstr ""
+msgstr "محصولات جدید"
 
 #: includes/admin/views/dashboard.php:71
 msgid "New rate (Toman per 1 USD)"
-msgstr ""
+msgstr "نرخ جدید (تومان برای هر ۱ دلار)"
 
 #: includes/admin/views/health.php:48
 msgid "Next maintenance event"
-msgstr ""
+msgstr "رویداد نگهداری بعدی"
 
 #: includes/admin/views/health.php:29 includes/admin/views/health.php:45
 msgid "No"
-msgstr ""
+msgstr "خیر"
 
 #: includes/class-product-pricing.php:584
 msgid "No Toman price is stored for this product yet."
-msgstr ""
+msgstr "هنوز قیمت تومانی برای این محصول ذخیره نشده است."
 
 #: includes/admin/class-product-panel.php:421
 msgid "No Toman price yet"
-msgstr ""
+msgstr "هنوز قیمت تومانی نیست"
 
 #: includes/class-health.php:407
 msgid "No background runner is available. Enable the loopback fallback or restore Action Scheduler / WP-Cron."
-msgstr ""
+msgstr "هیچ اجراکنندهٔ پس‌زمینه‌ای در دسترس نیست. جایگزین loopback را روشن کنید یا Action Scheduler / WP-Cron را بازگردانید."
 
 #: includes/class-health.php:277
 msgid "No errors have been logged."
-msgstr ""
+msgstr "هیچ خطایی ثبت نشده است."
 
 #: includes/class-health.php:194
 msgid "No exchange rate is stored yet, so no product price can be calculated."
-msgstr ""
+msgstr "هنوز هیچ نرخ ارزی ذخیره نشده است، پس هیچ قیمت محصولی قابل محاسبه نیست."
 
 #: includes/admin/views/jobs.php:147
 msgid "No items match this filter."
-msgstr ""
+msgstr "هیچ موردی با این پالایه مطابقت ندارد."
 
 #: includes/admin/views/jobs.php:211
 msgid "No jobs have been created yet."
-msgstr ""
+msgstr "هنوز هیچ کاری ساخته نشده است."
 
 #: includes/admin/views/dashboard.php:422
 msgid "No jobs have run yet."
-msgstr ""
+msgstr "هنوز هیچ کاری اجرا نشده است."
 
 #: includes/admin/views/dashboard.php:185
 msgid "No mode chosen yet"
-msgstr ""
+msgstr "هنوز حالتی انتخاب نشده"
 
 #: includes/admin/class-product-panel.php:445
 msgid "No mode set"
-msgstr ""
+msgstr "حالتی تعیین نشده"
 
 #: includes/admin/views/dashboard.php:65
 msgid "No previous rate stored yet."
-msgstr ""
+msgstr "هنوز نرخ پیشینی ذخیره نشده است."
 
 #: includes/class-recorder.php:163
 msgid "No price could be calculated for this product."
-msgstr ""
+msgstr "هیچ قیمتی برای این محصول محاسبه نشد."
 
 #: includes/admin/views/dashboard.php:323
 msgid "No price update is running right now."
-msgstr ""
+msgstr "در این لحظه هیچ به‌روزرسانی قیمتی در حال اجرا نیست."
 
 #: includes/class-sync-runner.php:1387
 msgid "No products were selected."
-msgstr ""
+msgstr "هیچ محصولی انتخاب نشد."
 
 #: includes/admin/views/dashboard.php:452 includes/admin/views/jobs.php:269
 msgid "No rate has been saved yet."
-msgstr ""
+msgstr "هنوز نرخی ذخیره نشده است."
 
 #: includes/class-health.php:265
 msgid "No synchronization job holds the lock."
-msgstr ""
+msgstr "هیچ کار همگام‌سازی‌ای قفل را در دست ندارد."
 
 #: includes/admin/class-admin.php:266
 msgid "No synchronization required."
-msgstr ""
+msgstr "نیازی به همگام‌سازی نیست."
 
 #: includes/admin/views/health.php:72 includes/admin/views/health.php:164
 msgid "None"
-msgstr ""
+msgstr "هیچ‌کدام"
 
 #: includes/admin/views/product-panel.php:138
 msgid "Not calculated yet"
-msgstr ""
+msgstr "هنوز محاسبه نشده"
 
 #: includes/admin/views/dashboard.php:362
 msgid "Note"
-msgstr ""
+msgstr "یادداشت"
 
 #: includes/admin/views/jobs.php:321
 msgid "Nothing logged yet."
-msgstr ""
+msgstr "هنوز چیزی ثبت نشده است."
 
 #: includes/admin/views/jobs.php:140
 msgid "Old price"
-msgstr ""
+msgstr "قیمت پیشین"
 
 #: includes/admin/views/health.php:40
 msgid "Oldest pending action age"
-msgstr ""
+msgstr "سن قدیمی‌ترین کنش در انتظار"
 
 #: includes/admin/views/dashboard.php:214
 msgid "Only products whose price may be outdated"
-msgstr ""
+msgstr "فقط محصولاتی که قیمتشان ممکن است قدیمی باشد"
 
 #: includes/admin/views/product-panel.php:275
 msgid "Open jobs and history"
-msgstr ""
+msgstr "کارها و تاریخچهٔ باز"
 
 #: includes/class-health.php:167
 msgid "Open the USD/Toman diagnostics"
-msgstr ""
+msgstr "باز کردن عیب‌یابی دلار/تومان"
 
 #: includes/admin/views/dashboard.php:409
 msgid "Open the dry run report"
-msgstr ""
+msgstr "باز کردن گزارش اجرای آزمایشی"
 
 #: includes/admin/views/dashboard.php:304 includes/admin/views/jobs.php:91
 msgid "Pause"
-msgstr ""
+msgstr "توقف موقت"
 
 #: includes/class-job.php:370
 msgid "Paused"
-msgstr ""
+msgstr "متوقف‌شده"
 
 #: includes/class-sync-runner.php:1113
 msgid "Paused by an administrator. The job can be resumed and continues from the saved cursor."
-msgstr ""
+msgstr "توسط مدیر متوقف شد. کار قابل ادامه است و از نشانگر ذخیره‌شده ادامه می‌یابد."
 
 #: includes/admin/views/health.php:32 includes/class-health.php:228
 msgid "Pending worker actions"
-msgstr ""
+msgstr "کنش‌های کارگر در انتظار"
 
 #: includes/admin/views/health.php:132
 msgid "Plugin data"
-msgstr ""
+msgstr "داده‌های افزونه"
 
 #: includes/admin/views/health.php:136
 msgid "Plugin version"
-msgstr ""
+msgstr "نسخهٔ افزونه"
 
 #: includes/class-job.php:392
 msgid "Preview / dry run"
-msgstr ""
+msgstr "پیش‌نمایش / اجرای آزمایشی"
 
 #: includes/admin/views/dashboard.php:98
 msgid "Preview changes"
-msgstr ""
+msgstr "پیش‌نمایش تغییرها"
 
 #: includes/admin/views/jobs.php:275
 msgid "Previous"
-msgstr ""
+msgstr "پیشین"
 
 #: includes/class-sync-runner.php:1350
 msgid "Previous rate restored."
-msgstr ""
+msgstr "نرخ پیشین بازگردانده شد."
 
 #: includes/admin/views/dashboard.php:60
 #. %s: previous rate.
 msgid "Previous rate: %s"
-msgstr ""
+msgstr "نرخ پیشین: %s"
 
 #: includes/class-job.php:399
 msgid "Price update"
-msgstr ""
+msgstr "به‌روزرسانی قیمت"
 
 #: includes/class-recorder.php:365
 #. 1: regular USD price, 2: rounding mode.
 msgid "Price updated to %1$s USD (%2$s rounding)."
-msgstr ""
+msgstr "قیمت به %1$s دلار به‌روز شد (گرد کردن %2$s)."
 
 #: includes/class-product-pricing.php:577
 msgid "Prices cannot be negative."
-msgstr ""
+msgstr "قیمت‌ها نمی‌توانند منفی باشند."
 
 #: includes/admin/views/product-panel.php:54
 msgid "Pricing mode"
-msgstr ""
+msgstr "حالت قیمت‌گذاری"
 
 #: includes/admin/views/jobs.php:78
 msgid "Processed"
-msgstr ""
+msgstr "پردازش‌شده"
 
 #: includes/admin/views/dashboard.php:358 includes/admin/views/jobs.php:137
 msgid "Product"
-msgstr ""
+msgstr "محصول"
 
 #: includes/admin/class-rest-controller.php:696 includes/admin/views/dashboard.php:378 includes/admin/views/jobs.php:162
 #. %d: product ID.
 msgid "Product #%d"
-msgstr ""
+msgstr "محصول #%d"
 
 #: includes/admin/views/dashboard.php:233
 msgid "Product types"
-msgstr ""
+msgstr "نوع‌های محصول"
 
 #: includes/admin/views/dashboard.php:243 includes/admin/views/dashboard.php:461 includes/class-health.php:340
 msgid "Products"
-msgstr ""
+msgstr "محصولات"
 
 #: includes/class-product-repository.php:145
 msgid "Products whose price may be outdated"
-msgstr ""
+msgstr "محصولاتی که قیمتشان ممکن است قدیمی باشد"
 
 #: includes/admin/views/jobs.php:220
 msgid "Progress"
-msgstr ""
+msgstr "پیشرفت"
 
 #: includes/class-job.php:366
 msgid "Queued"
-msgstr ""
+msgstr "در صف"
 
 #: includes/class-sync-runner.php:1307
 msgid "Queued again after a conflict review."
-msgstr ""
+msgstr "پس از بازبینی تعارض دوباره در صف قرار گرفت."
 
 #: includes/admin/views/dashboard.php:457 includes/admin/views/jobs.php:219 includes/admin/views/jobs.php:274
 msgid "Rate"
-msgstr ""
+msgstr "نرخ"
 
 #: includes/admin/views/settings.php:91
 msgid "Rate change warning"
-msgstr ""
+msgstr "هشدار تغییر نرخ"
 
 #: includes/admin/views/dashboard.php:450 includes/admin/views/jobs.php:267
 msgid "Rate history"
-msgstr ""
+msgstr "تاریخچهٔ نرخ"
 
 #: includes/admin/views/settings.php:94
 msgid "Rate moves above this percentage need explicit confirmation before they are stored."
-msgstr ""
+msgstr "جابه‌جایی نرخ بیش از این درصد، پیش از ذخیره به تأیید صریح نیاز دارد."
 
 #: includes/class-sync-runner.php:1360
 msgid "Rate rollback."
-msgstr ""
+msgstr "بازگردانی نرخ."
 
 #: includes/admin/views/product-panel.php:155
 msgid "Rate used"
-msgstr ""
+msgstr "نرخ استفاده‌شده"
 
 #: includes/class-health.php:202
 msgid "Rate waiting for confirmation"
-msgstr ""
+msgstr "نرخ در انتظار تأیید"
 
 #: includes/class-sync-runner.php:1397
 #. %d: number of products.
 msgid "Recalculate %d product"
-msgid_plural "Recalculate %d products"
-msgstr[0] ""
-msgstr[1] ""
+msgstr "محاسبهٔ دوبارهٔ %d محصول"
 
 #: includes/admin/views/jobs.php:103
 msgid "Recalculate conflicts"
-msgstr ""
+msgstr "محاسبهٔ دوبارهٔ تعارض‌ها"
 
 #: includes/class-job.php:396
 msgid "Recalculate selected"
-msgstr ""
+msgstr "محاسبهٔ دوبارهٔ انتخاب‌شده‌ها"
 
 #: includes/admin/views/product-panel.php:272
 msgid "Recalculate this product"
-msgstr ""
+msgstr "محاسبهٔ دوبارهٔ این محصول"
 
 #: includes/admin/views/dashboard.php:417
 msgid "Recent jobs"
-msgstr ""
+msgstr "کارهای اخیر"
 
 #: includes/admin/views/jobs.php:318
 msgid "Recent log entries"
-msgstr ""
+msgstr "مدخل‌های تازهٔ گزارش"
 
 #: includes/admin/views/settings.php:202
 msgid "Remove all plugin data on uninstall, including the Toman source prices stored on products"
-msgstr ""
+msgstr "حذف همهٔ داده‌های افزونه هنگام حذف نصب، از جمله قیمت‌های منبع تومانی ذخیره‌شده روی محصولات"
 
 #: includes/admin/views/settings.php:155
 msgid "Required capability"
-msgstr ""
+msgstr "دسترسی لازم"
 
 #: includes/admin/views/dashboard.php:309 includes/admin/views/jobs.php:94
 msgid "Resume"
-msgstr ""
+msgstr "ادامه"
 
 #: includes/admin/views/settings.php:124
 msgid "Retries per product"
-msgstr ""
+msgstr "تلاش دوباره برای هر محصول"
 
 #: includes/admin/views/jobs.php:100
 msgid "Retry failed items"
-msgstr ""
+msgstr "تلاش دوباره برای موارد ناموفق"
 
 #: includes/admin/views/dashboard.php:153
 msgid "Roll back last rate change"
-msgstr ""
+msgstr "بازگردانی آخرین تغییر نرخ"
 
 #: includes/class-job.php:394
 msgid "Rollback"
-msgstr ""
+msgstr "بازگردانی"
 
 #: includes/admin/views/settings.php:55
 msgid "Round down"
-msgstr ""
+msgstr "رو به پایین"
 
 #: includes/admin/views/settings.php:54
 msgid "Round to nearest"
-msgstr ""
+msgstr "نزدیک‌ترین"
 
 #: includes/admin/views/settings.php:50
 msgid "Rounding"
-msgstr ""
+msgstr "گرد کردن"
 
 #: includes/admin/class-admin.php:362
 msgid "Run the update"
-msgstr ""
+msgstr "اجرای به‌روزرسانی"
 
 #: includes/class-job.php:368
 msgid "Running"
-msgstr ""
+msgstr "در حال اجرا"
 
 #: includes/admin/views/settings.php:87
 msgid "Safety"
-msgstr ""
+msgstr "ایمنی"
 
 #: includes/class-recorder.php:373
 #. %s: sale USD price.
 msgid "Sale price: %s USD."
-msgstr ""
+msgstr "قیمت حراج: %s دلار."
 
 #: includes/admin/views/product-panel.php:147
 #. %s: derived sale price.
 msgid "Sale: $%s"
-msgstr ""
+msgstr "حراج: $%s"
 
 #: includes/admin/views/product-panel.php:116
 #. %s: sale price.
 msgid "Sale: %s"
-msgstr ""
+msgstr "حراج: %s"
 
 #: includes/class-sync-runner.php:198
 msgid "Save a USD/Toman exchange rate before updating prices."
-msgstr ""
+msgstr "پیش از به‌روزرسانی قیمت‌ها، یک نرخ ارز دلار/تومان ذخیره کنید."
 
 #: includes/admin/views/dashboard.php:95
 msgid "Save rate"
-msgstr ""
+msgstr "ذخیرهٔ نرخ"
 
 #: includes/admin/views/settings.php:209
 msgid "Save settings"
-msgstr ""
+msgstr "ذخیرهٔ تنظیمات"
 
 #: includes/admin/views/health.php:24
 msgid "Scheduling backend"
-msgstr ""
+msgstr "سامانهٔ زمان‌بندی"
 
 #: includes/admin/views/dashboard.php:211
 msgid "Scope"
-msgstr ""
+msgstr "دامنه"
 
 #: includes/admin/views/dashboard.php:244
 msgid "Search by name…"
-msgstr ""
+msgstr "جستجو بر پایهٔ نام…"
 
 #: includes/admin/views/settings.php:117
 msgid "Seconds per worker run"
-msgstr ""
+msgstr "ثانیه در هر اجرای کارگر"
 
 #: includes/admin/views/dashboard.php:215 includes/class-product-repository.php:149
 msgid "Selected categories"
-msgstr ""
+msgstr "دسته‌های انتخاب‌شده"
 
 #: includes/admin/views/dashboard.php:216 includes/class-product-repository.php:153
 msgid "Selected product types"
-msgstr ""
+msgstr "نوع‌های محصول انتخاب‌شده"
 
 #: includes/admin/views/dashboard.php:217
 msgid "Selected products"
-msgstr ""
+msgstr "محصولات انتخاب‌شده"
 
 #: includes/admin/class-admin.php:167 includes/admin/class-admin.php:336
 msgid "Settings"
-msgstr ""
+msgstr "تنظیمات"
 
 #: includes/admin/views/settings.php:176
 msgid "Show Toman prices for cart, checkout and mini-cart line items (mode A only, totals stay in the transaction currency)"
-msgstr ""
+msgstr "نمایش قیمت‌های تومانی برای ردیف‌های سبد خرید، پرداخت و سبد کوچک (فقط حالت A؛ جمع کل‌ها به ارز تراکنش می‌ماند)"
 
 #: includes/admin/views/settings.php:171
 msgid "Show the canonical Toman price on shop, category, single product, related and cross-sell prices"
-msgstr ""
+msgstr "نمایش قیمت مرجع تومانی در برگهٔ فروشگاه، دسته، محصول، محصولات مرتبط و فروش مکمل"
 
 #: includes/admin/views/dashboard.php:404
 msgid "Showing up to 20 products. The full report is available in the job details, including a CSV download."
-msgstr ""
+msgstr "نمایش حداکثر ۲۰ محصول. گزارش کامل در جزئیات کار، همراه با دانلود CSV، در دسترس است."
 
 #: includes/admin/views/jobs.php:202
 msgid "Showing up to 50 items. Use the CSV download for the complete report."
-msgstr ""
+msgstr "نمایش حداکثر ۵۰ مورد. برای گزارش کامل از دانلود CSV استفاده کنید."
 
 #: includes/admin/views/dashboard.php:37
 msgid "Simple products"
-msgstr ""
+msgstr "محصولات ساده"
 
 #: includes/admin/views/dashboard.php:281 includes/admin/views/jobs.php:81 includes/admin/views/jobs.php:119
 msgid "Skipped"
-msgstr ""
+msgstr "نادیده‌گرفته‌شده"
 
 #: includes/class-health.php:288
 msgid "Some jobs lost their background worker. Open the jobs screen and resume them; progress is not lost."
-msgstr ""
+msgstr "برخی کارها کارگر پس‌زمینهٔ خود را از دست داده‌اند. برگهٔ کارها را باز کنید و آن‌ها را ادامه دهید؛ پیشرفت از دست نمی‌رود."
 
 #: includes/admin/class-admin.php:264
 msgid "Something went wrong. Please check the log for details."
-msgstr ""
+msgstr "مشکلی پیش آمد. برای جزئیات گزارش را بررسی کنید."
 
 #: includes/admin/views/jobs.php:277
 msgid "Source"
-msgstr ""
+msgstr "منبع"
 
 #: includes/admin/views/page.php:22
 msgid "Source prices are entered in Toman. WooCommerce prices are derived from the manual USD/Toman rate, and every update runs as a safe background job that can be paused, resumed and reviewed."
-msgstr ""
+msgstr "قیمت‌های منبع به تومان وارد می‌شوند. قیمت‌های ووکامرس از نرخ دستی دلار/تومان محاسبه می‌شوند و هر به‌روزرسانی به‌صورت کاری ایمن در پس‌زمینه اجرا می‌شود که می‌توان آن را متوقف، ادامه یا بازبینی کرد."
 
 #: includes/admin/views/product-panel.php:186
 msgid "Source revision"
-msgstr ""
+msgstr "نسخهٔ منبع"
 
 #: includes/admin/views/dashboard.php:431 includes/admin/views/jobs.php:223
 msgid "Started"
-msgstr ""
+msgstr "شروع"
 
 #: includes/admin/views/dashboard.php:429 includes/admin/views/health.php:106 includes/admin/views/jobs.php:138 includes/admin/views/jobs.php:218 includes/admin/views/jobs.php:281
 msgid "Status"
-msgstr ""
+msgstr "وضعیت"
 
 #: includes/admin/views/jobs.php:52
 #. 1: status, 2: rate, 3: user, 4: scope label.
 msgid "Status: %1$s · Rate: %2$s Toman · Started by %3$s · Scope: %4$s"
-msgstr ""
+msgstr "وضعیت: %1$s · نرخ: %2$s تومان · آغاز توسط %3$s · دامنه: %4$s"
 
 #: includes/admin/views/product-panel.php:95
 msgid "Stored Toman price"
-msgstr ""
+msgstr "قیمت تومانی ذخیره‌شده"
 
 #: includes/admin/views/settings.php:79
 msgid "Stored decimals"
-msgstr ""
+msgstr "اعشار ذخیره‌شده"
 
 #: includes/admin/views/settings.php:163
 msgid "Storefront display"
-msgstr ""
+msgstr "نمایش در فروشگاه"
 
 #: includes/admin/views/settings.php:42
 msgid "Switching the mode changes the currency the price fields hold. After a switch, run a full price update: the plugin blocks partial updates until the whole catalog is rewritten."
-msgstr ""
+msgstr "تغییر حالت، ارزی که فیلدهای قیمت نگه می‌دارند را عوض می‌کند. پس از تغییر، یک به‌روزرسانی کامل قیمت اجرا کنید: افزونه تا بازنویسی کل کاتالوگ، به‌روزرسانی‌های جزئی را متوقف می‌کند."
 
 #: includes/class-job.php:342
 msgid "System"
-msgstr ""
+msgstr "سامانه"
 
 #: includes/admin/views/health.php:94
 msgid "Test background trigger"
-msgstr ""
+msgstr "آزمایش محرک پس‌زمینه"
 
 #: includes/class-sync-runner.php:784
 msgid "The Toman price of this variation was edited while it was being synchronized. It is reported for recalculation."
-msgstr ""
+msgstr "قیمت تومانی این گونه در حین همگام‌سازی ویرایش شد. برای محاسبهٔ دوباره گزارش می‌شود."
 
 #: includes/class-recorder.php:135
 #. 1: expected revision, 2: current revision.
 msgid "The Toman price was edited during the synchronization (expected revision %1$d, found %2$d). The product was skipped and needs a recalculation."
-msgstr ""
+msgstr "قیمت تومانی در حین همگام‌سازی ویرایش شد (نسخهٔ منبع انتظاری %1$d، یافت‌شده %2$d). محصول نادیده گرفته شد و به محاسبهٔ دوباره نیاز دارد."
 
 #: includes/admin/class-rest-controller.php:594
 msgid "The action could not be applied to this job. Reload the page and try again."
-msgstr ""
+msgstr "این کنش به این کار اعمال نشد. برگه را دوباره بارگذاری کنید و تلاش کنید."
 
 #: includes/admin/class-admin.php:262
 msgid "The background job was queued."
-msgstr ""
+msgstr "کار پس‌زمینه در صف قرار گرفت."
 
 #: includes/class-sync-runner.php:1488
 msgid "The background worker stopped several times. The job is paused and can be resumed from the saved progress."
-msgstr ""
+msgstr "کارگر پس‌زمینه چند بار متوقف شد. کار به‌صورت موقت متوقف شده و می‌توان آن را از پیشرفت ذخیره‌شده ادامه داد."
 
 #: includes/class-recorder.php:360
 msgid "The canonical Toman price was written to the price fields (Toman transaction mode)."
-msgstr ""
+msgstr "قیمت مرجع تومانی در فیلدهای قیمت نوشته شد (حالت تراکنش تومانی)."
 
 #: includes/admin/views/settings.php:183
 msgid "The displayed value is always the stored Toman source price, never a value reconstructed from the rounded USD price."
-msgstr ""
+msgstr "مقدار نمایش‌داده‌شده همیشه قیمت منبع تومانی ذخیره‌شده است، نه مقداری که از قیمت دلاری گردشده بازسازی شده باشد."
 
 #: includes/class-health.php:135
 msgid "The exchange rate is saved, the background queue is available and no synchronization job is stuck."
-msgstr ""
+msgstr "نرخ ارز ذخیره شده، صف پس‌زمینه در دسترس است و هیچ کار همگام‌سازی گیر نکرده است."
 
 #: includes/class-rate-guard.php:151
 msgid "The exchange rate must be a positive number such as 270000."
-msgstr ""
+msgstr "نرخ ارز باید عددی مثبت مانند 270000 باشد."
 
 #: includes/class-rate-repository.php:380
 msgid "The exchange rate was saved. Product prices are updated only when you run an update."
-msgstr ""
+msgstr "نرخ ارز ذخیره شد. قیمت محصولات فقط زمانی به‌روزرسانی می‌شود که خودتان به‌روزرسانی را اجرا کنید."
 
 #: includes/admin/views/settings.php:57
 msgid "The formula is USD = Toman ÷ rate, then rounded. Rounding up protects your margin and never loses cents."
-msgstr ""
+msgstr "فرمول این است: دلار = تومان ÷ نرخ، سپس گرد کردن. گرد کردن رو به بالا حاشیهٔ سود شما را حفظ می‌کند و هرگز سنت‌ها را از دست نمی‌دهد."
 
 #: includes/class-sync-runner.php:272 includes/class-sync-runner.php:313 includes/class-sync-runner.php:340
 msgid "The job could not be created."
-msgstr ""
+msgstr "کار ساخته نشد."
 
 #: includes/class-sync-runner.php:255
 msgid "The job could not be created. Check the plugin log for details."
-msgstr ""
+msgstr "کار ساخته نشد. برای جزئیات گزارش افزونه را بررسی کنید."
 
 #: includes/admin/class-admin.php:454 includes/admin/class-rest-controller.php:539
 msgid "The job could not be found."
-msgstr ""
+msgstr "کار پیدا نشد."
 
 #: includes/class-health.php:191
 #. %s: formatted rate.
 msgid "The manual rate is %s Toman per 1 USD."
-msgstr ""
+msgstr "نرخ دستی %s تومان برای هر ۱ دلار است."
 
 #: includes/class-product-pricing.php:581
 msgid "The price is outside of the supported range."
-msgstr ""
+msgstr "قیمت بیرون از محدودهٔ پشتیبانی‌شده است."
 
 #: includes/class-product-pricing.php:513 includes/class-product-pricing.php:693
 msgid "The product could not be found."
-msgstr ""
+msgstr "محصول پیدا نشد."
 
 #: includes/class-recorder.php:99 includes/class-recorder.php:108
 msgid "The product could not be loaded."
-msgstr ""
+msgstr "محصول بارگذاری نشد."
 
 #: includes/class-sync-runner.php:701
 msgid "The product no longer exists."
-msgstr ""
+msgstr "محصول دیگر وجود ندارد."
 
 #: includes/class-health.php:207
 #. 1: pending rate, 2: percentage change.
 msgid "The rate %1$s was submitted but is a %2$s%% move and waits for explicit confirmation. Until then the active rate stays unchanged."
-msgstr ""
+msgstr "نرخ %1$s ثبت شد اما جابه‌جایی %2$s%% است و در انتظار تأیید صریح می‌ماند. تا آن زمان نرخ فعال تغییر نمی‌کند."
 
 #: includes/class-rate-repository.php:365
 msgid "The rate changed after the confirmation prompt. Please review the new rate and confirm again."
-msgstr ""
+msgstr "نرخ پس از نمایش پیام تأیید تغییر کرد. نرخ تازه را بررسی کنید و دوباره تأیید کنید."
 
 #: includes/class-rate-guard.php:158
 msgid "The rate is valid."
-msgstr ""
+msgstr "نرخ معتبر است."
 
 #: includes/admin/views/settings.php:82
 msgid "The safe default is 0: whole USD prices. Keep in mind that the WooCommerce currency still controls its own decimal setting."
-msgstr ""
+msgstr "پیش‌فرض ایمن ۰ است: قیمت‌های دلاری کامل بدون اعشار. در نظر داشته باشید که خود ووکامرس هم تنظیم اعشار خودش را دارد."
 
 #: includes/class-product-pricing.php:575
 msgid "The sale price cannot be higher than the regular price."
-msgstr ""
+msgstr "قیمت حراج نمی‌تواند از قیمت عادی بیشتر باشد."
 
 #: includes/class-recorder.php:406
 msgid "The sale price would be cleared."
-msgstr ""
+msgstr "قیمت حراج پاک می‌شود."
 
 #: includes/admin/views/health.php:127
 msgid "The same checks are reported in Tools → Site Health. Rate history is kept forever; detailed product logs follow the retention setting."
-msgstr ""
+msgstr "همین بررسی‌ها در ابزارها → سلامت سایت گزارش می‌شوند. تاریخچهٔ نرخ همیشه می‌ماند؛ گزارش‌های تفصیلی محصولات از تنظیم نگهداری پیروی می‌کنند."
 
 #: includes/class-health.php:473
 msgid "The site answered its own request. Background workers can be triggered."
-msgstr ""
+msgstr "سایت به درخواست خودش پاسخ داد. کارگرهای پس‌زمینه را می‌توان اجرا کرد."
 
 #: includes/class-recorder.php:196
 msgid "The stored price is already correct."
-msgstr ""
+msgstr "قیمت ذخیره‌شده از پیش درست است."
 
 #: includes/admin/views/page.php:27
 msgid "The transaction currency changed after the last full update. Run a full price update so every price field holds the configured currency."
-msgstr ""
+msgstr "ارز تراکنش پس از آخرین به‌روزرسانی کامل تغییر کرده است. یک به‌روزرسانی کامل قیمت اجرا کنید تا هر فیلد قیمت ارز پیکربندی‌شده را نگه دارد."
 
 #: includes/class-health.php:332
 msgid "The transaction currency was switched after the last full synchronization. Run a full update so every price field holds the right currency."
-msgstr ""
+msgstr "ارز تراکنش پس از آخرین همگام‌سازی کامل تغییر کرده است. یک به‌روزرسانی کامل اجرا کنید تا هر فیلد قیمت ارز درست را نگه دارد."
 
 #: includes/class-health.php:313
 msgid "The worker processes small batches, so 128 MB or more keeps variable products with many variations comfortable."
-msgstr ""
+msgstr "کارگر دسته‌های کوچک را پردازش می‌کند، بنابراین ۱۲۸ مگابایت یا بیشتر برای محصولات متغیر با گونه‌های زیاد راحت است."
 
 #: includes/admin/views/settings.php:120
 msgid "The worker stops before the PHP execution limit and lets the next queued run continue where it stopped."
-msgstr ""
+msgstr "کارگر پیش از رسیدن به محدودیت اجرای پی‌اچ‌پی متوقف می‌شود و اجرای بعدی از همان‌جا ادامه می‌دهد."
 
 #: includes/class-sync-runner.php:1339
 msgid "There is no previous exchange rate to restore."
-msgstr ""
+msgstr "نرخ ارز پیشینی برای بازگردانی وجود ندارد."
 
 #: includes/class-rate-guard.php:153
 msgid "This is the rate that is already stored, so nothing was changed."
-msgstr ""
+msgstr "این همان نرخی است که از پیش ذخیره شده، پس چیزی تغییر نکرد."
 
 #: includes/class-recorder.php:410
 msgid "This product has a scheduled sale; the schedule itself is kept."
-msgstr ""
+msgstr "این محصول حراج زمان‌بندی‌شده دارد؛ خود زمان‌بندی حفظ می‌شود."
 
 #: includes/class-product-pricing.php:707
 msgid "This product has no price to import."
-msgstr ""
+msgstr "این محصول قیمتی برای درج ندارد."
 
 #: includes/class-recorder.php:125
 msgid "This product is not managed by USD/Toman pricing, so it was skipped."
-msgstr ""
+msgstr "این محصول توسط قیمت‌گذاری دلار/تومان مدیریت نمی‌شود، پس نادیده گرفته شد."
 
 #: includes/class-rate-guard.php:155
 msgid "This rate is a very large move. Confirm it explicitly before it is stored."
-msgstr ""
+msgstr "این نرخ جابه‌جایی بسیار بزرگی است. پیش از ذخیره، آن را صریحاً تأیید کنید."
 
 #: includes/class-sync-runner.php:737
 msgid "This variable product has no variations, so there is nothing to synchronize."
-msgstr ""
+msgstr "این محصول متغیر هیچ گونه‌ای ندارد، پس چیزی برای همگام‌سازی نیست."
 
 #: includes/admin/views/dashboard.php:198
 msgid "Toman (mode B)"
-msgstr ""
+msgstr "تومان (حالت B)"
 
 #: includes/admin/class-admin.php:270
 msgid "Toman / USD"
-msgstr ""
+msgstr "تومان / دلار"
 
 #: includes/admin/class-product-panel.php:442
 msgid "Toman managed"
-msgstr ""
+msgstr "مدیریت‌شده با تومان"
 
 #: includes/admin/views/product-panel.php:27
 msgid "Toman managed — WooCommerce price is calculated from the Toman price"
-msgstr ""
+msgstr "مدیریت‌شده با تومان — قیمت ووکامرس از قیمت تومانی محاسبه می‌شود"
 
 #: includes/admin/views/dashboard.php:52
 msgid "Toman per 1 USD"
-msgstr ""
+msgstr "تومان برای هر ۱ دلار"
 
 #: includes/admin/class-product-panel.php:344
 msgid "Toman price"
-msgstr ""
+msgstr "قیمت تومانی"
 
 #: includes/admin/views/settings.php:167
 msgid "Toman prices"
-msgstr ""
+msgstr "قیمت‌های تومانی"
 
 #: includes/admin/views/product-panel.php:216
 msgid "Toman regular"
-msgstr ""
+msgstr "عادی تومانی"
 
 #: includes/admin/views/product-panel.php:217
 msgid "Toman sale"
-msgstr ""
+msgstr "حراج تومانی"
 
 #: includes/admin/views/dashboard.php:359 includes/admin/views/jobs.php:139
 msgid "Toman source"
-msgstr ""
+msgstr "منبع تومانی"
 
 #: includes/admin/views/jobs.php:77
 msgid "Total"
-msgstr ""
+msgstr "جمع"
 
 #: includes/class-health.php:318
 msgid "Transaction currency"
-msgstr ""
+msgstr "ارز تراکنش"
 
 #: includes/admin/views/settings.php:23
 msgid "Transaction currency mode"
-msgstr ""
+msgstr "حالت ارز تراکنش"
 
 #: includes/admin/views/dashboard.php:197
 #. 1: transaction currency mode, 2: product count.
 msgid "Transaction currency mode: %1$s. Products in the catalog: %2$s."
-msgstr ""
+msgstr "حالت ارز تراکنش: %1$s. محصولات کاتالوگ: %2$s."
 
 #: includes/admin/views/settings.php:150
 msgid "Trigger queued worker runs with a non blocking loopback request"
-msgstr ""
+msgstr "اجرای کارگرهای در صف با یک درخواست loopback بدون قفل‌شدن"
 
 #: includes/admin/views/dashboard.php:428 includes/admin/views/jobs.php:217
 msgid "Type"
-msgstr ""
+msgstr "نوع"
 
 #: includes/admin/class-rest-controller.php:398
 #. %s: the word the admin has to type.
 msgid "Type %s in the confirmation field to confirm a large rate change."
-msgstr ""
+msgstr "برای تأیید یک تغییر بزرگ نرخ، عبارت %s را در فیلد تأیید بنویسید."
 
 #: includes/admin/views/dashboard.php:109
 #. %s: confirmation word.
 msgid "Type %s to confirm this large rate change"
-msgstr ""
+msgstr "برای تأیید این تغییر بزرگ نرخ، عبارت %s را بنویسید"
 
 #: includes/admin/class-admin.php:181 includes/admin/class-admin.php:182 includes/admin/views/page.php:17
 msgid "USD / Toman Pricing"
-msgstr ""
+msgstr "قیمت‌گذاری دلار / تومان"
 
 #: includes/admin/class-product-panel.php:97
 msgid "USD / Toman pricing"
-msgstr ""
+msgstr "قیمت‌گذاری دلار / تومان"
 
 #: includes/class-plugin.php:155
 msgid "USD to Toman Price Sync for WooCommerce needs WooCommerce to be installed and active."
-msgstr ""
+msgstr "افزونهٔ USD to Toman Price Sync for WooCommerce به نصب و فعال بودن ووکامرس نیاز دارد."
 
 #: includes/admin/views/dashboard.php:198
 msgid "USD with Toman display (mode A)"
-msgstr ""
+msgstr "دلار با نمایش تومانی (حالت A)"
 
 #: includes/class-health.php:129
 msgid "USD/Toman price synchronization is healthy"
-msgstr ""
+msgstr "همگام‌سازی قیمت دلار/تومان سالم است"
 
 #: includes/class-health.php:105
 msgid "USD/Toman pricing"
-msgstr ""
+msgstr "قیمت‌گذاری دلار/تومان"
 
 #: includes/class-health.php:157
 msgid "USD/Toman pricing has warnings"
-msgstr ""
+msgstr "قیمت‌گذاری دلار/تومان هشدار دارد"
 
 #: includes/class-health.php:156
 msgid "USD/Toman pricing needs attention"
-msgstr ""
+msgstr "قیمت‌گذاری دلار/تومان به توجه نیاز دارد"
 
 #: includes/admin/class-admin.php:359 includes/admin/class-admin.php:372 includes/admin/class-admin.php:385
 msgid "USD/Toman pricing:"
-msgstr ""
+msgstr "قیمت‌گذاری دلار/تومان:"
 
 #: includes/admin/class-product-panel.php:256
 msgid "USD/Toman: enable Toman pricing (import current price)"
-msgstr ""
+msgstr "دلار/تومان: فعال‌سازی قیمت‌گذاری تومانی (درج قیمت کنونی)"
 
 #: includes/admin/class-product-panel.php:258
 msgid "USD/Toman: exclude from synchronization"
-msgstr ""
+msgstr "دلار/تومان: کنار گذاشتن از همگام‌سازی"
 
 #: includes/admin/class-product-panel.php:257
 msgid "USD/Toman: mark as native USD price"
-msgstr ""
+msgstr "دلار/تومان: علامت‌گذاری به‌عنوان قیمت دلار بومی"
 
 #: includes/admin/views/dashboard.php:280 includes/admin/views/jobs.php:80 includes/admin/views/jobs.php:118
 msgid "Unchanged"
-msgstr ""
+msgstr "بدون تغییر"
 
 #: includes/admin/views/settings.php:194
 msgid "Uninstall"
-msgstr ""
+msgstr "حذف نصب"
 
 #: includes/admin/class-rest-controller.php:588
 msgid "Unknown job action."
-msgstr ""
+msgstr "کنش کار ناشناخته."
 
 #: includes/admin/class-admin.php:267
 msgid "Unknown product"
-msgstr ""
+msgstr "محصول ناشناخته"
 
 #: includes/admin/views/dashboard.php:146
 msgid "Update prices now"
-msgstr ""
+msgstr "همین حالا قیمت‌ها را به‌روز کن"
 
 #: includes/admin/views/settings.php:181
 msgid "Use Persian digits"
-msgstr ""
+msgstr "استفاده از ارقام فارسی"
 
 #: includes/class-job.php:350
 #. %d: user ID.
 msgid "User #%d"
-msgstr ""
+msgstr "کاربر #%d"
 
 #: includes/admin/views/dashboard.php:38
 msgid "Variable products"
-msgstr ""
+msgstr "محصولات متغیر"
 
 #: includes/admin/views/product-panel.php:214
 msgid "Variation"
-msgstr ""
+msgstr "گونه"
 
 #: includes/admin/views/product-panel.php:208
 msgid "Variation Toman prices"
-msgstr ""
+msgstr "قیمت‌های تومانی گونه"
 
 #: includes/admin/views/dashboard.php:284
 msgid "Variations"
-msgstr ""
+msgstr "گونه‌ها"
 
 #: includes/class-sync-runner.php:803
 #. 1: processed variations, 2: total variations, 3: changed, 4: unchanged, 5: skipped, 6: failed.
 msgid "Variations %1$d/%2$d — changed: %3$d, unchanged: %4$d, skipped: %5$d, failed: %6$d."
-msgstr ""
+msgstr "گونه‌ها %1$d/%2$d — تغییرکرده: %3$d، بدون تغییر: %4$d، نادیده‌گرفته‌شده: %5$d، ناموفق: %6$d."
 
 #: includes/admin/views/product-panel.php:209
 msgid "Variations are the source of truth for variable products. The parent price range is recalculated by WooCommerce after each update."
-msgstr ""
+msgstr "گونه‌ها برای محصولات متغیر منبع حقیقت هستند. بازهٔ قیمت محصول مادر پس از هر به‌روزرسانی توسط ووکامرس دوباره محاسبه می‌شود."
 
 #: includes/admin/views/jobs.php:85
 msgid "Variations changed"
-msgstr ""
+msgstr "گونه‌های تغییرکرده"
 
 #: includes/admin/views/jobs.php:84
 msgid "Variations processed"
-msgstr ""
+msgstr "گونه‌های پردازش‌شده"
 
 #: includes/admin/views/jobs.php:179
 #. 1: processed variations, 2: total variations.
 msgid "Variations processed: %1$d / %2$d"
-msgstr ""
+msgstr "گونه‌های پردازش‌شده: %1$d / %2$d"
 
 #: includes/admin/views/dashboard.php:318
 msgid "View details"
-msgstr ""
+msgstr "نمایش جزئیات"
 
 #: includes/admin/views/health.php:44
 msgid "WP-Cron disabled"
-msgstr ""
+msgstr "WP-Cron غیرفعال است"
 
 #: includes/class-health.php:242
 msgid "WP-Cron is disabled"
-msgstr ""
+msgstr "WP-Cron غیرفعال است"
 
 #: includes/class-health.php:404
 msgid "WP-Cron is disabled and Action Scheduler is missing, so worker runs are triggered by non blocking loopback requests. A real cron job is strongly recommended."
-msgstr ""
+msgstr "WP-Cron غیرفعال است و Action Scheduler وجود ندارد، پس اجرای کارگرها با درخواست‌های loopback بدون قفل‌شدن انجام می‌شود. یک کران‌جاب واقعی به‌شدت توصیه می‌شود."
 
 #: includes/admin/class-admin.php:373
 msgid "WP-Cron is disabled and WooCommerce Action Scheduler was not found. Background updates can only run through loopback requests; a real cron job on wp-cron.php is recommended."
-msgstr ""
+msgstr "WP-Cron غیرفعال است و Action Scheduler ووکامرس پیدا نشد. به‌روزرسانی‌های پس‌زمینه فقط با درخواست‌های loopback اجرا می‌شوند؛ یک کران‌جاب واقعی روی wp-cron.php توصیه می‌شود."
 
 #: includes/admin/views/dashboard.php:207
 msgid "What should be updated?"
-msgstr ""
+msgstr "چه چیزی باید به‌روزرسانی شود؟"
 
 #: includes/admin/views/jobs.php:282 includes/admin/views/jobs.php:326
 msgid "When"
-msgstr ""
+msgstr "زمان"
 
 #: includes/class-health.php:132 includes/class-health.php:160
 msgid "WooCommerce"
-msgstr ""
+msgstr "ووکامرس"
 
 #: includes/class-health.php:400
 msgid "WooCommerce Action Scheduler is available. Big updates run in the background queue and do not need an open browser tab."
-msgstr ""
+msgstr "Action Scheduler ووکامرس در دسترس است. به‌روزرسانی‌های بزرگ در صف پس‌زمینه اجرا می‌شوند و به باز بودن زبانهٔ مرورگر نیاز ندارند."
 
 #: includes/class-recorder.php:220
 #. %s: error message.
 msgid "WooCommerce could not save the price: %s"
-msgstr ""
+msgstr "ووکامرس نتوانست قیمت را ذخیره کند: %s"
 
 #: includes/admin/views/settings.php:37
 msgid "WooCommerce stores and charges the canonical Toman price. The derived USD price is kept as an internal reference for reporting. This is usually the safer choice for Iranian payment gateways."
-msgstr ""
+msgstr "ووکامرس قیمت مرجع تومانی را ذخیره و دریافت می‌کند. قیمت دلاری محاسبه‌شده به‌عنوان مرجع داخلی برای گزارش‌گیری نگه داشته می‌شود. این گزینه معمولاً برای درگاه‌های پرداخت ایرانی انتخاب امن‌تری است."
 
 #: includes/admin/views/settings.php:29
 msgid "WooCommerce stores and charges the derived USD price. The storefront shows the canonical Toman price from this plugin."
-msgstr ""
+msgstr "ووکامرس قیمت دلاری محاسبه‌شده را ذخیره و دریافت می‌کند. فروشگاه قیمت مرجع تومانی این افزونه را نمایش می‌دهد."
 
 #: includes/admin/views/health.php:144
 msgid "WooCommerce version"
-msgstr ""
+msgstr "نسخهٔ ووکامرس"
 
 #: includes/admin/class-admin.php:265
 msgid "Working…"
-msgstr ""
+msgstr "در حال کار…"
 
 #: includes/class-recorder.php:396
 #. 1: new regular price, 2: canonical Toman price.
 msgid "Would become %1$s (from %2$s Toman)."
-msgstr ""
+msgstr "به %1$s تبدیل می‌شود (از %2$s تومان)."
 
 #: includes/admin/views/dashboard.php:344
 #. 1: changed, 2: unchanged, 3: skipped, 4: failed, 5: conflicts.
 msgid "Would change: %1$s · unchanged: %2$s · skipped: %3$s · failed: %4$s · conflicts: %5$s"
-msgstr ""
+msgstr "تغییرمی‌کند: %1$s · بدون تغییر: %2$s · نادیده‌گرفته: %3$s · ناموفق: %4$s · تعارض‌ها: %5$s"
 
 #: includes/admin/views/health.php:29 includes/admin/views/health.php:45
 msgid "Yes"
-msgstr ""
+msgstr "بله"
 
 #: includes/admin/class-admin.php:398
 msgid "You are not allowed to export this data."
-msgstr ""
+msgstr "شما اجازهٔ خروجی گرفتن از این داده‌ها را ندارید."
 
 #: includes/admin/class-admin.php:296
 msgid "You are not allowed to manage USD/Toman pricing."
-msgstr ""
+msgstr "شما اجازهٔ مدیریت قیمت‌گذاری دلار/تومان را ندارید."
 
 #: includes/admin/class-product-panel.php:506
 msgid "You are not allowed to recalculate prices."
-msgstr ""
+msgstr "شما اجازهٔ محاسبهٔ دوبارهٔ قیمت‌ها را ندارید."
 
 #: includes/admin/class-admin.php:386
 msgid "a manual price change on a managed product was reverted, because in USD mode the price fields are calculated from the Toman source price. Edit the Toman price instead, or switch the product to “Native USD”."
-msgstr ""
+msgstr "یک تغییر دستی قیمت روی محصول مدیریت‌شده بازگردانده شد، زیرا در حالت دلاری فیلدهای قیمت از قیمت منبع تومانی محاسبه می‌شوند. به‌جایش قیمت تومانی را ویرایش کنید یا محصول را به «دلار بومی» تغییر دهید."
 
 #: includes/admin/views/product-panel.php:229
 msgid "conflict"
-msgstr ""
+msgstr "تعارض"
 
 #: includes/admin/views/settings.php:132
 msgid "days"
-msgstr ""
+msgstr "روز"
 
 #: includes/admin/views/dashboard.php:295
 #. %s: user name.
 msgid "started by %s"
-msgstr ""
+msgstr "آغازشده توسط %s"
 
 #: includes/admin/class-admin.php:360
 msgid "the transaction currency changed after the last full update, so the stored price fields no longer match. Run a full update to rewrite them."
-msgstr ""
+msgstr "ارز تراکنش پس از آخرین به‌روزرسانی کامل تغییر کرده است، بنابراین فیلدهای قیمت ذخیره‌شده دیگر مطابقت ندارند. برای بازنویسی آن‌ها یک به‌روزرسانی کامل اجرا کنید."
 
 #: includes/class-health.php:304
 msgid "unlimited"
-msgstr ""
+msgstr "بی‌نهایت"
 
 #: includes/admin/views/jobs.php:156
 msgid "variation"
-msgstr ""
+msgstr "گونه"
 
 #: includes/class-sync-runner.php:938
 msgid "variation #%1$d %2$s"
-msgstr ""
+msgstr "گونهٔ #%1$d %2$s"
 
 #: includes/admin/views/jobs.php:236
 msgid "worker lost"
-msgstr ""
+msgstr "کارگر از دست رفته"
 
 #: includes/admin/views/dashboard.php:190
 msgid "“May need an update” counts managed products whose stored rate is not the current rate. The exact number of price changes is calculated by the dry run."
-msgstr ""
-
+msgstr "«شاید نیاز به به‌روزرسانی داشته باشد» محصولات مدیریت‌شده‌ای را می‌شمارد که نرخ ذخیره‌شده‌شان نرخ کنونی نیست. شمار دقیق تغییرهای قیمت با اجرای آزمایشی محاسبه می‌شود."

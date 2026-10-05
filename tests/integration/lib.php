@@ -438,6 +438,12 @@ function usdtf_it_reset_plugin_state() {
 	// Use the shared instance so nothing keeps a cached copy of the old values.
 	usdtf_plugin()->settings()->reset();
 
+	// A fresh install defaults to Toman transactions, which has its own
+	// scenario. The other scenarios describe the USD transaction mode, so it is
+	// pinned here instead of being inherited from the default.
+	usdtf_plugin()->settings()->update( array( 'currency_mode' => \USDTF\Settings::MODE_USD ) );
+	usdtf_plugin()->settings()->set_synced_currency_mode( \USDTF\Settings::MODE_USD );
+
 	foreach ( array( \USDTF\Database::jobs_table(), \USDTF\Database::items_table(), \USDTF\Database::rates_table(), \USDTF\Database::logs_table() ) as $table ) {
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 		$wpdb->query( "DELETE FROM `{$table}`" );

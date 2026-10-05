@@ -58,7 +58,11 @@ final class Settings {
 	 */
 	public static function defaults() {
 		return array(
-			'currency_mode'            => self::MODE_USD,
+			// Toman transactions by default: the price fields hold the canonical
+			// Toman value, so the gateway, the cart and the order totals are in
+			// Toman. Mode A (USD transactions with a Toman display) is one
+			// setting away and is described in the readme.
+			'currency_mode'            => self::MODE_TOMAN,
 			'rounding'                 => Calculator::ROUND_UP,
 			'increment'                => 1.0,
 			'decimals'                 => 0,

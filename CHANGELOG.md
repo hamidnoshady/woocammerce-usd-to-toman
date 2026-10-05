@@ -4,6 +4,27 @@ All notable changes to this plugin are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.3] - 2026-10-05
+
+### Added
+
+- A complete Persian (`fa_IR`) translation of all 368 strings, shipped as a `.po` source and a
+  compiled `.mo` catalogue. The plugin loads its own text domain on `init` and a language pack
+  installed in `wp-content/languages/plugins` still wins.
+- `bin/make-mo.php` compiles the catalogues without any dependency, refuses a translation that drops
+  or invents a placeholder, and refuses to write a file that does not read back entry for entry. CI
+  runs it with `--check` and the release workflow fails when the shipped catalogues are missing from
+  the archive.
+- Integration coverage for the fresh install default and the upgrade behaviour, and for the bundled
+  catalogue (template coverage, readability, loading and a translated string coming back in
+  Persian). 37 scenario groups in total.
+
+### Changed
+
+- A fresh install transacts in **Toman** (mode B) by default, the safer choice for Iranian payment
+  gateways. Existing stores keep the mode they stored; the new default only applies while no mode has
+  ever been saved. The readme no longer calls mode A the recommended one.
+
 ## [1.0.2] - 2026-10-05
 
 ### Fixed

@@ -21,11 +21,14 @@
 		"phpcbf": "phpcbf",
 		"pot": "php bin/make-pot.php",
 		"pot:check": "php bin/make-pot.php --check",
+		"mo": "php bin/make-mo.php",
+		"mo:check": "php bin/make-mo.php --check",
 		"dist": "php bin/build-dist.php",
 		"dist:check": "php bin/build-dist.php --check",
 		"check": [
 			"@phpcs",
-			"@pot:check"
+			"@pot:check",
+			"@mo:check"
 		]
 	}
 }

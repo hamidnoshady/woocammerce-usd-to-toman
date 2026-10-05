@@ -56,7 +56,22 @@ final class Plugin {
 	 */
 	private function boot() {
 		add_action( 'before_woocommerce_init', array( $this, 'declare_compatibility' ) );
+		add_action( 'init', array( $this, 'load_textdomain' ), 1 );
 		add_action( 'plugins_loaded', array( $this, 'init_modules' ), 20 );
+	}
+
+	/**
+	 * Load the bundled translations.
+	 *
+	 * The plugin ships its own .mo catalogues (Persian today) next to the .pot
+	 * template, so a store does not have to wait for a language pack. Files
+	 * installed in wp-content/languages/plugins take precedence, exactly as
+	 * WordPress documents it.
+	 *
+	 * @return void
+	 */
+	public function load_textdomain() {
+		load_plugin_textdomain( USDTF_SLUG, false, dirname( USDTF_BASENAME ) . '/languages' );
 	}
 
 	/**

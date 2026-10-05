@@ -359,7 +359,9 @@ function usdtf_is_forbidden( $relative ) {
 		return true;
 	}
 
-	if ( preg_match( '#\.(md|po|zip|log|sh|neon|dist)$#i', $relative ) ) {
+	// Translation catalogues (.pot, .po, .mo) ship with the plugin, so they are
+	// deliberately absent from this list; only the types that never ship are here.
+	if ( preg_match( '#\.(md|zip|log|sh|neon|dist)$#i', $relative ) ) {
 		return true;
 	}
 

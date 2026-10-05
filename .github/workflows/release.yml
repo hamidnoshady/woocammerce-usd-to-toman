@@ -74,6 +74,7 @@ jobs:
         run: |
           php bin/lint.php
           php bin/make-pot.php --check
+          php bin/make-mo.php --check
 
       - name: Build the clean distribution
         # The commit date is baked into the archive comment instead of the build
@@ -89,6 +90,14 @@ jobs:
             echo "::error::The distribution archive contains development files."
             exit 1
           fi
+          for catalogue in \
+            "languages/${PLUGIN_SLUG}-fa_IR.po" \
+            "languages/${PLUGIN_SLUG}-fa_IR.mo"; do
+            if ! echo "$listing" | grep -qx "${PLUGIN_SLUG}/${catalogue}"; then
+              echo "::error::The release archive is missing ${catalogue}."
+              exit 1
+            fi
+          done
           echo "Packaged $(echo "$listing" | wc -l) files."
 
       - name: Upload the archive as a workflow artifact

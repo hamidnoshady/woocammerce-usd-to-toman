@@ -6,7 +6,7 @@ Tested up to: 6.6
 Requires PHP: 7.4
 WC requires at least: 7.0
 WC tested up to: 9.9
-Stable tag: 1.0.2
+Stable tag: 1.0.3
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -52,10 +52,10 @@ The default is always rounding **up** to the next whole dollar, which protects y
 
 **Two ways to charge**
 
-* **Mode A – USD transactions with a Toman display (recommended).** WooCommerce stores and charges dollars, orders and gateways work in USD, and the storefront shows the stored Toman price: the shop and archive pages, single product pages, variable price ranges, related products, upsells and cross-sells, the mini cart, the classic cart and checkout, and the `price_html` field of the Store API (so WooCommerce Blocks product grids and headless front ends show it too). The charged amount stays in USD, and the Toman number shown is the stored source value, never a value rebuilt from the rounded dollar price.
-* **Mode B – Toman transactions.** The store really transacts in Toman: the price fields hold the canonical Toman price, so the cart, the checkout, the order currency, WooCommerce Blocks, the Store API and the amount sent to the gateway are all in Toman, and the derived dollar price is kept as a reference. This is usually the safer option with Iranian payment gateways.
+* **Mode B – Toman transactions (the default).** The store really transacts in Toman: the price fields hold the canonical Toman price, so the cart, the checkout, the order currency, WooCommerce Blocks, the Store API and the amount sent to the gateway are all in Toman, and the derived dollar price is kept as a reference. This is usually the safest option with Iranian payment gateways, and switching to it is what a fresh install does.
+* **Mode A – USD transactions with a Toman display.** WooCommerce stores and charges dollars, orders and gateways work in USD, and the storefront shows the stored Toman price: the shop and archive pages, single product pages, variable price ranges, related products, upsells and cross-sells, the mini cart, the classic cart and checkout, and the `price_html` field of the Store API (so WooCommerce Blocks product grids and headless front ends show it too). The charged amount stays in USD, and the Toman number shown is the stored source value, never a value rebuilt from the rounded dollar price.
 
-Mode A shows Toman next to USD prices; it never fakes a Toman amount for a dollar total. If you need the entire cart and checkout priced in Toman, switch to mode B and run a full update.
+Mode A shows Toman next to USD prices; it never fakes a Toman amount for a dollar total. Switching the mode always shows the change as pending and requires a full update, so an existing store keeps the mode it was already using until you change it yourself.
 
 **Scopes**
 
@@ -119,9 +119,15 @@ No. Every price is written with the WooCommerce CRUD API (`wc_get_product()`, `s
 
 = Is the plugin translatable? =
 
-Yes. Every string uses the `usd-to-toman-price-sync-for-woocommerce` text domain and a `.pot` template ships with the plugin.
+Yes. Every string uses the `usd-to-toman-price-sync-for-woocommerce` text domain, a `.pot` template ships with the plugin, and a complete **Persian (`fa_IR`)** translation is bundled, so an Iranian store gets a Persian admin and storefront without installing a language pack.
 
 == Changelog ==
+
+= 1.0.3 =
+* New: a complete Persian (`fa_IR`) translation ships with the plugin, as a `.po` source and a compiled `.mo` catalogue that loads on `init`. A language pack installed on the site still takes precedence.
+* New: `bin/make-mo.php` compiles and verifies the catalogues, and CI fails when a `.mo` file is missing or does not match its `.po` source. The release archive is checked for the shipped catalogues too.
+* Changed: a fresh install transacts in **Toman** (mode B) by default, which is the safer choice for Iranian payment gateways. Existing stores keep the currency mode they already had; the default only applies where no mode was ever stored.
+* The integration suite grew to 37 scenario groups, including the fresh install default, the upgrade behaviour and the bundled catalogue.
 
 = 1.0.2 =
 * The diagnostics count the background queue exactly. Listing actions is capped, so a busy store saw a queue depth of 500 whatever the real number was.
@@ -147,6 +153,9 @@ Yes. Every string uses the `usd-to-toman-price-sync-for-woocommerce` text domain
 * Diagnostics for the queue, the lock and the configured batch size.
 
 == Upgrade Notice ==
+
+= 1.0.3 =
+Bundles a complete Persian translation and makes Toman transactions the default for new installs. Existing stores keep their currency mode.
 
 = 1.0.2 =
 Reports the real size of the background queue in the diagnostics.
