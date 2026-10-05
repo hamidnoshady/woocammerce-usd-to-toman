@@ -17,6 +17,20 @@ dollar amount — no rounding drift, ever.
 
 The full specification lives in [issue #1](../../issues/1).
 
+![USD to Toman Price Sync for WooCommerce](wordpress-org/banner-772x250.png)
+
+| The rate screen | Dry run | Jobs and logs |
+| --- | --- | --- |
+| ![Pricing](wordpress-org/screenshot-1.png) | ![Dry run](wordpress-org/screenshot-2.png) | ![Jobs](wordpress-org/screenshot-3.png) |
+
+| Persian admin (`fa_IR`) | Product panel |
+| --- | --- |
+| ![Persian pricing screen](wordpress-org/screenshot-4.png) | ![Product panel](wordpress-org/screenshot-5.png) |
+
+The listing artwork is generated from source by `python3 wordpress-org/make-artwork.py`; see
+[wordpress-org/README.md](wordpress-org/README.md) for the filenames WordPress.org expects and how to
+upload them.
+
 ## Repository layout
 
 ```
