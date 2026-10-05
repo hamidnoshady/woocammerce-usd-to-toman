@@ -19,7 +19,7 @@ All notable changes to this plugin are documented here. The format follows
   worker action while a paused job resumes, the loopback diagnostic against a reachable, a failing
   and an unreachable site, every admin tab including output escaping and the capability gate, the
   script wiring, and the product panel (meta box, saving, refusals, bulk actions, list column).
-  34 scenario groups in total.
+  35 scenario groups in total.
 
 ## [1.0.1] - 2026-10-05
 
