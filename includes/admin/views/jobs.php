@@ -21,7 +21,15 @@ $usdtf_persian = (bool) $settings->get( 'persian_digits' );
 <?php if ( $current_job ) : ?>
 	<?php
 	$usdtf_id     = $current_job->id();
-	$usdtf_items  = $jobs->items( $usdtf_id, array( 'limit' => 50, 'page' => 1, 'status' => isset( $_GET['items_status'] ) ? sanitize_key( wp_unslash( $_GET['items_status'] ) ) : '' ) ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read only filter.
+	$usdtf_items  = $jobs->items(
+		$usdtf_id,
+		array(
+			'limit'  => 50,
+			'page'   => 1,
+			// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read only display filter.
+			'status' => isset( $_GET['items_status'] ) ? sanitize_key( wp_unslash( $_GET['items_status'] ) ) : '',
+		)
+	);
 	$usdtf_totals = $jobs->item_totals( $usdtf_id );
 	$usdtf_data   = $current_job->to_array();
 	?>
@@ -49,6 +57,13 @@ $usdtf_persian = (bool) $settings->get( 'persian_digits' );
 			);
 			?>
 		</p>
+
+		<?php if ( ! empty( $usdtf_data['current_item'] ) && ! empty( $usdtf_data['is_active'] ) ) : ?>
+			<p class="usdtf-current-item">
+				<?php esc_html_e( 'Currently processing:', 'usd-to-toman-price-sync-for-woocommerce' ); ?>
+				<strong><?php echo esc_html( $usdtf_data['current_item'] ); ?></strong>
+			</p>
+		<?php endif; ?>
 
 		<?php if ( ! empty( $usdtf_data['message'] ) ) : ?>
 			<p class="usdtf-message"><?php echo esc_html( $usdtf_data['message'] ); ?></p>
@@ -222,7 +237,12 @@ $usdtf_persian = (bool) $settings->get( 'persian_digits' );
 							<?php endif; ?>
 						</td>
 						<td><?php echo esc_html( Calculator::format_toman( $usdtf_job->rate(), array( 'persian_digits' => $usdtf_persian ) ) ); ?></td>
-						<td><?php echo esc_html( number_format_i18n( (float) $usdtf_job_data['progress'], 1 ) ); ?>%</td>
+						<td>
+							<?php echo esc_html( number_format_i18n( (float) $usdtf_job_data['progress'], 1 ) ); ?>%
+							<?php if ( ! empty( $usdtf_job_data['current_item'] ) && $usdtf_job_data['is_active'] ) : ?>
+								<span class="usdtf-current-item"><?php echo esc_html( $usdtf_job_data['current_item'] ); ?></span>
+							<?php endif; ?>
+						</td>
 						<td><?php echo esc_html( number_format_i18n( (int) $usdtf_job_data['counters']['changed'] ) ); ?></td>
 						<td>
 							<?php

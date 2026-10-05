@@ -35,7 +35,8 @@ final class Cron {
 	 * @return void
 	 */
 	public function hooks() {
-		add_filter( 'cron_schedules', array( __CLASS__, 'add_schedule' ) ); // phpcs:ignore WordPress.WP.CronInterval.ChangeDetected -- Five minute maintenance event.
+		// The five minute event only runs housekeeping (cleanup and queue checks).
+		add_filter( 'cron_schedules', array( __CLASS__, 'add_schedule' ) ); // phpcs:ignore WordPress.WP.CronInterval.CronSchedulesInterval -- Five minute maintenance event.
 		add_action( self::EVENT_TICK, array( $this, 'tick' ) );
 		add_action( self::EVENT_DAILY, array( $this, 'daily' ) );
 	}

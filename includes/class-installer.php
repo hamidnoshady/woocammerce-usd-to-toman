@@ -113,6 +113,7 @@ final class Installer {
 			discovery_page bigint(20) unsigned NOT NULL DEFAULT 1,
 			phase varchar(16) NOT NULL DEFAULT 'discover',
 			user_id bigint(20) unsigned NOT NULL DEFAULT 0,
+			current_item varchar(190) NULL,
 			message text NULL,
 			created_at datetime NULL,
 			started_at datetime NULL,
@@ -262,7 +263,8 @@ final class Installer {
 		);
 
 		foreach ( $tables as $table ) {
-			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Table names are internal.
+			// Dropping the plugin's own tables is the documented uninstall behaviour.
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Table names are internal.
 			$wpdb->query( "DROP TABLE IF EXISTS `{$table}`" );
 		}
 
@@ -274,7 +276,8 @@ final class Installer {
 
 		// Remove per product metadata created by the plugin.
 		foreach ( Product_Pricing::meta_keys() as $meta_key ) {
-			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+			// A bulk delete by meta key is the point of the purge and only runs on request.
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.SlowDBQuery.slow_db_query_meta_key
 			$wpdb->delete( $wpdb->postmeta, array( 'meta_key' => $meta_key ) );
 		}
 	}

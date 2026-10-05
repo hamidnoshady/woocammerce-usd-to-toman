@@ -94,14 +94,14 @@ final class Rest_Controller {
 	/**
 	 * Constructor.
 	 *
-	 * @param Scheduler        $scheduler Scheduler.
-	 * @param Rate_Repository  $rates     Rate storage.
-	 * @param Sync_Runner      $runner    Synchronization engine.
-	 * @param Job_Repository   $jobs      Job storage.
+	 * @param Scheduler          $scheduler Scheduler.
+	 * @param Rate_Repository    $rates     Rate storage.
+	 * @param Sync_Runner        $runner    Synchronization engine.
+	 * @param Job_Repository     $jobs      Job storage.
 	 * @param Product_Repository $products Product discovery.
-	 * @param Health           $health    Diagnostics.
-	 * @param Product_Pricing  $pricing   Pricing model.
-	 * @param Settings         $settings  Settings.
+	 * @param Health             $health    Diagnostics.
+	 * @param Product_Pricing    $pricing   Pricing model.
+	 * @param Settings           $settings  Settings.
 	 */
 	public function __construct( Scheduler $scheduler, Rate_Repository $rates, Sync_Runner $runner, Job_Repository $jobs, Product_Repository $products, Health $health, Product_Pricing $pricing, Settings $settings ) {
 		$this->scheduler = $scheduler;
@@ -359,8 +359,8 @@ final class Rest_Controller {
 		);
 		$state['checks']       = $this->health->checks();
 		$state['can']          = array(
-			'manage'    => Capabilities::current_user_can(),
-			'rollback'  => $this->rates->previous_rate() > 0,
+			'manage'   => Capabilities::current_user_can(),
+			'rollback' => $this->rates->previous_rate() > 0,
 		);
 
 		return rest_ensure_response( $state );
@@ -651,12 +651,12 @@ final class Rest_Controller {
 			$source = $this->pricing->get_source( $product_id );
 
 			$results[] = array(
-				'id'        => (int) $product_id,
-				'name'      => $product->get_name(),
-				'type'      => $product->get_type(),
-				'mode'      => $this->pricing->get_mode( $product_id ),
-				'toman'     => null === $source['regular'] ? '' : Calculator::format_toman( $source['regular'] ),
-				'currency'  => (string) $this->settings->get( 'currency_mode' ),
+				'id'       => (int) $product_id,
+				'name'     => $product->get_name(),
+				'type'     => $product->get_type(),
+				'mode'     => $this->pricing->get_mode( $product_id ),
+				'toman'    => null === $source['regular'] ? '' : Calculator::format_toman( $source['regular'] ),
+				'currency' => (string) $this->settings->get( 'currency_mode' ),
 			);
 		}
 

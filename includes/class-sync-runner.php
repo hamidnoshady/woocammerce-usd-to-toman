@@ -215,7 +215,7 @@ final class Sync_Runner {
 
 		// A currency mode change always requires a full recalculation of the price fields.
 		if ( Job::TYPE_PREVIEW !== $type && $this->settings->currency_mode_is_stale() ) {
-			$scope = Product_Repository::default_scope();
+			$scope          = Product_Repository::default_scope();
 			$scope['label'] = __( 'Every managed product (currency mode change)', 'usd-to-toman-price-sync-for-woocommerce' );
 		}
 
@@ -456,10 +456,10 @@ final class Sync_Runner {
 		$this->logger->info(
 			'Discovery page processed.',
 			array(
-				'page'    => $page,
-				'found'   => count( $ids ),
-				'queued'  => $inserted,
-				'scope'   => $scope,
+				'page'   => $page,
+				'found'  => count( $ids ),
+				'queued' => $inserted,
+				'scope'  => $scope,
 			),
 			$job_id
 		);
@@ -684,6 +684,10 @@ final class Sync_Runner {
 		$object_id = (int) $item['object_id'];
 		$product   = wc_get_product( $object_id );
 
+		// Announce the product the worker is busy with: the live progress panel
+		// reads it back from the persisted job row.
+		$this->jobs->update( $job->id(), array( 'current_item' => self::item_label( $object_id, $product ) ) );
+
 		if ( ! $product ) {
 			$this->complete_item(
 				$item,
@@ -771,7 +775,7 @@ final class Sync_Runner {
 				// A dry run never writes, so a concurrent edit is not a conflict.
 				$status = $result['status'];
 			} elseif ( ! empty( $result['wrote'] ) && $this->pricing->get_revision( $variation_id ) !== $revision_before ) {
-				$status = Job_Repository::ITEM_CONFLICT;
+				$status            = Job_Repository::ITEM_CONFLICT;
 				$result['code']    = 'conflict';
 				$result['message'] = __( 'The Toman price of this variation was edited while it was being synchronized. It is reported for recalculation.', 'usd-to-toman-price-sync-for-woocommerce' );
 				$this->pricing->mark_conflict( $variation_id, $result['message'] );
@@ -839,7 +843,7 @@ final class Sync_Runner {
 			$status = Job_Repository::ITEM_CONFLICT;
 		} elseif ( $stats['changed'] > 0 ) {
 			$status = Job_Repository::ITEM_CHANGED;
-		} elseif ( $stats['skipped'] === count( $slice ) ) {
+		} elseif ( count( $slice ) === $stats['skipped'] ) {
 			$status = Job_Repository::ITEM_SKIPPED;
 		}
 
@@ -859,10 +863,10 @@ final class Sync_Runner {
 	/**
 	 * Convert and write one product or variation.
 	 *
-	 * @param Job                  $job      Job.
-	 * @param array                $item     Item row.
-	 * @param \WC_Product          $product  Product or variation.
-	 * @param int|null             $revision Expected revision override.
+	 * @param Job         $job      Job.
+	 * @param array       $item     Item row.
+	 * @param \WC_Product $product  Product or variation.
+	 * @param int|null    $revision Expected revision override.
 	 * @return array Recorder result.
 	 */
 	private function calculate_and_write( Job $job, array $item, $product, $revision = null ) {
@@ -908,6 +912,30 @@ final class Sync_Runner {
 		$result['target'] = $target;
 
 		return $result;
+	}
+
+	/**
+	 * Human readable label of the item a worker is processing.
+	 *
+	 * @param int              $object_id Product or variation ID.
+	 * @param \WC_Product|null $product   Loaded product, when it still exists.
+	 * @return string
+	 */
+	private static function item_label( $object_id, $product ) {
+		if ( ! $product instanceof \WC_Product ) {
+			/* translators: %d: product ID. */
+			return sprintf( __( '#%d (deleted)', 'usd-to-toman-price-sync-for-woocommerce' ), (int) $object_id );
+		}
+
+		$name = wp_strip_all_tags( (string) $product->get_name() );
+
+		if ( $product->is_type( 'variation' ) ) {
+			/* translators: 1: variation ID, 2: variation name. */
+			return sprintf( __( 'variation #%1$d %2$s', 'usd-to-toman-price-sync-for-woocommerce' ), (int) $object_id, substr( $name, 0, 140 ) );
+		}
+
+		/* translators: 1: product ID, 2: product name. */
+		return sprintf( __( '#%1$d %2$s', 'usd-to-toman-price-sync-for-woocommerce' ), (int) $object_id, substr( $name, 0, 150 ) );
 	}
 
 	/**
@@ -993,9 +1021,9 @@ final class Sync_Runner {
 		$this->logger->info(
 			'Job finished.',
 			array(
-				'status'  => $status,
-				'type'    => $job->type(),
-				'rate'    => $job->rate(),
+				'status'   => $status,
+				'type'     => $job->type(),
+				'rate'     => $job->rate(),
 				'counters' => $counters,
 			),
 			$job->id()
@@ -1048,8 +1076,8 @@ final class Sync_Runner {
 			return;
 		}
 
-		$scope         = $this->products->normalize_scope( $job->scope() );
-		$full          = $this->products->normalize_scope( Product_Repository::default_scope() );
+		$scope          = $this->products->normalize_scope( $job->scope() );
+		$full           = $this->products->normalize_scope( Product_Repository::default_scope() );
 		$scope['label'] = '';
 		$full['label']  = '';
 
@@ -1382,7 +1410,12 @@ final class Sync_Runner {
 		}
 
 		foreach ( array( Job::STATUS_QUEUED, Job::STATUS_RUNNING ) as $status ) {
-			foreach ( $this->jobs->query( array( 'status' => $status, 'limit' => 10 ) ) as $job ) {
+			foreach ( $this->jobs->query(
+				array(
+					'status' => $status,
+					'limit'  => 10,
+				)
+			) as $job ) {
 				if ( $job->is_stale() ) {
 					continue;
 				}
@@ -1429,7 +1462,12 @@ final class Sync_Runner {
 		$resumes   = get_option( 'usdtf_stale_resumes', array() );
 		$resumes   = is_array( $resumes ) ? $resumes : array();
 
-		foreach ( $this->jobs->query( array( 'status' => Job::STATUS_RUNNING, 'limit' => 20 ) ) as $job ) {
+		foreach ( $this->jobs->query(
+			array(
+				'status' => Job::STATUS_RUNNING,
+				'limit'  => 20,
+			)
+		) as $job ) {
 			if ( ! $job->is_stale() ) {
 				continue;
 			}
@@ -1464,7 +1502,12 @@ final class Sync_Runner {
 		}
 
 		// Jobs that were left half started: queue their first step again.
-		foreach ( $this->jobs->query( array( 'status' => Job::STATUS_QUEUED, 'limit' => 20 ) ) as $job ) {
+		foreach ( $this->jobs->query(
+			array(
+				'status' => Job::STATUS_QUEUED,
+				'limit'  => 20,
+			)
+		) as $job ) {
 			if ( ! $this->scheduler->has_pending( self::HOOK_DISCOVER, array( $job->id() ) ) ) {
 				$this->scheduler->enqueue( self::HOOK_DISCOVER, array( $job->id() ) );
 				++$recovered;
@@ -1480,11 +1523,16 @@ final class Sync_Runner {
 	 * @return array
 	 */
 	public function state() {
-		$rate          = $this->rates->get_rate();
-		$pending       = $this->rates->get_pending();
-		$active        = $this->jobs->active_write_job();
-		$last          = $this->jobs->last_finished_job();
-		$last_preview  = $this->jobs->query( array( 'limit' => 1, 'status' => Job::STATUS_COMPLETED ) );
+		$rate         = $this->rates->get_rate();
+		$pending      = $this->rates->get_pending();
+		$active       = $this->jobs->active_write_job();
+		$last         = $this->jobs->last_finished_job();
+		$last_preview = $this->jobs->query(
+			array(
+				'limit'  => 1,
+				'status' => Job::STATUS_COMPLETED,
+			)
+		);
 
 		$preview_job = null;
 
@@ -1519,19 +1567,19 @@ final class Sync_Runner {
 			'lock'                => $this->lock->status(),
 			'scheduler'           => $this->scheduler->health(),
 			'settings'            => array(
-				'batch_size'        => $this->settings->batch_size(),
-				'time_budget'       => $this->settings->time_budget(),
-				'rounding'          => $this->settings->get( 'rounding' ),
-				'increment'         => (float) $this->settings->get( 'increment' ),
-				'decimals'          => (int) $this->settings->get( 'decimals' ),
-				'threshold'         => (float) $this->settings->get( 'rate_change_threshold' ),
-				'retry_limit'       => (int) $this->settings->get( 'retry_limit' ),
-				'retention_days'    => (int) $this->settings->get( 'retention_days' ),
-				'display_toman'     => (bool) $this->settings->get( 'display_toman' ),
+				'batch_size'         => $this->settings->batch_size(),
+				'time_budget'        => $this->settings->time_budget(),
+				'rounding'           => $this->settings->get( 'rounding' ),
+				'increment'          => (float) $this->settings->get( 'increment' ),
+				'decimals'           => (int) $this->settings->get( 'decimals' ),
+				'threshold'          => (float) $this->settings->get( 'rate_change_threshold' ),
+				'retry_limit'        => (int) $this->settings->get( 'retry_limit' ),
+				'retention_days'     => (int) $this->settings->get( 'retention_days' ),
+				'display_toman'      => (bool) $this->settings->get( 'display_toman' ),
 				'display_toman_cart' => (bool) $this->settings->get( 'display_toman_cart' ),
-				'persian_digits'    => (bool) $this->settings->get( 'persian_digits' ),
-				'toman_suffix'      => (string) $this->settings->get( 'toman_suffix' ),
-				'auto_manage'       => (bool) $this->settings->get( 'auto_manage_new_products' ),
+				'persian_digits'     => (bool) $this->settings->get( 'persian_digits' ),
+				'toman_suffix'       => (string) $this->settings->get( 'toman_suffix' ),
+				'auto_manage'        => (bool) $this->settings->get( 'auto_manage_new_products' ),
 			),
 		);
 	}

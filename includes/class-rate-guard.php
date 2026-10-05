@@ -73,8 +73,8 @@ final class Rate_Guard {
 	 * }
 	 */
 	public static function assess( $raw, $current = 0, $threshold = 15 ) {
-		$parsed   = Calculator::parse_rate( $raw );
-		$current  = (float) $current;
+		$parsed    = Calculator::parse_rate( $raw );
+		$current   = (float) $current;
 		$threshold = (float) $threshold;
 
 		if ( in_array( $parsed['code'], array( 'empty', 'zero', 'negative', 'out_of_range' ), true ) ) {

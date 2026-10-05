@@ -115,9 +115,9 @@ final class Product_Panel {
 			return;
 		}
 
-		$pricing  = $this->pricing;
-		$settings = $this->settings;
-		$snapshot = $pricing->get_snapshot( $product );
+		$pricing    = $this->pricing;
+		$settings   = $this->settings;
+		$snapshot   = $pricing->get_snapshot( $product );
 		$variations = array();
 
 		if ( $product->is_type( 'variable' ) ) {
@@ -177,7 +177,7 @@ final class Product_Panel {
 		$result = $this->pricing->set_source( $post_id, $regular, $sale );
 
 		if ( is_wp_error( $result ) ) {
-			set_transient( 'usdtf_panel_error_' . get_current_user_id(), $result->get_error_message(), 60);
+			set_transient( 'usdtf_panel_error_' . get_current_user_id(), $result->get_error_message(), 60 );
 
 			return;
 		}
@@ -253,8 +253,8 @@ final class Product_Panel {
 			return $actions;
 		}
 
-		$actions['usdtf_enable'] = __( 'USD/Toman: enable Toman pricing (import current price)', 'usd-to-toman-price-sync-for-woocommerce' );
-		$actions['usdtf_native'] = __( 'USD/Toman: mark as native USD price', 'usd-to-toman-price-sync-for-woocommerce' );
+		$actions['usdtf_enable']  = __( 'USD/Toman: enable Toman pricing (import current price)', 'usd-to-toman-price-sync-for-woocommerce' );
+		$actions['usdtf_native']  = __( 'USD/Toman: mark as native USD price', 'usd-to-toman-price-sync-for-woocommerce' );
 		$actions['usdtf_exclude'] = __( 'USD/Toman: exclude from synchronization', 'usd-to-toman-price-sync-for-woocommerce' );
 
 		return $actions;
@@ -381,14 +381,32 @@ final class Product_Panel {
 		if ( null !== $snapshot['source_regular'] ) {
 			printf(
 				'<br /><span class="usdtf-toman-value">%s</span>',
-				esc_html( Calculator::format_toman( $snapshot['source_regular'], array( 'persian_digits' => (bool) $this->settings->get( 'persian_digits' ), 'with_suffix' => true, 'suffix' => (string) $this->settings->get( 'toman_suffix' ) ) ) )
+				esc_html(
+					Calculator::format_toman(
+						$snapshot['source_regular'],
+						array(
+							'persian_digits' => (bool) $this->settings->get( 'persian_digits' ),
+							'with_suffix'    => true,
+							'suffix'         => (string) $this->settings->get( 'toman_suffix' ),
+						)
+					)
+				)
 			);
 		}
 
 		if ( null !== $snapshot['source_sale'] ) {
 			printf(
 				'<br /><span class="usdtf-toman-sale">%s</span>',
-				esc_html( Calculator::format_toman( $snapshot['source_sale'], array( 'persian_digits' => (bool) $this->settings->get( 'persian_digits' ), 'with_suffix' => true, 'suffix' => (string) $this->settings->get( 'toman_suffix' ) ) ) )
+				esc_html(
+					Calculator::format_toman(
+						$snapshot['source_sale'],
+						array(
+							'persian_digits' => (bool) $this->settings->get( 'persian_digits' ),
+							'with_suffix'    => true,
+							'suffix'         => (string) $this->settings->get( 'toman_suffix' ),
+						)
+					)
+				)
 			);
 		}
 

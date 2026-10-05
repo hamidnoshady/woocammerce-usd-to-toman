@@ -10,10 +10,10 @@
 
 defined( 'ABSPATH' ) || exit;
 
-$usdtf_checks  = $health->checks();
-$usdtf_queue   = $scheduler->health();
-$usdtf_lock    = usdtf_plugin()->lock()->status();
-$usdtf_stale   = $health->stale_jobs();
+$usdtf_checks = $health->checks();
+$usdtf_queue  = $scheduler->health();
+$usdtf_lock   = usdtf_plugin()->lock()->status();
+$usdtf_stale  = $health->stale_jobs();
 ?>
 <section class="usdtf-card">
 	<h2><?php esc_html_e( 'Background queue', 'usd-to-toman-price-sync-for-woocommerce' ); ?></h2>

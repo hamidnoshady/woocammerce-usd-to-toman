@@ -51,6 +51,15 @@
 		}, 8000 );
 	}
 
+	function escapeHtml( value ) {
+		return String( value === undefined || value === null ? '' : value )
+			.replace( /&/g, '&amp;' )
+			.replace( /</g, '&lt;' )
+			.replace( />/g, '&gt;' )
+			.replace( /"/g, '&quot;' )
+			.replace( /'/g, '&#039;' );
+	}
+
 	function errorMessage( error ) {
 		if ( error && error.message ) {
 			return error.message;
@@ -133,12 +142,20 @@
 			bar.style.width = job.progress + '%';
 		}
 
+		var current = job.current_item ?
+			'<p class="usdtf-progress__current">' +
+			( job.is_active ? ( labels.currentProduct || 'Currently processing' ) : ( labels.lastProduct || 'Last product' ) ) +
+			': <strong>' + escapeHtml( job.current_item ) + '</strong></p>' :
+			'';
+
 		panel.innerHTML =
 			'<div class="usdtf-progress">' +
 			'<div class="usdtf-progress__bar"><span style="width:' + job.progress + '%"></span></div>' +
 			'<p class="usdtf-progress__numbers">' +
-			formatNumber( counters.processed ) + ' / ' + formatNumber( counters.total ) + ' (' + job.progress + '%)' +
+			formatNumber( counters.processed ) + ' / ' + formatNumber( counters.total ) + ' (' + job.progress + '%) · ' +
+			formatNumber( job.rate ) + ' ' + ( labels.rateSuffix || 'Toman / USD' ) +
 			'</p>' +
+			current +
 			'<ul class="usdtf-counters">' +
 			'<li>Changed: <strong>' + formatNumber( counters.changed ) + '</strong></li>' +
 			'<li>Unchanged: <strong>' + formatNumber( counters.unchanged ) + '</strong></li>' +
@@ -215,10 +232,31 @@
 
 			return response;
 		} ).catch( function ( error ) {
+			var running = runningJobFromError( error );
+
+			if ( running ) {
+				// Only one write job may run at a time: surface the job that is
+				// already queued, with its rate, its progress and its controls.
+				toast( ( labels.alreadyRunning || 'Another price update is already running.' ) +
+					' #' + running.id + ' · ' + formatNumber( running.rate ) + ' · ' + running.progress + '%' );
+
+				renderProgress( running );
+				poll( running.id );
+
+				return null;
+			}
+
 			toast( errorMessage( error ), true );
 
 			throw error;
 		} );
+	}
+
+	function runningJobFromError( error ) {
+		var payload = error && error.data ? error.data : null;
+		var job = payload && payload.job ? payload.job : null;
+
+		return job && job.id ? job : null;
 	}
 
 	function showConfirmation( result ) {

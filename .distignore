@@ -1,0 +1,38 @@
+# Development files that are never part of the installable plugin.
+#
+# bin/build-dist.php reads this list, so the release zip contains exactly the
+# files a store owner needs. `npm run plugin-zip` and similar tools understand
+# the same format.
+
+# Version control and editor configuration.
+/.git
+/.gitattributes
+/.gitignore
+/.editorconfig
+/.distignore
+
+# Automation.
+/.github
+/bin
+
+# Tests.
+/tests
+/phpcs.xml.dist
+/phpunit.xml.dist
+/composer.json
+/composer.lock
+/package.json
+/package-lock.json
+/node_modules
+
+# Documentation for developers (readme.txt is the store readme and stays in).
+/README.md
+/CHANGELOG.md
+/*.md
+
+# Build output.
+/dist
+
+# Translation sources. The .pot template ships with the plugin, compiled .mo
+# files from translate.wordpress.org are shipped by WordPress.org itself.
+/languages/*.po

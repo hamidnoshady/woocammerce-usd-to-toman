@@ -66,16 +66,16 @@ final class Product_Repository {
 	 */
 	public static function default_scope() {
 		return array(
-			'mode'                => Product_Pricing::MODE_MANAGED,
-			'ids'                 => array(),
-			'exclude_ids'         => array(),
-			'category'            => array(),
-			'product_type'        => array(),
-			'statuses'            => self::STATUSES,
-			'only_outdated'       => false,
-			'changed_since'       => 0,
-			'include_variations'  => true,
-			'label'               => '',
+			'mode'               => Product_Pricing::MODE_MANAGED,
+			'ids'                => array(),
+			'exclude_ids'        => array(),
+			'category'           => array(),
+			'product_type'       => array(),
+			'statuses'           => self::STATUSES,
+			'only_outdated'      => false,
+			'changed_since'      => 0,
+			'include_variations' => true,
+			'label'              => '',
 		);
 	}
 
@@ -96,8 +96,8 @@ final class Product_Repository {
 			: Product_Pricing::MODE_MANAGED;
 
 		foreach ( array( 'ids', 'exclude_ids', 'category', 'statuses' ) as $key ) {
-			$values = is_array( $scope[ $key ] ) ? $scope[ $key ] : array( $scope[ $key ] );
-			$values = array_filter( array_map( 'intval', $values ) );
+			$values        = is_array( $scope[ $key ] ) ? $scope[ $key ] : array( $scope[ $key ] );
+			$values        = array_filter( array_map( 'intval', $values ) );
 			$clean[ $key ] = array_values( array_unique( $values ) );
 		}
 
@@ -109,7 +109,7 @@ final class Product_Repository {
 			$clean['statuses'] = self::STATUSES;
 		}
 
-		$types = is_array( $scope['product_type'] ) ? $scope['product_type'] : array( $scope['product_type'] );
+		$types                 = is_array( $scope['product_type'] ) ? $scope['product_type'] : array( $scope['product_type'] );
 		$clean['product_type'] = array_values( array_filter( array_map( 'sanitize_key', $types ) ) );
 
 		$clean['only_outdated']      = ! empty( $scope['only_outdated'] );
@@ -301,10 +301,10 @@ final class Product_Repository {
 	 * @return int
 	 */
 	public function count( array $scope, $object_type = 'product', $parent_id = 0, $rate = 0 ) {
-		$args                        = $this->query_args( $scope, 1, 1, $object_type, $parent_id, $rate );
-		$args['posts_per_page']      = 1;
-		$args['fields']              = 'ids';
-		$args['no_found_rows']       = false;
+		$args                   = $this->query_args( $scope, 1, 1, $object_type, $parent_id, $rate );
+		$args['posts_per_page'] = 1;
+		$args['fields']         = 'ids';
+		$args['no_found_rows']  = false;
 
 		$query = new \WP_Query( $args );
 
@@ -320,9 +320,9 @@ final class Product_Repository {
 	public function variation_ids( $parent_id ) {
 		$ids = $this->get_ids(
 			array(
-				'mode'    => 'all',
-				'ids'     => array(),
-				'label'   => '',
+				'mode'  => 'all',
+				'ids'   => array(),
+				'label' => '',
 			),
 			1,
 			self::VARIATION_LIMIT,
@@ -358,11 +358,11 @@ final class Product_Repository {
 		}
 
 		$counts = array(
-			'managed'   => 0,
-			'native'    => 0,
-			'excluded'  => 0,
-			'unset'     => 0,
-			'products'  => 0,
+			'managed'    => 0,
+			'native'     => 0,
+			'excluded'   => 0,
+			'unset'      => 0,
+			'products'   => 0,
 			'variations' => 0,
 		);
 
@@ -467,14 +467,14 @@ final class Product_Repository {
 		$modes = $this->mode_counts();
 
 		$summary = array(
-			'products'            => (int) $modes['products'],
-			'variations'          => (int) $modes['variations'],
-			'managed'             => (int) $modes['managed'],
-			'managed_variations'  => (int) $modes['managed_variations'],
-			'native'              => (int) $modes['native'],
-			'excluded'            => (int) $modes['excluded'],
-			'unset'               => (int) $modes['unset'],
-			'candidates'          => $this->candidate_count( $rate ),
+			'products'           => (int) $modes['products'],
+			'variations'         => (int) $modes['variations'],
+			'managed'            => (int) $modes['managed'],
+			'managed_variations' => (int) $modes['managed_variations'],
+			'native'             => (int) $modes['native'],
+			'excluded'           => (int) $modes['excluded'],
+			'unset'              => (int) $modes['unset'],
+			'candidates'         => $this->candidate_count( $rate ),
 		);
 
 		return $summary;

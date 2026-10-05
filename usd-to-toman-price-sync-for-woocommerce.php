@@ -22,7 +22,6 @@
 defined( 'ABSPATH' ) || exit;
 
 define( 'USDTF_VERSION', '1.0.0' );
-define( 'USDTF_DB_VERSION', '1' );
 define( 'USDTF_FILE', __FILE__ );
 define( 'USDTF_DIR', plugin_dir_path( __FILE__ ) );
 define( 'USDTF_URL', plugin_dir_url( __FILE__ ) );

@@ -18,11 +18,11 @@ use USDTF\Settings;
 
 defined( 'ABSPATH' ) || exit;
 
-$usdtf_persian   = (bool) $settings->get( 'persian_digits' );
-$usdtf_suffix    = (string) $settings->get( 'toman_suffix' );
-$usdtf_currency  = (string) $settings->get( 'currency_mode' );
-$usdtf_error     = get_transient( 'usdtf_panel_error_' . get_current_user_id() );
-$usdtf_is_toman  = Settings::MODE_TOMAN === $usdtf_currency;
+$usdtf_persian     = (bool) $settings->get( 'persian_digits' );
+$usdtf_suffix      = (string) $settings->get( 'toman_suffix' );
+$usdtf_currency    = (string) $settings->get( 'currency_mode' );
+$usdtf_error       = get_transient( 'usdtf_panel_error_' . get_current_user_id() );
+$usdtf_is_toman    = Settings::MODE_TOMAN === $usdtf_currency;
 $usdtf_panel_modes = array(
 	Product_Pricing::MODE_MANAGED  => __( 'Toman managed — WooCommerce price is calculated from the Toman price', 'usd-to-toman-price-sync-for-woocommerce' ),
 	Product_Pricing::MODE_NATIVE   => __( 'Native USD — never synchronized by this plugin', 'usd-to-toman-price-sync-for-woocommerce' ),
@@ -98,7 +98,14 @@ if ( $usdtf_error ) {
 				echo esc_html(
 					null === $snapshot['source_regular']
 						? '—'
-						: Calculator::format_toman( $snapshot['source_regular'], array( 'persian_digits' => $usdtf_persian, 'with_suffix' => true, 'suffix' => $usdtf_suffix ) )
+						: Calculator::format_toman(
+							$snapshot['source_regular'],
+							array(
+								'persian_digits' => $usdtf_persian,
+								'with_suffix'    => true,
+								'suffix'         => $usdtf_suffix,
+							)
+						)
 				);
 				?>
 				<?php if ( null !== $snapshot['source_sale'] ) : ?>
@@ -107,7 +114,16 @@ if ( $usdtf_error ) {
 					printf(
 						/* translators: %s: sale price. */
 						esc_html__( 'Sale: %s', 'usd-to-toman-price-sync-for-woocommerce' ),
-						esc_html( Calculator::format_toman( $snapshot['source_sale'], array( 'persian_digits' => $usdtf_persian, 'with_suffix' => true, 'suffix' => $usdtf_suffix ) ) )
+						esc_html(
+							Calculator::format_toman(
+								$snapshot['source_sale'],
+								array(
+									'persian_digits' => $usdtf_persian,
+									'with_suffix'    => true,
+									'suffix'         => $usdtf_suffix,
+								)
+							)
+						)
 					);
 					?>
 				<?php endif; ?>
@@ -142,7 +158,14 @@ if ( $usdtf_error ) {
 				echo esc_html(
 					null === $snapshot['rate']
 						? '—'
-						: Calculator::format_toman( $snapshot['rate'], array( 'persian_digits' => $usdtf_persian, 'with_suffix' => true, 'suffix' => $usdtf_suffix ) )
+						: Calculator::format_toman(
+							$snapshot['rate'],
+							array(
+								'persian_digits' => $usdtf_persian,
+								'with_suffix'    => true,
+								'suffix'         => $usdtf_suffix,
+							)
+						)
 				);
 				?>
 			</td>

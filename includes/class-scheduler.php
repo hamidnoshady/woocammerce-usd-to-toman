@@ -24,7 +24,7 @@ final class Scheduler {
 	const GROUP = 'usdtf';
 
 	/**
-	 * admin-ajax action used by the loopback fallback.
+	 * Admin-ajax action used by the loopback fallback.
 	 */
 	const LOOPBACK_ACTION = 'usdtf_worker';
 
@@ -383,14 +383,19 @@ final class Scheduler {
 	 * @return void
 	 */
 	public function handle_loopback() {
+		// The caller is the plugin itself, not a browser form, so the request is
+		// authenticated with the secret loopback token instead of a nonce.
+		// phpcs:ignore WordPress.Security.NonceVerification.Missing -- Secret token verified below.
 		$token = isset( $_POST['token'] ) ? sanitize_text_field( wp_unslash( $_POST['token'] ) ) : '';
 
 		if ( ! self::verify_token( $token ) ) {
 			wp_die( '', '', array( 'response' => 403 ) );
 		}
 
+		// phpcs:ignore WordPress.Security.NonceVerification.Missing -- Secret token verified above.
 		$hook = isset( $_POST['hook'] ) ? sanitize_key( wp_unslash( $_POST['hook'] ) ) : '';
-		$raw  = isset( $_POST['args'] ) ? wp_unslash( $_POST['args'] ) : ''; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- JSON decoded and cast below.
+		// phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Secret token verified above, JSON decoded and cast below.
+		$raw = isset( $_POST['args'] ) ? wp_unslash( $_POST['args'] ) : '';
 
 		if ( ! in_array( $hook, self::allowed_worker_hooks(), true ) ) {
 			wp_die( '', '', array( 'response' => 400 ) );
@@ -411,7 +416,8 @@ final class Scheduler {
 			sleep( min( 10, $delay ) );
 		}
 
-		do_action( $hook, $job_id );
+		// Only the hooks returned by allowed_worker_hooks() can reach this line.
+		do_action( $hook, $job_id ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.DynamicHooknameFound -- Whitelisted internal hook.
 
 		wp_die( 'ok', '', array( 'response' => 200 ) );
 	}

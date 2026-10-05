@@ -13,14 +13,14 @@ use USDTF\Calculator;
 
 defined( 'ABSPATH' ) || exit;
 
-$usdtf_suffix    = (string) $settings->get( 'toman_suffix' );
-$usdtf_persian   = (bool) $settings->get( 'persian_digits' );
-$usdtf_rate      = (float) $state['rate'];
-$usdtf_pending   = $state['pending_rate'];
-$usdtf_summary   = $state['summary'];
-$usdtf_active    = $state['active_job'];
-$usdtf_last      = $state['last_job'];
-$usdtf_preview   = $state['last_preview_job'];
+$usdtf_suffix     = (string) $settings->get( 'toman_suffix' );
+$usdtf_persian    = (bool) $settings->get( 'persian_digits' );
+$usdtf_rate       = (float) $state['rate'];
+$usdtf_pending    = $state['pending_rate'];
+$usdtf_summary    = $state['summary'];
+$usdtf_active     = $state['active_job'];
+$usdtf_last       = $state['last_job'];
+$usdtf_preview    = $state['last_preview_job'];
 $usdtf_categories = get_terms(
 	array(
 		'taxonomy'   => 'product_cat',
@@ -34,10 +34,10 @@ if ( is_wp_error( $usdtf_categories ) ) {
 }
 
 $usdtf_types = array(
-	'simple'        => __( 'Simple products', 'usd-to-toman-price-sync-for-woocommerce' ),
-	'variable'      => __( 'Variable products', 'usd-to-toman-price-sync-for-woocommerce' ),
-	'grouped'       => __( 'Grouped products', 'usd-to-toman-price-sync-for-woocommerce' ),
-	'external'      => __( 'External products', 'usd-to-toman-price-sync-for-woocommerce' ),
+	'simple'   => __( 'Simple products', 'usd-to-toman-price-sync-for-woocommerce' ),
+	'variable' => __( 'Variable products', 'usd-to-toman-price-sync-for-woocommerce' ),
+	'grouped'  => __( 'Grouped products', 'usd-to-toman-price-sync-for-woocommerce' ),
+	'external' => __( 'External products', 'usd-to-toman-price-sync-for-woocommerce' ),
 );
 ?>
 <div class="usdtf-grid">
@@ -381,7 +381,19 @@ $usdtf_types = array(
 									?>
 								<?php endif; ?>
 							</td>
-							<td><?php echo esc_html( Calculator::format_toman( (float) $usdtf_item['toman_regular'], array( 'with_suffix' => false, 'persian_digits' => $usdtf_persian ) ) ); ?></td>
+							<td>
+							<?php
+							echo esc_html(
+								Calculator::format_toman(
+									(float) $usdtf_item['toman_regular'],
+									array(
+										'with_suffix'    => false,
+										'persian_digits' => $usdtf_persian,
+									)
+								)
+							);
+							?>
+								</td>
 							<td><?php echo esc_html( (string) $usdtf_item['old_regular'] ); ?></td>
 							<td><strong><?php echo esc_html( (string) $usdtf_item['new_regular'] ); ?></strong></td>
 							<td><?php echo esc_html( (string) $usdtf_item['message'] ); ?></td>

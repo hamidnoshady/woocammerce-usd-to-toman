@@ -212,9 +212,9 @@ final class Admin {
 	 * @return void
 	 */
 	public function enqueue_assets( $hook_suffix ) {
-		$screen      = function_exists( 'get_current_screen' ) ? get_current_screen() : null;
-		$is_plugin   = false !== strpos( (string) $hook_suffix, self::PAGE );
-		$is_product  = $screen && 'product' === $screen->post_type;
+		$screen          = function_exists( 'get_current_screen' ) ? get_current_screen() : null;
+		$is_plugin       = false !== strpos( (string) $hook_suffix, self::PAGE );
+		$is_product      = $screen && 'product' === $screen->post_type;
 		$is_product_list = $screen && 'edit-product' === $screen->id;
 
 		if ( ! $is_plugin && ! $is_product && ! $is_product_list ) {
@@ -265,6 +265,10 @@ final class Admin {
 					'working'         => __( 'Working…', 'usd-to-toman-price-sync-for-woocommerce' ),
 					'noChanges'       => __( 'No synchronization required.', 'usd-to-toman-price-sync-for-woocommerce' ),
 					'unknownProduct'  => __( 'Unknown product', 'usd-to-toman-price-sync-for-woocommerce' ),
+					'currentProduct'  => __( 'Currently processing', 'usd-to-toman-price-sync-for-woocommerce' ),
+					'lastProduct'     => __( 'Last product', 'usd-to-toman-price-sync-for-woocommerce' ),
+					'rateSuffix'      => __( 'Toman / USD', 'usd-to-toman-price-sync-for-woocommerce' ),
+					'alreadyRunning'  => __( 'Another price update is already running. Showing it instead.', 'usd-to-toman-price-sync-for-woocommerce' ),
 				),
 			)
 		);
@@ -276,7 +280,7 @@ final class Admin {
 	 * @return array
 	 */
 	private function preview_scope() {
-		$scope = Product_Repository::default_scope();
+		$scope          = Product_Repository::default_scope();
 		$scope['label'] = __( 'Every managed product', 'usd-to-toman-price-sync-for-woocommerce' );
 
 		return $scope;
@@ -298,16 +302,16 @@ final class Admin {
 			$tab = 'dashboard';
 		}
 
-		$page       = self::PAGE;
-		$state      = $this->runner->state();
-		$rates      = $this->rates;
-		$jobs       = $this->jobs;
-		$products   = $this->products;
-		$health     = $this->health;
-		$settings   = $this->settings;
-		$logger     = $this->logger;
-		$scheduler  = $this->scheduler;
-		$history    = $this->rates->history( 15 );
+		$page        = self::PAGE;
+		$state       = $this->runner->state();
+		$rates       = $this->rates;
+		$jobs        = $this->jobs;
+		$products    = $this->products;
+		$health      = $this->health;
+		$settings    = $this->settings;
+		$logger      = $this->logger;
+		$scheduler   = $this->scheduler;
+		$history     = $this->rates->history( 15 );
 		$current_job = null;
 
 		if ( 'jobs' === $tab ) {
@@ -321,9 +325,9 @@ final class Admin {
 		/**
 		 * Filters the tabs of the plugin screen.
 		 *
-		 * @param array $tabs Tab slug => label.
+		 * @param array $usdtf_tabs Tab slug => label.
 		 */
-		$tabs = apply_filters(
+		$usdtf_tabs = apply_filters(
 			'usdtf_admin_tabs',
 			array(
 				'dashboard' => __( 'Dashboard', 'usd-to-toman-price-sync-for-woocommerce' ),
@@ -346,7 +350,7 @@ final class Admin {
 			return;
 		}
 
-		$screen = function_exists( 'get_current_screen' ) ? get_current_screen() : null;
+		$screen        = function_exists( 'get_current_screen' ) ? get_current_screen() : null;
 		$on_own_screen = $screen && false !== strpos( (string) $screen->id, self::PAGE );
 
 		if ( $this->settings->currency_mode_is_stale() && ( $on_own_screen || ( $screen && 'product' === $screen->post_type ) ) ) {
@@ -452,7 +456,8 @@ final class Admin {
 
 		fputcsv( $output, array( 'product_id', 'parent_id', 'object_type', 'status', 'toman_regular', 'toman_sale', 'old_price', 'new_price', 'attempts', 'message' ) );
 
-		$page = 1;
+		$page  = 1;
+		$found = 0;
 
 		do {
 			$items = $this->jobs->items(
@@ -462,6 +467,7 @@ final class Admin {
 					'limit' => 500,
 				)
 			);
+			$found = count( $items );
 
 			foreach ( $items as $item ) {
 				fputcsv(
@@ -482,7 +488,7 @@ final class Admin {
 			}
 
 			++$page;
-		} while ( count( $items ) === 500 && $page < 40 );
+		} while ( 500 === $found && $page < 40 );
 
 		fclose( $output ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose -- Streaming a CSV download.
 		exit;

@@ -167,15 +167,15 @@ final class Rate_Repository {
 		$row_id = Database::insert(
 			Database::rates_table(),
 			array(
-				'rate'          => $rate,
-				'previous_rate' => $previous > 0 ? $previous : null,
+				'rate'           => $rate,
+				'previous_rate'  => $previous > 0 ? $previous : null,
 				'change_percent' => null === $change ? null : $change,
-				'source'        => (string) $args['source'],
-				'user_id'       => (int) $args['user_id'],
-				'job_id'        => 0,
-				'status'        => 'active',
-				'note'          => '' === $args['note'] ? null : $args['note'],
-				'created_at'    => current_time( 'mysql', true ),
+				'source'         => (string) $args['source'],
+				'user_id'        => (int) $args['user_id'],
+				'job_id'         => 0,
+				'status'         => 'active',
+				'note'           => '' === $args['note'] ? null : $args['note'],
+				'created_at'     => current_time( 'mysql', true ),
 			),
 			array( '%f', '%f', '%f', '%s', '%d', '%d', '%s', '%s', '%s' )
 		);
@@ -330,13 +330,13 @@ final class Rate_Repository {
 
 		if ( Rate_Guard::CODE_UNCHANGED === $assessed['code'] ) {
 			return array(
-				'saved'          => false,
+				'saved'                 => false,
 				'requires_confirmation' => false,
-				'rate'           => $current,
-				'previous_rate'  => $current,
-				'change_percent' => 0.0,
-				'affected'       => 0,
-				'message'        => $assessed['message'],
+				'rate'                  => $current,
+				'previous_rate'         => $current,
+				'change_percent'        => 0.0,
+				'affected'              => 0,
+				'message'               => $assessed['message'],
 			);
 		}
 

@@ -415,10 +415,10 @@ final class Health {
 	 */
 	private function detect_currency_plugin() {
 		$candidates = array(
-			'WOOCS'                          => 'WooCommerce Currency Switcher',
-			'WCML_Multi_Currency'            => 'WPML Multi Currency',
+			'WOOCS'               => 'WooCommerce Currency Switcher',
+			'WCML_Multi_Currency' => 'WPML Multi Currency',
 			'Aelia\WC\CurrencySwitcher\WC_Aelia_CurrencySwitcher' => 'Aelia Currency Switcher',
-			'WC_CS_Currencies'               => 'WooCommerce Currency Switcher',
+			'WC_CS_Currencies'    => 'WooCommerce Currency Switcher',
 		);
 
 		foreach ( $candidates as $class => $label ) {

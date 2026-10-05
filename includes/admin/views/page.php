@@ -4,10 +4,10 @@
  *
  * @package USDTF
  *
- * @var string $page   Page slug.
- * @var string $tab    Active tab.
- * @var array  $tabs   Tabs.
- * @var array  $state  Dashboard state.
+ * @var string $page       Page slug.
+ * @var string $tab        Active tab.
+ * @var array  $usdtf_tabs Tabs.
+ * @var array  $state      Dashboard state.
  */
 
 defined( 'ABSPATH' ) || exit;
@@ -29,12 +29,12 @@ defined( 'ABSPATH' ) || exit;
 	<?php endif; ?>
 
 	<nav class="nav-tab-wrapper usdtf-tabs">
-		<?php foreach ( $tabs as $slug => $label ) : ?>
+		<?php foreach ( $usdtf_tabs as $usdtf_slug => $usdtf_label ) : ?>
 			<a
-				class="nav-tab <?php echo $slug === $tab ? 'nav-tab-active' : ''; ?>"
-				href="<?php echo esc_url( admin_url( 'admin.php?page=' . $page . '&tab=' . $slug ) ); ?>"
+				class="nav-tab <?php echo $usdtf_slug === $tab ? 'nav-tab-active' : ''; ?>"
+				href="<?php echo esc_url( admin_url( 'admin.php?page=' . $page . '&tab=' . $usdtf_slug ) ); ?>"
 			>
-				<?php echo esc_html( $label ); ?>
+				<?php echo esc_html( $usdtf_label ); ?>
 			</a>
 		<?php endforeach; ?>
 	</nav>

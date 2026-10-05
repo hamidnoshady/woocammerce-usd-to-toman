@@ -20,7 +20,7 @@ final class Database {
 	/**
 	 * Current schema version.
 	 */
-	const SCHEMA_VERSION = '3';
+	const SCHEMA_VERSION = '4';
 
 	/**
 	 * Fully qualified table name.

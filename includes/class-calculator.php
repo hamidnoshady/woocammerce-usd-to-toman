@@ -438,13 +438,13 @@ final class Calculator {
 	/**
 	 * Percentage change between two rates.
 	 *
-	 * @param float|int|string $old Old value.
-	 * @param float|int|string $new New value.
+	 * @param float|int|string $old     Old value.
+	 * @param float|int|string $updated New value.
 	 * @return float|null Signed percentage (e.g. -90.0), null when not computable.
 	 */
-	public static function percent_change( $old, $new ) {
-		$old = (float) $old;
-		$new = (float) $new;
+	public static function percent_change( $old, $updated ) {
+		$old     = (float) $old;
+		$updated = (float) $updated;
 
 		if ( $old <= 0 ) {
 			return null;

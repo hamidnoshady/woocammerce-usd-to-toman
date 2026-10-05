@@ -180,7 +180,7 @@ final class Display {
 			return '';
 		}
 
-		$quantity  = max( 1, (int) $quantity );
+		$quantity   = max( 1, (int) $quantity );
 		$is_on_sale = null !== $source['sale'] && $product->is_on_sale();
 
 		if ( $is_on_sale ) {

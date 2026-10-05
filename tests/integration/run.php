@@ -124,6 +124,32 @@ $finished = $jobs->get( (int) $job['id'] );
 usdtf_it_assert_same( \USDTF\Job::STATUS_COMPLETED, $finished->status(), 'the job must complete' );
 usdtf_it_assert_same( 3, (int) $finished->data['changed'], 'three products must be reported as changed' );
 
+// The progress screen reads the product the worker was busy with.
+usdtf_it_assert( '' !== (string) $finished->data['current_item'], 'the job must remember the last product it processed' );
+usdtf_it_assert(
+	false !== strpos( (string) $finished->data['current_item'], 'Laptop C' ),
+	'the remembered product must be one of the processed products'
+);
+
+// The item list is what the job detail screen and the CSV export use.
+$changed_items = $jobs->items( (int) $job['id'], array( 'status' => \USDTF\Job_Repository::ITEM_CHANGED, 'limit' => 2, 'page' => 1 ) );
+usdtf_it_assert_same( 2, count( $changed_items ), 'the status filter and the page size must be applied' );
+
+foreach ( $changed_items as $changed_item ) {
+	usdtf_it_assert_same( \USDTF\Job_Repository::ITEM_CHANGED, (string) $changed_item['status'], 'only the requested status may be returned' );
+}
+
+$second_page = $jobs->items( (int) $job['id'], array( 'status' => \USDTF\Job_Repository::ITEM_CHANGED, 'limit' => 2, 'page' => 2 ) );
+usdtf_it_assert_same( 1, count( $second_page ), 'the second page must hold the remaining row' );
+usdtf_it_assert(
+	(int) $second_page[0]['id'] !== (int) $changed_items[0]['id'],
+	'paging must not repeat the first page'
+);
+
+// Unknown settings fall back to the value the caller asked for.
+usdtf_it_assert_same( 'fallback', $settings->get( 'usdtf_unknown_setting', 'fallback' ), 'an unknown setting must return the fallback' );
+usdtf_it_pass( 'job state exposes the live item and the item query filters and pages' );
+
 // ---------------------------------------------------------------------------
 // 2. A dry run never writes.
 // ---------------------------------------------------------------------------
@@ -179,13 +205,38 @@ usdtf_it_reset_plugin_state();
 $rates->save_rate( 270000 );
 
 $sale_product = usdtf_it_make_simple_product( 'Mouse', 900000, 400000 );
-$job = $runner->create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
+$job          = $runner->create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
 usdtf_it_run_job( (int) $job['id'] );
 
 usdtf_it_assert_same( '4', usdtf_it_price( $sale_product->get_id() ), '900,000 / 270,000 must round up to 4 USD' );
 usdtf_it_assert_same( '2', usdtf_it_sale( $sale_product->get_id() ), '400,000 / 270,000 must round up to 2 USD' );
 usdtf_it_assert_same( '900000', usdtf_it_meta( $sale_product->get_id(), \USDTF\Product_Pricing::META_SOURCE_REGULAR ), 'the Toman regular price must be preserved' );
 usdtf_it_assert_same( '400000', usdtf_it_meta( $sale_product->get_id(), \USDTF\Product_Pricing::META_SOURCE_SALE ), 'the Toman sale price must be preserved' );
+
+// A scheduled sale keeps its dates: only the price fields are written.
+$scheduled         = usdtf_it_make_simple_product( 'Scheduled sale', 2000000, 1000000 );
+$scheduled_product = wc_get_product( $scheduled->get_id() );
+$scheduled_product->set_date_on_sale_from( gmdate( 'Y-m-d', time() + 86400 ) );
+$scheduled_product->set_date_on_sale_to( gmdate( 'Y-m-d', time() + 172800 ) );
+$scheduled_product->save();
+
+$job = $runner->create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
+usdtf_it_run_job( (int) $job['id'] );
+
+$scheduled_product = wc_get_product( $scheduled->get_id() );
+usdtf_it_assert_same( '8', (string) $scheduled_product->get_regular_price( 'edit' ), 'ceil(2,000,000 / 270,000) must be the regular price' );
+usdtf_it_assert_same( '4', (string) $scheduled_product->get_sale_price( 'edit' ), 'ceil(1,000,000 / 270,000) must be the sale price' );
+usdtf_it_assert_same(
+	gmdate( 'Y-m-d', time() + 86400 ),
+	$scheduled_product->get_date_on_sale_from( 'edit' ) ? $scheduled_product->get_date_on_sale_from( 'edit' )->date( 'Y-m-d' ) : '',
+	'a scheduled sale keeps its start date'
+);
+usdtf_it_assert_same(
+	gmdate( 'Y-m-d', time() + 172800 ),
+	$scheduled_product->get_date_on_sale_to( 'edit' ) ? $scheduled_product->get_date_on_sale_to( 'edit' )->date( 'Y-m-d' ) : '',
+	'a scheduled sale keeps its end date'
+);
+usdtf_it_pass( 'scheduled sale dates survive a synchronization' );
 
 // Clearing the sale price in the source clears it in WooCommerce.
 $pricing->set_source( $sale_product->get_id(), 900000, '' );
@@ -231,7 +282,7 @@ $rates->save_rate( 270000 );
 
 $conflict_product = usdtf_it_make_simple_product( 'Conflict Product', 5000000 );
 
-$job   = $runner->create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
+$job    = $runner->create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
 $job_id = (int) $job['id'];
 
 // Discovery queues the item with the current revision.
@@ -272,8 +323,8 @@ $invalid = usdtf_it_make_simple_product( 'Invalid sale', 1000000 );
 // example after a bad import): the job must skip and report it, never crash.
 update_post_meta( $invalid->get_id(), \USDTF\Product_Pricing::META_SOURCE_REGULAR, '1000000' );
 update_post_meta( $invalid->get_id(), \USDTF\Product_Pricing::META_SOURCE_SALE, '2000000' );
-$zero    = usdtf_it_make_simple_product( 'Zero price', '' );
-$native  = usdtf_it_make_simple_product( 'Native USD product', '', '', \USDTF\Product_Pricing::MODE_NATIVE );
+$zero   = usdtf_it_make_simple_product( 'Zero price', '' );
+$native = usdtf_it_make_simple_product( 'Native USD product', '', '', \USDTF\Product_Pricing::MODE_NATIVE );
 $native->set_regular_price( '49' );
 $native->save();
 $excluded = usdtf_it_make_simple_product( 'Excluded product', 3000000, '', \USDTF\Product_Pricing::MODE_EXCLUDED );
@@ -369,6 +420,14 @@ $job_id = (int) $job['id'];
 $second = $runner->create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
 usdtf_it_assert( is_wp_error( $second ), 'a second write job must be rejected while one is queued' );
 usdtf_it_assert_same( 'usdtf_job_running', $second->get_error_code(), 'the rejection must use the documented error code' );
+
+// The rejection carries the running job so the screen can show its rate and
+// progress with the pause and cancel controls instead of a dead end.
+$rejected = $second->get_error_data();
+usdtf_it_assert( is_array( $rejected ) && ! empty( $rejected['job'] ), 'the rejection must include the running job' );
+usdtf_it_assert_same( $job_id, (int) $rejected['job']['id'], 'the included job must be the running one' );
+usdtf_it_assert_same( 270000.0, (float) $rejected['job']['rate'], 'the included job must expose the rate it uses' );
+usdtf_it_assert( isset( $rejected['job']['progress'] ), 'the included job must expose its progress' );
 
 $preview_ok = $runner->preview( array() );
 usdtf_it_assert( ! is_wp_error( $preview_ok ), 'a dry run must still be allowed' );
@@ -555,7 +614,7 @@ usdtf_it_assert_same( \USDTF\Job::STATUS_COMPLETED, $jobs->get( $job_id )->statu
 $finished_items = 0;
 
 foreach ( array( \USDTF\Job_Repository::ITEM_CHANGED, \USDTF\Job_Repository::ITEM_UNCHANGED, \USDTF\Job_Repository::ITEM_SKIPPED, \USDTF\Job_Repository::ITEM_FAILED, \USDTF\Job_Repository::ITEM_CONFLICT ) as $item_status ) {
-	$totals         = $jobs->item_totals( $job_id );
+	$totals          = $jobs->item_totals( $job_id );
 	$finished_items += isset( $totals[ $item_status ] ) ? (int) $totals[ $item_status ] : 0;
 }
 

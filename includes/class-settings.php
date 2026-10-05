@@ -123,18 +123,18 @@ final class Settings {
 	/**
 	 * Get a single setting.
 	 *
-	 * @param string $key     Setting key.
-	 * @param mixed  $default Fallback when the setting is unknown.
+	 * @param string $key      Setting key.
+	 * @param mixed  $fallback Value used when the setting is unknown.
 	 * @return mixed
 	 */
-	public function get( $key, $default = null ) {
+	public function get( $key, $fallback = null ) {
 		$all = $this->all();
 
 		if ( array_key_exists( $key, $all ) ) {
 			return $all[ $key ];
 		}
 
-		return $default;
+		return $fallback;
 	}
 
 	/**
@@ -185,34 +185,34 @@ final class Settings {
 			? $settings['rounding']
 			: $defaults['rounding'];
 
-		$increment = (float) $settings['increment'];
+		$increment          = (float) $settings['increment'];
 		$clean['increment'] = in_array( $increment, self::allowed_increments(), true ) ? $increment : $defaults['increment'];
 
 		$clean['decimals'] = max( 0, min( 6, (int) $settings['decimals'] ) );
 
-		$threshold = (float) $settings['rate_change_threshold'];
+		$threshold                      = (float) $settings['rate_change_threshold'];
 		$clean['rate_change_threshold'] = ( $threshold >= 0 && $threshold <= 90 ) ? $threshold : $defaults['rate_change_threshold'];
 
-		$batch = (int) $settings['batch_size'];
+		$batch               = (int) $settings['batch_size'];
 		$clean['batch_size'] = in_array( $batch, self::allowed_batch_sizes(), true ) ? $batch : $defaults['batch_size'];
 
-		$budget = (int) $settings['time_budget'];
+		$budget               = (int) $settings['time_budget'];
 		$clean['time_budget'] = ( $budget >= 5 && $budget <= 55 ) ? $budget : $defaults['time_budget'];
 
-		$retries = (int) $settings['retry_limit'];
+		$retries              = (int) $settings['retry_limit'];
 		$clean['retry_limit'] = ( $retries >= 0 && $retries <= 10 ) ? $retries : $defaults['retry_limit'];
 
-		$retention = (int) $settings['retention_days'];
+		$retention               = (int) $settings['retention_days'];
 		$clean['retention_days'] = ( $retention >= 0 && $retention <= 3650 ) ? $retention : $defaults['retention_days'];
 
 		foreach ( array( 'auto_manage_new_products', 'display_toman', 'display_toman_cart', 'persian_digits', 'loopback_fallback', 'credit_author', 'delete_data_on_uninstall' ) as $flag ) {
 			$clean[ $flag ] = ! empty( $settings[ $flag ] );
 		}
 
-		$suffix = isset( $settings['toman_suffix'] ) ? sanitize_text_field( (string) $settings['toman_suffix'] ) : $defaults['toman_suffix'];
+		$suffix                = isset( $settings['toman_suffix'] ) ? sanitize_text_field( (string) $settings['toman_suffix'] ) : $defaults['toman_suffix'];
 		$clean['toman_suffix'] = '' === $suffix ? $defaults['toman_suffix'] : $suffix;
 
-		$capability = isset( $settings['required_capability'] ) ? sanitize_key( (string) $settings['required_capability'] ) : '';
+		$capability                   = isset( $settings['required_capability'] ) ? sanitize_key( (string) $settings['required_capability'] ) : '';
 		$clean['required_capability'] = '' === $capability ? $defaults['required_capability'] : $capability;
 
 		return $clean;

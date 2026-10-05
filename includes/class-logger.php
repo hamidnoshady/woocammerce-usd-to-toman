@@ -69,7 +69,15 @@ final class Logger {
 		);
 
 		if ( self::ERROR === $level ) {
-			update_option( 'usdtf_last_error', array( 'message' => $message, 'time' => time(), 'job_id' => (int) $job_id ), false );
+			update_option(
+				'usdtf_last_error',
+				array(
+					'message' => $message,
+					'time'    => time(),
+					'job_id'  => (int) $job_id,
+				),
+				false
+			);
 		}
 	}
 

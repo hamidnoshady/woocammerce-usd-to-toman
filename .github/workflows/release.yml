@@ -1,0 +1,213 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - '[0-9]+.[0-9]+.[0-9]+'
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing tag to publish (for example 1.0.0).'
+        required: true
+        type: string
+      publish:
+        description: 'Attach the zip to a GitHub release.'
+        required: false
+        default: true
+        type: boolean
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  PLUGIN_SLUG: usd-to-toman-price-sync-for-woocommerce
+
+jobs:
+  release:
+    name: Build and publish the release zip
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      zip: ${{ steps.version.outputs.zip }}
+    steps:
+      - name: Check out the tagged source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          coverage: none
+          extensions: zip
+          tools: none
+
+      - name: Read and verify the version
+        id: version
+        run: |
+          set -euo pipefail
+          version="$(php -r 'preg_match("/Version:\s*([\d.]+)/", file_get_contents("usd-to-toman-price-sync-for-woocommerce.php"), $m); echo $m[1];')"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+          if [ "${{ github.event_name }}" = 'push' ]; then
+            tag="${GITHUB_REF_NAME#v}"
+            if [ "$tag" != "$version" ]; then
+              echo "::error::The tag $GITHUB_REF_NAME does not match the plugin version $version."
+              exit 1
+            fi
+          fi
+
+          echo "zip=dist/${PLUGIN_SLUG}.${version}.zip" >> "$GITHUB_OUTPUT"
+
+      - name: Check the source before packaging
+        run: |
+          php bin/lint.php
+          php bin/make-pot.php --check
+
+      - name: Build the clean distribution
+        run: php bin/build-dist.php
+
+      - name: Validate the distribution
+        run: |
+          set -euo pipefail
+          php bin/build-dist.php --check
+          listing="$(unzip -Z1 "dist/${PLUGIN_SLUG}.${{ steps.version.outputs.version }}.zip")"
+          if echo "$listing" | grep -Eq '^(tests|bin|\.github)/|phpcs\.xml|composer\.(json|lock)|\.distignore|\.git'; then
+            echo "::error::The distribution archive contains development files."
+            exit 1
+          fi
+          echo "Packaged $(echo "$listing" | wc -l) files."
+
+      - name: Upload the archive as a workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.PLUGIN_SLUG }}-${{ steps.version.outputs.version }}
+          path: |
+            dist/*.zip
+            dist/*.zip.sha256
+          if-no-files-found: error
+
+      - name: Publish the GitHub release
+        if: ${{ github.event_name == 'push' || inputs.publish }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          version="${{ steps.version.outputs.version }}"
+          notes_file="dist/release-notes.md"
+
+          {
+            echo "WordPress plugin zip for version ${version}, built from the tagged source."
+            echo
+            echo "Install it through **Plugins → Add New → Upload Plugin**, or copy the extracted"
+            echo "\`${PLUGIN_SLUG}\` directory into \`wp-content/plugins/\`."
+            echo
+            echo "Checksums:"
+            echo
+            echo '```'
+            cat "dist/${PLUGIN_SLUG}.${version}.zip.sha256"
+            echo '```'
+          } > "$notes_file"
+
+          if gh release view "$version" >/dev/null 2>&1; then
+            gh release upload "$version" "dist/${PLUGIN_SLUG}.${version}.zip" "dist/${PLUGIN_SLUG}.${version}.zip.sha256" --clobber
+            gh release edit "$version" --title "$version" --notes-file "$notes_file"
+          else
+            gh release create "$version" \
+              "dist/${PLUGIN_SLUG}.${version}.zip" \
+              "dist/${PLUGIN_SLUG}.${version}.zip.sha256" \
+              --title "$version" \
+              --notes-file "$notes_file" \
+              --verify-tag
+          fi
+
+  wordpress-org:
+    name: Deploy to the WordPress.org plugin directory
+    runs-on: ubuntu-latest
+    needs: release
+    # Publishing to the plugin directory is opt-in: run the workflow manually
+    # with "publish" enabled, provide the SVN credentials in a protected
+    # environment, and the same zip that was attached to the GitHub release is
+    # pushed to trunk and tagged there.
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish }}
+    environment: wordpress-org
+    steps:
+      - name: Check out the tagged source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          coverage: none
+          extensions: zip
+          tools: none
+
+      - name: Build the clean distribution
+        run: php bin/build-dist.php
+
+      - name: Unpack the archive that will be deployed
+        run: |
+          set -euo pipefail
+          mkdir -p build
+          unzip -q "dist/${PLUGIN_SLUG}.${{ needs.release.outputs.version }}.zip" -d build
+          ls -la "build/${PLUGIN_SLUG}"
+
+      - name: Push trunk and the release tag to WordPress.org
+        env:
+          SVN_USERNAME: ${{ secrets.SVN_USERNAME }}
+          SVN_PASSWORD: ${{ secrets.SVN_PASSWORD }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${SVN_USERNAME}" ] || [ -z "${SVN_PASSWORD}" ]; then
+            echo "::error::Set the SVN_USERNAME and SVN_PASSWORD secrets to publish to WordPress.org."
+            exit 1
+          fi
+
+          version="${{ needs.release.outputs.version }}"
+          svn_url="https://plugins.svn.wordpress.org/${PLUGIN_SLUG}"
+
+          svn checkout "${svn_url}" svn --depth immediates --username "${SVN_USERNAME}" --password "${SVN_PASSWORD}" --non-interactive
+          svn update --set-depth infinity svn/trunk --username "${SVN_USERNAME}" --password "${SVN_PASSWORD}" --non-interactive
+
+          echo "Removing files that are no longer part of the plugin."
+          find svn/trunk -mindepth 1 -maxdepth 1 -not -name '.svn' -exec rm -rf {} +
+
+          echo "Copying the built distribution into trunk."
+          cp -R "build/${PLUGIN_SLUG}/." svn/trunk/
+
+          cd svn/trunk
+          svn add --force . >/dev/null
+          svn status
+
+          svn commit -m "Release ${version}" --username "${SVN_USERNAME}" --password "${SVN_PASSWORD}" --non-interactive
+
+          cd ..
+          if svn info "${svn_url}/tags/${version}" >/dev/null 2>&1; then
+            echo "The tag ${version} already exists in the plugin directory, nothing to copy."
+          else
+            svn copy "${svn_url}/trunk" "${svn_url}/tags/${version}" \
+              -m "Tag version ${version}" \
+              --username "${SVN_USERNAME}" \
+              --password "${SVN_PASSWORD}" \
+              --non-interactive
+          fi
+
+      - name: Summary
+        run: |
+          {
+            echo "### WordPress.org deployment"
+            echo
+            echo "Version \`${{ needs.release.outputs.version }}\` was pushed to the plugin directory."
+            echo
+            echo "The deployed files are the ones from the clean archive attached to the GitHub release."
+          } >> "$GITHUB_STEP_SUMMARY"

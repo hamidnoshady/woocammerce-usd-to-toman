@@ -84,7 +84,7 @@ final class Job_Repository {
 	);
 
 	/**
-	 * printf formats matching ITEM_COLUMNS.
+	 * Printf formats matching ITEM_COLUMNS.
 	 *
 	 * @var string[]
 	 */
@@ -196,7 +196,7 @@ final class Job_Repository {
 			$where[] = "job_type <> 'preview'";
 		}
 
-		$params[] = max( 1, (int) $args['limit'] );
+		$params[]  = max( 1, (int) $args['limit'] );
 		$where_sql = implode( ' AND ', $where );
 
 		$rows = Database::get_results(
@@ -283,6 +283,7 @@ final class Job_Repository {
 			'conflicts',
 			'attention',
 			'discovery_page',
+			'current_item',
 			'message',
 			'started_at',
 			'heartbeat_at',
@@ -374,7 +375,7 @@ final class Job_Repository {
 				continue;
 			}
 
-			$sign  = $delta > 0 ? '+' : '-';
+			$sign   = $delta > 0 ? '+' : '-';
 			$sets[] = "`{$counter}` = `{$counter}` {$sign} " . abs( $delta );
 		}
 
@@ -708,29 +709,26 @@ final class Job_Repository {
 			)
 		);
 
-		$table  = Database::items_table();
-		$where  = array( 'job_id = %d' );
+		$limit  = max( 1, (int) $args['limit'] );
+		$offset = max( 0, ( ( max( 1, (int) $args['page'] ) - 1 ) * $limit ) );
+
 		$params = array( (int) $job_id );
 
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Table name is internal.
+		$sql = 'SELECT * FROM `' . Database::items_table() . '` WHERE job_id = %d';
+
 		if ( $args['status'] ) {
-			$where[]  = 'status = %s';
+			$sql .= ' AND status = %s';
+
 			$params[] = (string) $args['status'];
 		}
 
-		$limit    = max( 1, (int) $args['limit'] );
-		$offset   = max( 0, ( ( max( 1, (int) $args['page'] ) - 1 ) * $limit ) );
+		$sql .= ' ORDER BY id ASC LIMIT %d OFFSET %d'; // phpcs:ignore Squiz.Strings.DoubleQuoteUsage.NotRequired -- Placeholders are single quoted already.
+
 		$params[] = $limit;
 		$params[] = $offset;
 
-		$where_sql = implode( ' AND ', $where );
-
-		return Database::get_results(
-			$wpdb->prepare(
-				// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Table name is internal.
-				"SELECT * FROM `{$table}` WHERE {$where_sql} ORDER BY id ASC LIMIT %d OFFSET %d",
-				$params
-			)
-		);
+		return Database::get_results( $wpdb->prepare( $sql, $params ) );
 	}
 
 	/**
