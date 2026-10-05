@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        php: ['7.4', '8.1', '8.2', '8.3']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: zip
+          tools: composer
+      - name: PHP syntax check
+        run: find . -not -path './.git/*' -name '*.php' -print0 | xargs -0 -n1 php -l
+      - name: Install development dependencies
+        run: composer install --no-interaction --prefer-dist
+      - name: Run tests
+        run: composer test
+      - name: Build and validate upload ZIP
+        run: |
+          composer build
+          unzip -l release/*.zip
+          ! unzip -Z1 release/*.zip | grep -E '(^|/)(\.git|tests|\.github|composer\.(json|lock)|phpunit)' 

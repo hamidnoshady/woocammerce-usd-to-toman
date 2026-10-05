@@ -1,0 +1,7 @@
+* text=auto
+*.zip binary
+release/ export-ignore
+.github/ export-ignore
+bin/ export-ignore
+composer.json export-ignore
+phpunit.xml.dist export-ignore
