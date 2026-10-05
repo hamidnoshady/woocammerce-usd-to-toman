@@ -121,6 +121,14 @@ No. Every price is written with the WooCommerce CRUD API (`wc_get_product()`, `s
 
 Yes. Every string uses the `usd-to-toman-price-sync-for-woocommerce` text domain, a `.pot` template ships with the plugin, and a complete **Persian (`fa_IR`)** translation is bundled, so an Iranian store gets a Persian admin and storefront without installing a language pack.
 
+== Screenshots ==
+
+1. The rate screen: the manual rate, the typo warning, the rate history and the background queue diagnostics.
+2. Preview changes (dry run): what would change, what is unchanged, what is skipped, which variations are affected — with no write performed.
+3. Jobs & history: the running job with its progress and the per product log with the old price, the new price, the status and the Toman source.
+4. The same screen in Persian, with the bundled `fa_IR` translation.
+5. The product panel: the pricing mode, the canonical Toman regular and sale price, the derived dollar price, the rate used and the bulk actions.
+
 == Changelog ==
 
 = 1.0.3 =

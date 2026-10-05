@@ -8,3 +8,7 @@
 # Local test installations and logs.
 *.log
 .DS_Store
+
+# Python bytecode from the artwork tooling.
+__pycache__/
+*.pyc

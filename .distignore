@@ -33,6 +33,10 @@
 # Build output.
 /dist
 
+# Artwork and generators for the WordPress.org directory listing (they belong in
+# the assets/ folder of the SVN repository, see wordpress-org/README.md).
+/wordpress-org
+
 # The whole languages/ folder ships: the .pot template for translators and the
 # .mo/.po catalogues of the bundled translations (Persian today). Language packs
 # installed on a site still take precedence.

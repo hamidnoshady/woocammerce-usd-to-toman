@@ -143,8 +143,12 @@ Publishing a release:
 A WordPress.org directory deployment is available as a **manual** workflow run (`Release` →
 *Run workflow*, with `publish` enabled). It needs `SVN_USERNAME` and `SVN_PASSWORD` secrets in a
 protected `wordpress-org` environment and pushes the same archive to the plugin directory trunk and
-tags it. Icons and banners go into the `assets/` folder of the WordPress.org SVN repository, not in
-this repository.
+tags it.
+
+The listing artwork (icon, banner, screenshots) is generated from source by
+`python3 wordpress-org/make-artwork.py` and committed in `wordpress-org/`. It is never part of the
+plugin zip: WordPress.org reads it from the `assets/` folder of its own SVN repository, and
+[wordpress-org/README.md](wordpress-org/README.md) documents the filenames and the upload.
 
 ## What CI checks
 
