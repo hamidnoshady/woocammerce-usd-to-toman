@@ -29,6 +29,13 @@ All notable changes to this plugin are documented here. The format follows
   checks it against the published checksum, inspects its contents and runs the whole suite
   against it.
 
+### Changed
+
+- The reproducible build documentation is precise about what is reproducible: entry timestamps
+  and the archive comment are fixed, so the same sources built with the same PHP and zlib version
+  produce the same bytes, while deflate output may differ between environments. Releases are
+  therefore verified by checksum and by running the suite against the published archive.
+
 ## [1.0.0] - 2026-10-05
 
 First release, implementing the specification in

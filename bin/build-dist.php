@@ -15,8 +15,12 @@
  *   --source-date=DATE
  *                  Timestamp recorded in the archive comment: a unix epoch or
  *                  anything strtotime() understands (default: SOURCE_DATE_EPOCH,
- *                  then the current time). Rebuilding with the same value
- *                  produces a byte identical archive.
+ *                  then the current time). Together with the fixed 1980 entry
+ *                  timestamps this removes the build time from the archive, so
+ *                  rebuilding the same sources on the same PHP and zlib version
+ *                  produces the same bytes. Compressors may still differ between
+ *                  environments, which is why releases are verified by checking
+ *                  the published checksum.
  *   --check        Do not build; validate the newest existing archive.
  *   --list         Print the files that would be packaged and exit.
  *   --quiet        Only print errors.

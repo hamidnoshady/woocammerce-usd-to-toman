@@ -102,11 +102,18 @@ plugin slug, which is what WordPress expects for an upload.
 php bin/build-dist.php            # dist/<slug>.<version>.zip + .sha256
 php bin/build-dist.php --list     # what would be packaged
 php bin/build-dist.php --check    # validate the archive that exists
-php bin/build-dist.php --source-date=1759680000   # byte identical rebuild
+php bin/build-dist.php --source-date=1759680000   # fixed build timestamp
 ```
 
 The file list comes from `.distignore`, so what ships is reviewable in one place. The builder also
 fails when the version in the plugin header and the `Stable tag` in `readme.txt` disagree.
+
+Entry timestamps are fixed at the zip epoch and the only other timestamp, the one in the archive
+comment, comes from `--source-date` (or `SOURCE_DATE_EPOCH`). CI and the release workflow pass the
+commit date of the checkout, so the same sources built with the same PHP and zlib version produce
+the same archive. Deflate output can differ between environments, so a release is verified by
+checking the published checksum and by running the suite against the published archive rather than
+by assuming byte equality.
 
 Publishing a release:
 
