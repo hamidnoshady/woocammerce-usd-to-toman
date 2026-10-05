@@ -205,14 +205,13 @@ jobs:
           php tests/integration/prepare.php "$WP_PATH"
 
       - name: Run the suite against the working copy
-        run: |
-          php tests/integration/run.php "$WP_PATH"
+        run: bash tests/integration/ci-run.sh "$WP_PATH" working-copy
 
       - name: Install the built distribution and run the suite again
         run: |
           set -euo pipefail
           php tests/integration/prepare.php "$WP_PATH" --from-zip="$(ls dist/*.zip | head -n1)"
-          php tests/integration/run.php "$WP_PATH"
+          bash tests/integration/ci-run.sh "$WP_PATH" built-zip
 
       - name: Show the debug log when something failed
         if: failure()
