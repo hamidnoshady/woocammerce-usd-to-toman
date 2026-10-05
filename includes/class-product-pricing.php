@@ -510,7 +510,7 @@ final class Product_Pricing {
 		$product_id = $this->resolve_id( $product );
 
 		if ( $product_id <= 0 ) {
-			return new \WP_Error( 'usdtf_invalid_product', __( 'The product could not be found.', 'usd-to-toman-price-sync-for-woocommerce' ) );
+			return new \WP_Error( 'usdtf_invalid_product', __( 'The product could not be found.', 'usd-to-toman-price-sync-for-woocommerce' ), array( 'status' => 400 ) );
 		}
 
 		$args = wp_parse_args( $args, array( 'bump_revision' => true ) );
@@ -521,11 +521,11 @@ final class Product_Pricing {
 		$code = $this->validate_source_pair( $parsed_regular, $parsed_sale );
 
 		if ( in_array( $code, array( 'negative', 'out_of_range' ), true ) ) {
-			return new \WP_Error( 'usdtf_invalid_source', $this->source_error_message( $code ) );
+			return new \WP_Error( 'usdtf_invalid_source', $this->source_error_message( $code ), array( 'status' => 400 ) );
 		}
 
 		if ( 'sale_above_regular' === $code ) {
-			return new \WP_Error( 'usdtf_invalid_source', $this->source_error_message( $code ) );
+			return new \WP_Error( 'usdtf_invalid_source', $this->source_error_message( $code ), array( 'status' => 400 ) );
 		}
 
 		$current = $this->get_source( $product_id );
@@ -690,7 +690,7 @@ final class Product_Pricing {
 		$object = $product instanceof \WC_Product ? $product : wc_get_product( $product );
 
 		if ( ! $object ) {
-			return new \WP_Error( 'usdtf_invalid_product', __( 'The product could not be found.', 'usd-to-toman-price-sync-for-woocommerce' ) );
+			return new \WP_Error( 'usdtf_invalid_product', __( 'The product could not be found.', 'usd-to-toman-price-sync-for-woocommerce' ), array( 'status' => 400 ) );
 		}
 
 		$regular = $object->get_regular_price( 'edit' );
@@ -704,7 +704,7 @@ final class Product_Pricing {
 		$sale    = Calculator::normalize_number( $sale );
 
 		if ( '' === $regular && '' === $sale ) {
-			return new \WP_Error( 'usdtf_no_price', __( 'This product has no price to import.', 'usd-to-toman-price-sync-for-woocommerce' ) );
+			return new \WP_Error( 'usdtf_no_price', __( 'This product has no price to import.', 'usd-to-toman-price-sync-for-woocommerce' ), array( 'status' => 400 ) );
 		}
 
 		$source = $this->set_source( $object->get_id(), '' === $regular ? '' : $regular, '' === $sale ? '' : $sale );

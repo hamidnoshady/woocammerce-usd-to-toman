@@ -97,6 +97,9 @@ final class Plugin {
 		$this->runner()->hooks();
 		$this->cron()->hooks();
 		$this->health()->hooks();
+		// Always, because a REST request is neither an admin nor a front-end
+		// screen and the admin UI talks to the site over the REST API.
+		$this->rest()->hooks();
 
 		if ( is_admin() || ( defined( 'WP_CLI' ) && WP_CLI ) ) {
 			$this->admin()->hooks();
@@ -274,6 +277,15 @@ final class Plugin {
 	}
 
 	/**
+	 * REST API controller.
+	 *
+	 * @return \USDTF\Admin\Rest_Controller
+	 */
+	public function rest() {
+		return $this->service( 'rest' );
+	}
+
+	/**
 	 * Create a service on first use.
 	 *
 	 * @param string $name Service name.
@@ -353,6 +365,10 @@ final class Plugin {
 
 			case 'currency':
 				$service = new \USDTF\Frontend\Currency( $this->settings() );
+				break;
+
+			case 'rest':
+				$service = new \USDTF\Admin\Rest_Controller( $this->scheduler(), $this->rates(), $this->runner(), $this->jobs(), $this->products(), $this->health(), $this->pricing(), $this->settings() );
 				break;
 
 			default:

@@ -172,6 +172,122 @@ function usdtf_it_pass( $message ) {
 	echo "ok - {$message}\n";
 }
 
+require_once __DIR__ . '/die.php';
+
+/**
+ * Route wp_die() through an exception so a scenario can assert on it.
+ *
+ * @return void
+ */
+function usdtf_it_catch_wp_die() {
+	add_filter( 'wp_die_handler', 'usdtf_it_die_callback' );
+	add_filter( 'wp_die_ajax_handler', 'usdtf_it_die_callback' );
+	add_filter( 'wp_die_json_handler', 'usdtf_it_die_callback' );
+	add_filter( 'wp_die_xmlrpc_handler', 'usdtf_it_die_callback' );
+}
+
+/**
+ * Handler name used by the wp_die() filters.
+ *
+ * @return string
+ */
+function usdtf_it_die_callback() {
+	return 'usdtf_it_die';
+}
+
+/**
+ * Throw instead of ending the process.
+ *
+ * @param string $message Message.
+ * @param string $title   Title.
+ * @param array  $args    wp_die() arguments.
+ * @return void
+ * @throws USDTF_IT_Die Always, so the caller can assert on the request that was killed.
+ */
+function usdtf_it_die( $message, $title = '', $args = array() ) {
+	throw new USDTF_IT_Die( $message, $title, $args );
+}
+
+/**
+ * Perform a REST request in this process.
+ *
+ * @param string $method HTTP method.
+ * @param string $route  Route, without the namespace.
+ * @param array  $params Request parameters.
+ * @return \WP_REST_Response|\WP_Error
+ */
+function usdtf_it_rest( $method, $route, array $params = array() ) {
+	do_action( 'rest_api_init' );
+
+	$request = new \WP_REST_Request( $method, '/usdtf/v1' . $route );
+
+	foreach ( $params as $key => $value ) {
+		$request->set_param( $key, $value );
+	}
+
+	return rest_do_request( $request );
+}
+
+/**
+ * Error code of a REST response, empty when it is not an error.
+ *
+ * WordPress wraps a WP_Error in a WP_REST_Response, so both shapes have to be
+ * handled.
+ *
+ * @param mixed $response Response.
+ * @return string
+ */
+function usdtf_it_rest_error_code( $response ) {
+	if ( is_wp_error( $response ) ) {
+		return (string) $response->get_error_code();
+	}
+
+	if ( $response instanceof \WP_REST_Response && $response->is_error() ) {
+		$error = $response->as_error();
+
+		return is_wp_error( $error ) ? (string) $error->get_error_code() : '';
+	}
+
+	return '';
+}
+
+/**
+ * Error payload of a REST response, empty array when it is not an error.
+ *
+ * @param mixed $response Response.
+ * @return array
+ */
+function usdtf_it_rest_error_data( $response ) {
+	if ( is_wp_error( $response ) ) {
+		return (array) $response->get_error_data();
+	}
+
+	if ( $response instanceof \WP_REST_Response && $response->is_error() ) {
+		$error = $response->as_error();
+		$data  = is_wp_error( $error ) ? $error->get_error_data() : array();
+
+		return is_array( $data ) ? $data : array();
+	}
+
+	return array();
+}
+
+/**
+ * Data of a REST response.
+ *
+ * @param mixed $response Response.
+ * @return array
+ */
+function usdtf_it_rest_data( $response ) {
+	if ( ! $response instanceof \WP_REST_Response ) {
+		return array();
+	}
+
+	$data = $response->get_data();
+
+	return is_array( $data ) ? $data : array();
+}
+
 /**
  * Create a simple product with Toman source prices.
  *
@@ -341,7 +457,9 @@ function usdtf_it_delete_products() {
 	$ids = get_posts(
 		array(
 			'post_type'      => array( 'product', 'product_variation' ),
-			'post_status'    => 'any',
+			// Trash is not included in "any", and the status scenario leaves
+			// trashed products behind.
+			'post_status'    => array( 'publish', 'draft', 'private', 'pending', 'future', 'trash', 'auto-draft' ),
 			'posts_per_page' => -1,
 			'fields'         => 'ids',
 		)

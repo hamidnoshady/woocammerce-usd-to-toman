@@ -195,7 +195,8 @@ final class Sync_Runner {
 		if ( $rate <= 0 ) {
 			return new \WP_Error(
 				'usdtf_missing_rate',
-				__( 'Save a USD/Toman exchange rate before updating prices.', 'usd-to-toman-price-sync-for-woocommerce' )
+				__( 'Save a USD/Toman exchange rate before updating prices.', 'usd-to-toman-price-sync-for-woocommerce' ),
+				array( 'status' => 400 )
 			);
 		}
 
@@ -206,7 +207,10 @@ final class Sync_Runner {
 				return new \WP_Error(
 					'usdtf_job_running',
 					__( 'Another price update is already running. Only one update can run at a time.', 'usd-to-toman-price-sync-for-woocommerce' ),
-					array( 'job' => $active->to_array() )
+					array(
+						'status' => 409,
+						'job'    => $active->to_array(),
+					)
 				);
 			}
 		}
@@ -1332,7 +1336,8 @@ final class Sync_Runner {
 		if ( $previous <= 0 ) {
 			return new \WP_Error(
 				'usdtf_no_previous_rate',
-				__( 'There is no previous exchange rate to restore.', 'usd-to-toman-price-sync-for-woocommerce' )
+				__( 'There is no previous exchange rate to restore.', 'usd-to-toman-price-sync-for-woocommerce' ),
+				array( 'status' => 400 )
 			);
 		}
 
@@ -1379,7 +1384,7 @@ final class Sync_Runner {
 		$product_ids = array_values( array_filter( array_map( 'intval', $product_ids ) ) );
 
 		if ( ! $product_ids ) {
-			return new \WP_Error( 'usdtf_no_products', __( 'No products were selected.', 'usd-to-toman-price-sync-for-woocommerce' ) );
+			return new \WP_Error( 'usdtf_no_products', __( 'No products were selected.', 'usd-to-toman-price-sync-for-woocommerce' ), array( 'status' => 400 ) );
 		}
 
 		return $this->create_job(

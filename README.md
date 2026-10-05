@@ -87,7 +87,9 @@ The suite covers the rounding examples from the specification, dry runs, unchang
 prices and slicing of variable products, conflict detection and recalculation, invalid and excluded
 products, scopes, duplicate job protection, pause/resume/cancel, rate typo protection, rollback,
 both currency modes, crash recovery, products deleted mid job and onboarding an existing Toman
-catalog.
+catalog, the storefront display, the rounding modes and their guards, the retention window, the
+product statuses, the REST API the admin screen uses, the token protected worker endpoint, the cron
+maintenance pass and the uninstall behaviour.
 
 ## Releases
 
@@ -110,10 +112,14 @@ Publishing a release:
 
 1. Update the `Version:` header, the `Stable tag:` in `readme.txt` and `CHANGELOG.md`.
 2. `php bin/make-pot.php` and commit the regenerated template.
-3. Tag the commit with the version, for example `1.0.0`, and push the tag.
+3. Tag the commit with the version, for example `1.0.1`, and push the tag.
 4. The **Release** workflow verifies the tag against the plugin version, lints, checks the
    translation template, builds the zip, validates it and attaches the zip plus its SHA-256
    checksum to a GitHub release.
+5. The **Verify release** workflow then downloads that published archive back, checks it against
+   the published checksum, inspects its contents and runs the whole integration suite against it
+   in a fresh WordPress + WooCommerce install. It also runs on demand (`Verify release` →
+   *Run workflow*) for any existing tag, so a published artifact can always be re-proven.
 
 A WordPress.org directory deployment is available as a **manual** workflow run (`Release` →
 *Run workflow*, with `publish` enabled). It needs `SVN_USERNAME` and `SVN_PASSWORD` secrets in a

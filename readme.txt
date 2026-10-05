@@ -6,7 +6,7 @@ Tested up to: 6.6
 Requires PHP: 7.4
 WC requires at least: 7.0
 WC tested up to: 9.9
-Stable tag: 1.0.0
+Stable tag: 1.0.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -123,6 +123,12 @@ Yes. Every string uses the `usd-to-toman-price-sync-for-woocommerce` text domain
 
 == Changelog ==
 
+= 1.0.1 =
+* Fixed: the REST API routes the admin screen uses (rate, preview, update, jobs, health, product search) were never registered, so every action on the admin screen failed.
+* Fixed: the rate change percentage was always computed as -100%, which made the typo guard ask for confirmation on any rate change.
+* Fixed: a pending Action Scheduler action without a date could break the diagnostics section.
+* Fixed: API errors now carry proper HTTP status codes (409 for a duplicate update, 400 for validation failures).
+
 = 1.0.0 =
 * First release.
 * Toman source prices with derived USD prices: `ceil( Toman / rate )`.
@@ -137,6 +143,9 @@ Yes. Every string uses the `usd-to-toman-price-sync-for-woocommerce` text domain
 * Diagnostics for the queue, the lock and the configured batch size.
 
 == Upgrade Notice ==
+
+= 1.0.1 =
+Fixes the admin screen: the REST API it uses was not registered in 1.0.0. Also fixes the rate change percentage used by the typo guard and the diagnostics section.
 
 = 1.0.0 =
 First release.

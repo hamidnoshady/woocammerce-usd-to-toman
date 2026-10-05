@@ -4,6 +4,31 @@ All notable changes to this plugin are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1] - 2026-10-05
+
+### Fixed
+
+- **The REST API the admin screen uses was never registered.** The controller had no
+  `rest_api_init` hook, so saving the rate, previewing, starting an update, pausing,
+  cancelling, exporting state, the diagnostics and the product search all answered `404`.
+  The controller is now initialized for every request (a REST request is neither an admin
+  nor a frontend screen), and the integration suite asserts the routes answer with `200`.
+- The rate change percentage was always computed as `-100%` because of an undefined
+  variable, so the typo guard demanded the typed confirmation even for a `0.37%` move.
+- A pending Action Scheduler action without a date could fatal the diagnostics section and
+  the state endpoint that embeds it.
+- Validation failures and the duplicate job refusal now carry proper HTTP status codes
+  (`400` and `409`) instead of `500`.
+- Uninstalling purges only the meta keys the plugin owns.
+
+### Added
+
+- Integration coverage for the REST API surface, the token protected worker endpoint, the
+  cron maintenance pass and the uninstall behaviour (30 scenario groups in total).
+- A `Verify release` workflow that fetches the published archive back from GitHub Releases,
+  checks it against the published checksum, inspects its contents and runs the whole suite
+  against it.
+
 ## [1.0.0] - 2026-10-05
 
 First release, implementing the specification in
@@ -52,4 +77,5 @@ First release, implementing the specification in
   template, the distribution archive and a WordPress + WooCommerce integration suite that also runs
   against the built zip. Tagging a version publishes the zip and its checksum to a GitHub release.
 
+[1.0.1]: https://github.com/hamidnoshady/woocammerce-usd-to-toman/releases/tag/1.0.1
 [1.0.0]: https://github.com/hamidnoshady/woocammerce-usd-to-toman/releases/tag/1.0.0

@@ -22,6 +22,17 @@ $usdtf_check   = in_array( '--check', array_slice( $argv, 1 ), true );
 $usdtf_quiet   = in_array( '--quiet', array_slice( $argv, 1 ), true );
 $usdtf_domain  = 'usd-to-toman-price-sync-for-woocommerce';
 $usdtf_entries = array();
+$usdtf_version = '0.0.0';
+
+$usdtf_main = $usdtf_root . '/' . $usdtf_domain . '.php';
+
+if ( is_readable( $usdtf_main ) ) {
+	$usdtf_source = (string) file_get_contents( $usdtf_main ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- CLI tool.
+
+	if ( preg_match( '/^[ \t\/*#@]*Version:\s*(.+)$/mi', $usdtf_source, $usdtf_matches ) ) {
+		$usdtf_version = trim( $usdtf_matches[1] );
+	}
+}
 
 /**
  * Print a line unless quiet.
@@ -291,7 +302,7 @@ foreach ( $usdtf_files as $usdtf_file ) {
 ksort( $usdtf_entries );
 
 $headers = array(
-	'Project-Id-Version: USD to Toman Price Sync for WooCommerce 1.0.0',
+	'Project-Id-Version: USD to Toman Price Sync for WooCommerce ' . $usdtf_version,
 	'Report-Msgid-Bugs-To: https://github.com/hamidnoshady/woocammerce-usd-to-toman/issues',
 	'Last-Translator: FULL NAME <EMAIL@ADDRESS>',
 	'Language-Team: LANGUAGE <LL@li.org>',

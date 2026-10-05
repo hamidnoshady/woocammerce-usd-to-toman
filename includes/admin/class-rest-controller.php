@@ -115,6 +115,19 @@ final class Rest_Controller {
 	}
 
 	/**
+	 * Hook the REST API.
+	 *
+	 * REST requests are served on their own request where is_admin() is false,
+	 * so this is registered for every request rather than from the admin
+	 * screen.
+	 *
+	 * @return void
+	 */
+	public function hooks() {
+		add_action( 'rest_api_init', array( $this, 'register_routes' ) );
+	}
+
+	/**
 	 * Register the routes.
 	 *
 	 * @return void

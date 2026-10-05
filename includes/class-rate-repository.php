@@ -322,6 +322,7 @@ final class Rate_Repository {
 				'usdtf_invalid_rate',
 				$assessed['message'],
 				array(
+					'status'         => 400,
 					'code'           => $assessed['code'],
 					'change_percent' => null,
 				)
@@ -361,7 +362,8 @@ final class Rate_Repository {
 			if ( $pending && abs( (float) $pending['rate'] - (float) $assessed['rate'] ) > 0.000001 ) {
 				return new \WP_Error(
 					'usdtf_confirmation_mismatch',
-					__( 'The rate changed after the confirmation prompt. Please review the new rate and confirm again.', 'usd-to-toman-price-sync-for-woocommerce' )
+					__( 'The rate changed after the confirmation prompt. Please review the new rate and confirm again.', 'usd-to-toman-price-sync-for-woocommerce' ),
+					array( 'status' => 400 )
 				);
 			}
 		}

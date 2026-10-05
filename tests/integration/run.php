@@ -26,16 +26,14 @@ if ( ! $usdtf_wp_path ) {
 	exit( 1 );
 }
 
-$GLOBALS['_wp_die_handler'] = static function ( $message ) {
-	fwrite( STDERR, 'WP_DIE: ' . ( is_string( $message ) ? $message : wp_json_encode( $message ) ) . "\n" );
-	exit( 1 );
-};
-
 require_once rtrim( $usdtf_wp_path, '/' ) . '/wp-load.php';
 
 require_once __DIR__ . '/lib.php';
 
 usdtf_it_boot();
+
+// Any wp_die() from now on fails the scenario that caused it (see lib.php).
+usdtf_it_catch_wp_die();
 
 /**
  * Read a product meta value.
@@ -677,5 +675,6 @@ usdtf_it_assert_same( '5000000', $external, 'a foreign source value must stay un
 usdtf_it_pass( 'an existing Toman catalog can be onboarded without data loss' );
 
 require __DIR__ . '/extra.php';
+require __DIR__ . '/admin.php';
 
 echo "\nAll integration scenarios passed.\n";
