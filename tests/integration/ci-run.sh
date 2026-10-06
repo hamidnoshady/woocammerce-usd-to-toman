@@ -57,11 +57,24 @@ if [ "$status" -ne 0 ]; then
 	done
 
 	if [ "$reported" -eq 0 ]; then
-		# Nothing recognizable: the process probably died without printing an
-		# assertion, so the exit code, the tail of the output and the debug log
-		# are the only evidence. Annotate them; they fit the cap.
+		# Nothing recognizable: the process died without printing an assertion.
+		# WordPress logs fatals to the debug log (display is off), so that log
+		# and the output tail are the only evidence. Annotate them; the cap of
+		# ten annotations per step still leaves room for both.
 		echo "::error title=Integration suite ($label)::the suite exited with code $status without a FAIL line"
 		reported=1
+
+		debug_log="${wp_path%/}/../debug.log"
+
+		if [ -f "$debug_log" ]; then
+			while IFS= read -r line; do
+				[ -n "$line" ] || continue
+				[ "$reported" -lt 7 ] || break
+
+				echo "::error title=Integration suite ($label) debug.log::$line"
+				reported=$((reported + 1))
+			done < <(grep -E 'Fatal|Uncaught|Stack trace|thrown in' "$debug_log" | tail -n 6)
+		fi
 
 		while IFS= read -r line; do
 			[ -n "$line" ] || continue
@@ -70,17 +83,6 @@ if [ "$status" -ne 0 ]; then
 			echo "::error title=Integration suite ($label) tail::$line"
 			reported=$((reported + 1))
 		done < <(tail -n 10 "$log")
-
-		debug_log="${wp_path%/}/../debug.log"
-		if [ "$reported" -lt 10 ] && [ -f "$debug_log" ]; then
-			while IFS= read -r line; do
-				[ -n "$line" ] || continue
-				[ "$reported" -lt 10 ] || break
-
-				echo "::error title=Integration suite ($label) debug.log::$line"
-				reported=$((reported + 1))
-			done < <(tail -n 10 "$debug_log")
-		fi
 	fi
 
 	echo "---- tail of the suite output ----"
