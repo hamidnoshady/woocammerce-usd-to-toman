@@ -217,19 +217,26 @@
 		var progress = document.createElement( 'div' );
 		progress.className = 'usdtf-progress';
 
+		var discovering = !! job.is_active &&
+			( 'discover' === job.phase || 'discover_variations' === job.phase ) &&
+			0 === Number( counters.total || 0 );
+
 		var progressTrack = document.createElement( 'div' );
-		progressTrack.className = 'usdtf-progress__bar';
+		progressTrack.className = 'usdtf-progress__bar' + ( discovering ? ' is-indeterminate' : '' );
 		var progressFill = document.createElement( 'span' );
-		progressFill.style.width = parseInt( job.progress, 10 ) + '%';
+		progressFill.style.width = discovering ? '35%' : parseInt( job.progress, 10 ) + '%';
 		progressTrack.appendChild( progressFill );
 		progress.appendChild( progressTrack );
 
 		var numbers = document.createElement( 'p' );
 		numbers.className = 'usdtf-progress__numbers';
 		numbers.appendChild( document.createTextNode(
-			formatNumber( counters.processed ) + ' / ' + formatNumber( counters.total ) +
-				' (' + parseInt( job.progress, 10 ) + '%) · ' +
-				formatNumber( job.rate ) + ' ' + ( labels.rateSuffix || __( 'Toman / USD', 'usd-to-toman-price-sync-for-woocommerce' ) )
+			( discovering
+				? ( labels.working || __( 'Working…', 'usd-to-toman-price-sync-for-woocommerce' ) )
+				: formatNumber( counters.processed ) + ' / ' + formatNumber( counters.total ) +
+					' (' + parseInt( job.progress, 10 ) + '%)' ) +
+				' · ' + formatNumber( job.rate ) + ' ' +
+				( labels.rateSuffix || __( 'Toman / USD', 'usd-to-toman-price-sync-for-woocommerce' ) )
 		) );
 		progress.appendChild( numbers );
 
@@ -336,7 +343,7 @@
 			return;
 		}
 
-		api( '/jobs/' + jobId ).then( function ( job ) {
+		api( '/jobs/' + jobId + '?_usdtf=' + Date.now() ).then( function ( job ) {
 			renderProgress( job );
 
 			if ( job.is_active ) {
@@ -388,6 +395,7 @@
 			toast( labels.jobStarted || __( 'The background job was queued.', 'usd-to-toman-price-sync-for-woocommerce' ) );
 
 			if ( job && job.id ) {
+				renderProgress( job );
 				poll( job.id );
 			} else {
 				window.setTimeout( function () {
