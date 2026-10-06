@@ -173,7 +173,9 @@ $failing_product = usdtf_it_make_variable_product( 'Failing variable product', $
 $failing_broken  = (int) $failing_product->get_children()[2];
 
 $failing_hook = function ( $saved_product ) use ( $failing_broken ) {
-	if ( (int) $saved_product->get_id() === $failing_broken ) {
+	$saved_id = $saved_product instanceof \WC_Product ? (int) $saved_product->get_id() : (int) $saved_product;
+
+	if ( $saved_id === $failing_broken ) {
 		throw new RuntimeException( 'simulated write failure' );
 	}
 };
@@ -307,7 +309,9 @@ $race_id      = $race_product->get_id();
 $race_edit = null;
 
 $race_edit = function ( $saved_product ) use ( $race_id, $pricing, &$race_edit ) {
-	if ( (int) $saved_product->get_id() !== $race_id ) {
+	$saved_id = $saved_product instanceof \WC_Product ? (int) $saved_product->get_id() : (int) $saved_product;
+
+	if ( $saved_id !== $race_id ) {
 		return;
 	}
 
