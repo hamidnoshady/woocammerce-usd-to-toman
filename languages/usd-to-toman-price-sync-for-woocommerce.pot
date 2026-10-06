@@ -128,7 +128,7 @@ msgstr ""
 msgid "Another price update is already running. Only one update can run at a time."
 msgstr ""
 
-#: assets/js/admin.js:438 includes/admin/class-admin.php:290
+#: includes/admin/class-admin.php:290 assets/js/admin.js:438
 msgid "Another price update is already running. Showing it instead."
 msgstr ""
 
@@ -161,7 +161,7 @@ msgstr ""
 msgid "By"
 msgstr ""
 
-#: assets/js/admin.js:343 includes/admin/views/dashboard.php:121 includes/admin/views/dashboard.php:320 includes/admin/views/jobs.php:97
+#: includes/admin/views/dashboard.php:121 includes/admin/views/dashboard.php:320 includes/admin/views/jobs.php:97 assets/js/admin.js:343
 msgid "Cancel"
 msgstr ""
 
@@ -201,7 +201,7 @@ msgstr ""
 msgid "Change"
 msgstr ""
 
-#: assets/js/admin.js:275 includes/admin/views/dashboard.php:285 includes/admin/views/dashboard.php:436 includes/admin/views/dashboard.php:466 includes/admin/views/jobs.php:79 includes/admin/views/jobs.php:117 includes/admin/views/jobs.php:221 includes/admin/views/jobs.php:280
+#: includes/admin/views/dashboard.php:285 includes/admin/views/dashboard.php:436 includes/admin/views/dashboard.php:466 includes/admin/views/jobs.php:79 includes/admin/views/jobs.php:117 includes/admin/views/jobs.php:221 includes/admin/views/jobs.php:280 assets/js/admin.js:275
 msgid "Changed"
 msgstr ""
 
@@ -237,7 +237,7 @@ msgstr ""
 msgid "Conflict – recalculate"
 msgstr ""
 
-#: assets/js/admin.js:279 includes/admin/views/dashboard.php:289 includes/admin/views/jobs.php:83 includes/admin/views/jobs.php:121
+#: includes/admin/views/dashboard.php:289 includes/admin/views/jobs.php:83 includes/admin/views/jobs.php:121 assets/js/admin.js:279
 msgid "Conflicts"
 msgstr ""
 
@@ -261,7 +261,7 @@ msgstr ""
 msgid "Current price"
 msgstr ""
 
-#: assets/js/admin.js:262 includes/admin/class-admin.php:287
+#: includes/admin/class-admin.php:287 assets/js/admin.js:262
 msgid "Currently processing"
 msgstr ""
 
@@ -321,7 +321,7 @@ msgstr ""
 msgid "Disabled"
 msgstr ""
 
-#: assets/js/admin.js:768 includes/admin/class-rest-controller.php:650
+#: includes/admin/class-rest-controller.php:650 assets/js/admin.js:768
 msgid "Done."
 msgstr ""
 
@@ -337,7 +337,7 @@ msgstr ""
 msgid "Dry run"
 msgstr ""
 
-#: assets/js/admin.js:384 includes/admin/class-admin.php:282
+#: includes/admin/class-admin.php:282 assets/js/admin.js:384
 msgid "Dry run finished. Nothing was changed."
 msgstr ""
 
@@ -402,7 +402,7 @@ msgstr ""
 msgid "Exchange rate"
 msgstr ""
 
-#: assets/js/admin.js:515 includes/admin/class-admin.php:280
+#: includes/admin/class-admin.php:280 assets/js/admin.js:515
 msgid "Exchange rate saved."
 msgstr ""
 
@@ -422,7 +422,7 @@ msgstr ""
 msgid "External products"
 msgstr ""
 
-#: assets/js/admin.js:278 assets/js/admin.js:736 includes/admin/views/dashboard.php:288 includes/admin/views/jobs.php:82 includes/admin/views/jobs.php:120 includes/class-job.php:386
+#: includes/admin/views/dashboard.php:288 includes/admin/views/jobs.php:82 includes/admin/views/jobs.php:120 includes/class-job.php:386 assets/js/admin.js:278 assets/js/admin.js:736
 msgid "Failed"
 msgstr ""
 
@@ -526,7 +526,7 @@ msgstr ""
 msgid "Last job error"
 msgstr ""
 
-#: assets/js/admin.js:262 includes/admin/class-admin.php:288
+#: includes/admin/class-admin.php:288 assets/js/admin.js:262
 msgid "Last product"
 msgstr ""
 
@@ -750,7 +750,7 @@ msgstr ""
 msgid "Open the dry run report"
 msgstr ""
 
-#: assets/js/admin.js:323 includes/admin/views/dashboard.php:310 includes/admin/views/jobs.php:91
+#: includes/admin/views/dashboard.php:310 includes/admin/views/jobs.php:91 assets/js/admin.js:323
 msgid "Pause"
 msgstr ""
 
@@ -933,7 +933,7 @@ msgstr ""
 msgid "Restore the previous exchange rate and recalculate all managed products?"
 msgstr ""
 
-#: assets/js/admin.js:333 includes/admin/views/dashboard.php:315 includes/admin/views/jobs.php:94
+#: includes/admin/views/dashboard.php:315 includes/admin/views/jobs.php:94 assets/js/admin.js:333
 msgid "Resume"
 msgstr ""
 
@@ -1064,7 +1064,7 @@ msgstr ""
 msgid "Simple products"
 msgstr ""
 
-#: assets/js/admin.js:277 includes/admin/views/dashboard.php:287 includes/admin/views/jobs.php:81 includes/admin/views/jobs.php:119
+#: includes/admin/views/dashboard.php:287 includes/admin/views/jobs.php:81 includes/admin/views/jobs.php:119 assets/js/admin.js:277
 msgid "Skipped"
 msgstr ""
 
@@ -1072,7 +1072,7 @@ msgstr ""
 msgid "Some jobs lost their background worker. Open the jobs screen and resume them; progress is not lost."
 msgstr ""
 
-#: assets/js/admin.js:150 includes/admin/class-admin.php:283
+#: includes/admin/class-admin.php:283 assets/js/admin.js:150
 msgid "Something went wrong. Please check the log for details."
 msgstr ""
 
@@ -1152,7 +1152,7 @@ msgstr ""
 msgid "The admin screen cannot reach these routes: %s. Every admin action would fail with \"no route found\". Reinstall the plugin or resave the permalink settings, then reload this screen."
 msgstr ""
 
-#: assets/js/admin.js:421 assets/js/admin.js:711 includes/admin/class-admin.php:281
+#: includes/admin/class-admin.php:281 assets/js/admin.js:421 assets/js/admin.js:711
 msgid "The background job was queued."
 msgstr ""
 
@@ -1310,7 +1310,7 @@ msgstr ""
 msgid "Toman (mode B)"
 msgstr ""
 
-#: assets/js/admin.js:247 assets/js/admin.js:253 includes/admin/class-admin.php:289
+#: includes/admin/class-admin.php:289 assets/js/admin.js:247 assets/js/admin.js:253
 msgid "Toman / USD"
 msgstr ""
 
@@ -1429,7 +1429,7 @@ msgstr ""
 msgid "USD/Toman: mark as native USD price"
 msgstr ""
 
-#: assets/js/admin.js:276 includes/admin/views/dashboard.php:286 includes/admin/views/jobs.php:80 includes/admin/views/jobs.php:118
+#: includes/admin/views/dashboard.php:286 includes/admin/views/jobs.php:80 includes/admin/views/jobs.php:118 assets/js/admin.js:276
 msgid "Unchanged"
 msgstr ""
 
@@ -1441,7 +1441,7 @@ msgstr ""
 msgid "Unknown job action."
 msgstr ""
 
-#: assets/js/admin.js:615 assets/js/admin.js:652 includes/admin/class-admin.php:286
+#: includes/admin/class-admin.php:286 assets/js/admin.js:615 assets/js/admin.js:652
 msgid "Unknown product"
 msgstr ""
 
@@ -1470,7 +1470,7 @@ msgstr ""
 msgid "Variation Toman prices"
 msgstr ""
 
-#: assets/js/admin.js:280 includes/admin/views/dashboard.php:290
+#: includes/admin/views/dashboard.php:290 assets/js/admin.js:280
 msgid "Variations"
 msgstr ""
 
@@ -1500,7 +1500,7 @@ msgstr ""
 msgid "Variations processed: %1$d / %2$d"
 msgstr ""
 
-#: assets/js/admin.js:350 includes/admin/views/dashboard.php:324
+#: includes/admin/views/dashboard.php:324 assets/js/admin.js:350
 msgid "View details"
 msgstr ""
 
@@ -1553,7 +1553,7 @@ msgstr ""
 msgid "WooCommerce version"
 msgstr ""
 
-#: assets/js/admin.js:246 assets/js/admin.js:416 assets/js/admin.js:731 includes/admin/class-admin.php:284
+#: includes/admin/class-admin.php:284 assets/js/admin.js:246 assets/js/admin.js:416 assets/js/admin.js:731
 msgid "Working…"
 msgstr ""
 
