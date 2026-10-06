@@ -287,6 +287,7 @@ usdtf_it_assert( false !== strpos( $localized, 'restNamespace' ) && false !== st
 usdtf_it_assert( false !== strpos( $localized, '"nonce"' ), 'the script must receive a REST nonce' );
 usdtf_it_assert( false !== strpos( $localized, '"confirmPhrase"' ), 'the script must receive the confirmation phrase it asks the admin to type' );
 usdtf_it_assert( false !== strpos( $localized, '"rate"' ), 'the script must receive the current state' );
+usdtf_it_assert( false !== strpos( $localized, '"strings"' ), 'the script must receive PHP-localized dynamic strings so Persian live updates do not depend on Jed JSON files' );
 
 $admin_script = (string) file_get_contents( USDTF_DIR . 'assets/js/admin.js' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Integration fixture.
 $admin_style  = (string) file_get_contents( USDTF_DIR . 'assets/css/admin.css' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Integration fixture.
