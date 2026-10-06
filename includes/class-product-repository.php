@@ -343,6 +343,35 @@ final class Product_Repository {
 	}
 
 	/**
+	 * Every variation ID of a variable product.
+	 *
+	 * Admin and bulk operations need the complete child set too, not only the
+	 * first variation page. Keep the individual query bounded and walk until
+	 * the final short page.
+	 *
+	 * @param int $parent_id Parent product ID.
+	 * @return int[]
+	 */
+	public function all_variation_ids( $parent_id ) {
+		$all    = array();
+		$offset = 0;
+		$limit  = 500;
+
+		do {
+			$page = $this->variation_ids( $parent_id, $offset, $limit );
+
+			if ( ! $page ) {
+				break;
+			}
+
+			$all    = array_merge( $all, $page );
+			$offset += count( $page );
+		} while ( count( $page ) === $limit );
+
+		return array_values( array_unique( array_map( 'intval', $all ) ) );
+	}
+
+	/**
 	 * Total number of variations of a variable product.
 	 *
 	 * @param int $parent_id Parent product ID.
