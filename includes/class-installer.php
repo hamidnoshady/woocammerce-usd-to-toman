@@ -147,6 +147,7 @@ final class Installer {
 			attention tinyint(1) NOT NULL DEFAULT 0,
 			child_cursor bigint(20) unsigned NOT NULL DEFAULT 0,
 			child_total bigint(20) unsigned NOT NULL DEFAULT 0,
+			child_stats longtext NULL,
 			parent_synced tinyint(1) NOT NULL DEFAULT 0,
 			attempts smallint(5) unsigned NOT NULL DEFAULT 0,
 			message text NULL,
@@ -226,9 +227,10 @@ final class Installer {
 	/**
 	 * Remove the plugin's own data. Used by uninstall.php.
 	 *
-	 * Options, cron events and the plugin tables are always removed. Product
-	 * metadata (the canonical Toman prices) is only removed when the store owner
-	 * opted in, because it is real price data that a reinstall can reuse.
+	 * Options, cron events, queued worker actions, transients and the plugin
+	 * tables are always removed. Product metadata (the canonical Toman prices)
+	 * is only removed when the store owner opted in, because it is real price
+	 * data that a reinstall can reuse.
 	 *
 	 * @param bool $purge_product_meta Whether product meta should be deleted too.
 	 * @return void
@@ -237,6 +239,16 @@ final class Installer {
 		global $wpdb;
 
 		Cron::unschedule();
+
+		// Pending worker actions of every backend, so nothing fires after the
+		// plugin is gone. Also covers the stale-resume bookkeeping.
+		Scheduler::unschedule_all( Sync_Runner::HOOK_DISCOVER );
+		Scheduler::unschedule_all( Sync_Runner::HOOK_PROCESS );
+		Scheduler::unschedule_all( Sync_Runner::HOOK_FINALIZE );
+
+		if ( function_exists( 'as_unschedule_all_actions' ) ) {
+			as_unschedule_all_actions( '', array(), Scheduler::GROUP );
+		}
 
 		$options = array(
 			Settings::OPTION,
@@ -249,10 +261,26 @@ final class Installer {
 			'usdtf_last_error',
 			'usdtf_health_snapshot',
 			'usdtf_needs_full_resync',
+			'usdtf_stale_resumes',
 		);
 
 		foreach ( $options as $option ) {
 			delete_option( $option );
+		}
+
+		// Transients the plugin leaves behind, including the per-user notices.
+		delete_transient( 'usdtf_mode_counts' );
+
+		$transient_patterns = array(
+			'_transient_usdtf_manual_override_%',
+			'_transient_timeout_usdtf_manual_override_%',
+			'_transient_usdtf_panel_error_%',
+			'_transient_timeout_usdtf_panel_error_%',
+		);
+
+		foreach ( $transient_patterns as $pattern ) {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared -- Pattern is a literal.
+			$wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->options} WHERE option_name LIKE %s", $pattern ) );
 		}
 
 		$tables = array(

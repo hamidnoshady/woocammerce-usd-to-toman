@@ -184,8 +184,8 @@ final class Display {
 		$is_on_sale = null !== $source['sale'] && $product->is_on_sale();
 
 		if ( $is_on_sale ) {
-			$regular = $this->money( (float) $source['regular'] * $quantity, true, true );
-			$sale    = $this->money( (float) $source['sale'] * $quantity, false, true );
+			$regular = $this->money( $this->display_price( $product, (float) $source['regular'] ) * $quantity, true, true );
+			$sale    = $this->money( $this->display_price( $product, (float) $source['sale'] ) * $quantity, false, true );
 
 			return sprintf(
 				'<del aria-hidden="true">%1$s</del> <ins>%2$s</ins>',
@@ -196,11 +196,15 @@ final class Display {
 
 		$value = null !== $source['regular'] ? $source['regular'] : $source['sale'];
 
-		return $this->money( (float) $value * $quantity );
+		return $this->money( $this->display_price( $product, (float) $value ) * $quantity );
 	}
 
 	/**
 	 * Toman price range of a variable product, taken from its variations.
+	 *
+	 * The sale source is only used while WooCommerce considers the variation
+	 * on sale (its sale dates), so a scheduled sale that ended does not keep a
+	 * misleading sale price in the range.
 	 *
 	 * @param \WC_Product $product Variable product.
 	 * @return string
@@ -226,10 +230,10 @@ final class Display {
 
 			$value = null;
 
-			if ( null !== $source['sale'] ) {
-				$value = (float) $source['sale'];
+			if ( null !== $source['sale'] && $child->is_on_sale() ) {
+				$value = $this->display_price( $child, (float) $source['sale'] );
 			} elseif ( null !== $source['regular'] ) {
-				$value = (float) $source['regular'];
+				$value = $this->display_price( $child, (float) $source['regular'] );
 			}
 
 			if ( null === $value ) {
@@ -253,6 +257,26 @@ final class Display {
 			$this->money( $min ),
 			$this->money( $max )
 		);
+	}
+
+	/**
+	 * Apply the store's tax display rules to a Toman amount.
+	 *
+	 * The Toman reference is a displayed price, so it follows the same
+	 * including/excluding tax treatment WooCommerce applies to every other
+	 * displayed price. With no tax rates configured (the common case for a
+	 * single currency Toman store) the value passes through unchanged.
+	 *
+	 * @param \WC_Product $product Product the price belongs to.
+	 * @param float       $toman   Toman amount.
+	 * @return float
+	 */
+	private function display_price( $product, $toman ) {
+		if ( function_exists( 'wc_get_price_to_display' ) ) {
+			return (float) wc_get_price_to_display( $product, array( 'price' => (float) $toman ) );
+		}
+
+		return (float) $toman;
 	}
 
 	/**

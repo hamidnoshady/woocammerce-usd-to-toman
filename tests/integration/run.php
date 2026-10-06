@@ -677,5 +677,6 @@ usdtf_it_pass( 'an existing Toman catalog can be onboarded without data loss' );
 require __DIR__ . '/extra.php';
 require __DIR__ . '/admin.php';
 require __DIR__ . '/ui.php';
+require __DIR__ . '/audit.php';
 
 echo "\nAll integration scenarios passed.\n";

@@ -203,6 +203,20 @@ final class Admin {
 				'show_in_rest'      => false,
 			)
 		);
+
+		// options.php demands manage_options unless the group capability is
+		// filtered explicitly. Align saving with the capability that already
+		// opens the settings screen, so shop managers are not asked to be admins.
+		add_filter( 'option_page_capability_' . self::OPTION_GROUP, array( $this, 'settings_capability' ) );
+	}
+
+	/**
+	 * Capability required to save the settings screen through options.php.
+	 *
+	 * @return string
+	 */
+	public function settings_capability() {
+		return Capabilities::required();
 	}
 
 	/**

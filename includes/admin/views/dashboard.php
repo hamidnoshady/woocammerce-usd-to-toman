@@ -141,6 +141,12 @@ $usdtf_types = array(
 			</div>
 		<?php endif; ?>
 
+		<?php if ( ! empty( $state['preview_required'] ) && empty( $state['preview_ok'] ) ) : ?>
+			<p class="description">
+				<?php esc_html_e( 'Dry run first: this store only starts a price update after a completed dry run that used the same exchange rate, transaction currency, rounding settings and scope.', 'usd-to-toman-price-sync-for-woocommerce' ); ?>
+			</p>
+		<?php endif; ?>
+
 		<p class="usdtf-actions usdtf-actions--secondary">
 			<button type="button" class="button button-primary" id="usdtf-start-update">
 				<?php esc_html_e( 'Update prices now', 'usd-to-toman-price-sync-for-woocommerce' ); ?>

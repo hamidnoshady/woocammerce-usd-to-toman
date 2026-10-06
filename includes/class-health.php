@@ -7,6 +7,8 @@
 
 namespace USDTF;
 
+use USDTF\Admin\Rest_Controller;
+
 defined( 'ABSPATH' ) || exit;
 
 /**
@@ -265,6 +267,26 @@ final class Health {
 				: __( 'No synchronization job holds the lock.', 'usd-to-toman-price-sync-for-woocommerce' ),
 		);
 
+		$missing_routes = $this->missing_rest_routes();
+
+		$checks[] = array(
+			'id'          => 'rest_routes',
+			'label'       => __( 'REST API routes', 'usd-to-toman-price-sync-for-woocommerce' ),
+			'status'      => $missing_routes ? 'critical' : 'good',
+			'value'       => $missing_routes ? '' : Rest_Controller::NAMESPACE_V1,
+			'description' => $missing_routes
+				? sprintf(
+					/* translators: %s: list of missing routes. */
+					__( 'The admin screen cannot reach these routes: %s. Every admin action would fail with "no route found". Reinstall the plugin or resave the permalink settings, then reload this screen.', 'usd-to-toman-price-sync-for-woocommerce' ),
+					implode( ', ', $missing_routes )
+				)
+				: sprintf(
+					/* translators: %s: REST namespace. */
+					__( 'Every admin route is registered under %s.', 'usd-to-toman-price-sync-for-woocommerce' ),
+					Rest_Controller::NAMESPACE_V1
+				),
+		);
+
 		$last_error = $this->logger->last_error();
 
 		$checks[] = array(
@@ -372,6 +394,61 @@ final class Health {
 	}
 
 	/**
+	 * Admin REST routes that are not registered on the live REST server.
+	 *
+	 * A missing route is what turns every admin action into the REST
+	 * "rest_no_route" error (for example after a broken upgrade left stale
+	 * files behind), so the diagnostics reports it instead of leaving the
+	 * admin to guess.
+	 *
+	 * @return string[] Method + path pairs that are missing.
+	 */
+	public function missing_rest_routes() {
+		if ( ! function_exists( 'rest_get_server' ) ) {
+			return array();
+		}
+
+		$expected = array(
+			'/state'      => 'GET',
+			'/rate'       => 'POST',
+			'/preview'    => 'POST',
+			'/update'     => 'POST',
+			'/rollback'   => 'POST',
+			'/recalculate' => 'POST',
+			'/jobs'       => 'GET',
+			'/health'     => 'GET',
+			'/products'   => 'GET',
+		);
+
+		$routes = rest_get_server()->get_routes();
+
+		$missing = array();
+
+		foreach ( $expected as $path => $method ) {
+			$route = '/' . Rest_Controller::NAMESPACE_V1 . $path;
+
+			if ( empty( $routes[ $route ] ) ) {
+				$missing[] = $method . ' ' . $route;
+				continue;
+			}
+
+			$methods = array();
+
+			foreach ( (array) $routes[ $route ] as $handler ) {
+				if ( ! empty( $handler['methods'] ) ) {
+					$methods = array_merge( $methods, array_map( 'strval', (array) $handler['methods'] ) );
+				}
+			}
+
+			if ( ! in_array( $method, $methods, true ) ) {
+				$missing[] = $method . ' ' . $route;
+			}
+		}
+
+		return $missing;
+	}
+
+	/**
 	 * Jobs that lost their worker.
 	 *
 	 * @return Job[]
@@ -451,7 +528,6 @@ final class Health {
 			array(
 				'timeout'     => 8,
 				'redirection' => 2,
-				'sslverify'   => false,
 			)
 		);
 

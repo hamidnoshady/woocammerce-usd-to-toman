@@ -197,11 +197,7 @@ final class Product_Panel {
 				continue;
 			}
 
-			$this->pricing->set_source(
-				$variation_id,
-				isset( $values['regular'] ) ? $values['regular'] : '',
-				isset( $values['sale'] ) ? $values['sale'] : ''
-			);
+			$this->save_variation_values( $variation_id, $values );
 		}
 	}
 
@@ -209,7 +205,8 @@ final class Product_Panel {
 	 * Persist a variation panel value.
 	 *
 	 * Variations are edited through the WooCommerce variations table, so only the
-	 * plugin's own hidden field is read here.
+	 * plugin's own hidden field is read here. The mode select of a variation is
+	 * part of that field set and is persisted like the parent mode.
 	 *
 	 * @param int $variation_id Variation ID.
 	 * @return void
@@ -233,7 +230,31 @@ final class Product_Panel {
 			return;
 		}
 
-		$values = $sources[ $variation_id ];
+		$this->save_variation_values( $variation_id, $sources[ $variation_id ] );
+	}
+
+	/**
+	 * Save the mode and source prices submitted for one variation.
+	 *
+	 * @param int   $variation_id Variation ID.
+	 * @param array $values       Submitted values for the variation.
+	 * @return void
+	 */
+	private function save_variation_values( $variation_id, array $values ) {
+		$variation_id = (int) $variation_id;
+
+		if ( $variation_id <= 0 ) {
+			return;
+		}
+
+		// The mode select is a real field of the panel, so switching a single
+		// variation to native or excluded has to survive the save, exactly like
+		// the regular and sale source inputs do.
+		$mode = isset( $values['mode'] ) ? sanitize_key( (string) $values['mode'] ) : '';
+
+		if ( in_array( $mode, Product_Pricing::modes(), true ) ) {
+			$this->pricing->set_mode( $variation_id, $mode );
+		}
 
 		$this->pricing->set_source(
 			$variation_id,

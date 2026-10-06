@@ -55,6 +55,11 @@ final class Job_Repository {
 	const ITEM_CANCELLED = 'cancelled';
 
 	/**
+	 * Longest backoff the worker schedules ahead for one item retry.
+	 */
+	const MAX_RETRY_DELAY = 300;
+
+	/**
 	 * Columns of the items table, in insert order.
 	 *
 	 * @var string[]
@@ -76,6 +81,7 @@ final class Job_Repository {
 		'status',
 		'child_cursor',
 		'child_total',
+		'child_stats',
 		'parent_synced',
 		'attempts',
 		'message',
@@ -88,7 +94,7 @@ final class Job_Repository {
 	 *
 	 * @var string[]
 	 */
-	const ITEM_FORMATS = array( '%d', '%d', '%d', '%s', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%d', '%d', '%d', '%s', '%s', '%s' );
+	const ITEM_FORMATS = array( '%d', '%d', '%d', '%s', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%d', '%s', '%d', '%d', '%s', '%s', '%s' );
 
 	/**
 	 * Create a job row.
@@ -167,6 +173,7 @@ final class Job_Repository {
 	 *
 	 *     @type int    $limit    Maximum rows. Default 20.
 	 *     @type string $status   Optional status filter.
+	 *     @type string $job_type Optional job type filter.
 	 *     @type bool   $writable Only jobs that write prices.
 	 * }
 	 * @return Job[]
@@ -179,6 +186,7 @@ final class Job_Repository {
 			array(
 				'limit'    => 20,
 				'status'   => '',
+				'job_type' => '',
 				'writable' => false,
 			)
 		);
@@ -190,6 +198,11 @@ final class Job_Repository {
 		if ( $args['status'] ) {
 			$where[]  = 'status = %s';
 			$params[] = (string) $args['status'];
+		}
+
+		if ( $args['job_type'] ) {
+			$where[]  = 'job_type = %s';
+			$params[] = (string) $args['job_type'];
 		}
 
 		if ( $args['writable'] ) {
@@ -496,7 +509,8 @@ final class Job_Repository {
 	 *
 	 * Items that were left in "processing" by a dead worker and items whose
 	 * retry delay has passed are picked up again, which is what makes the job
-	 * resumable after a crash.
+	 * resumable after a crash. The retry delay applies to pending items as
+	 * well, so a failed item is never retried before its backoff is over.
 	 *
 	 * @param int $job_id Job ID.
 	 * @param int $limit  Maximum items.
@@ -511,7 +525,7 @@ final class Job_Repository {
 		$rows = Database::get_results(
 			$wpdb->prepare(
 				// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Table name is internal.
-				"SELECT * FROM `{$table}` WHERE job_id = %d AND ( status = %s OR ( status = %s AND ( retry_after IS NULL OR retry_after <= %s ) ) ) ORDER BY id ASC LIMIT %d",
+				"SELECT * FROM `{$table}` WHERE job_id = %d AND status IN ( %s, %s ) AND ( retry_after IS NULL OR retry_after <= %s ) ORDER BY id ASC LIMIT %d",
 				(int) $job_id,
 				self::ITEM_PENDING,
 				self::ITEM_PROCESSING,
@@ -521,6 +535,38 @@ final class Job_Repository {
 		);
 
 		return $rows;
+	}
+
+	/**
+	 * Seconds until the earliest retry of a job becomes due.
+	 *
+	 * @param int $job_id Job ID.
+	 * @return int Zero when nothing waits for a retry.
+	 */
+	public function next_retry_delay( $job_id ) {
+		global $wpdb;
+
+		$table = Database::items_table();
+		$now   = current_time( 'mysql', true );
+
+		$next = Database::get_var(
+			$wpdb->prepare(
+				// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Table name is internal.
+				"SELECT MIN( retry_after ) FROM `{$table}` WHERE job_id = %d AND status IN ( %s, %s ) AND retry_after > %s",
+				(int) $job_id,
+				self::ITEM_PENDING,
+				self::ITEM_PROCESSING,
+				$now
+			)
+		);
+
+		if ( null === $next || '' === $next ) {
+			return 0;
+		}
+
+		$delay = strtotime( (string) $next . ' UTC' ) - time();
+
+		return max( 0, min( self::MAX_RETRY_DELAY, $delay ) );
 	}
 
 	/**

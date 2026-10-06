@@ -1,8 +1,8 @@
 # USD to Toman Price Sync for WooCommerce
 
 Keep product prices in Iranian **Toman** and derive the WooCommerce **USD** price from a manual
-USD/Toman rate — with a dry run before every write, queued background updates that survive a closed
-browser, and a permanent audit trail.
+USD/Toman rate — with an enforced dry run before every write, queued background updates that survive
+a closed browser **and the request boundary**, and a permanent audit trail.
 
 This repository is the plugin source, the test suite, the CI configuration and the release tooling.
 Store owners only need the zip from the [releases page](../../releases).
@@ -115,6 +115,12 @@ catalog, the storefront display, the rounding modes and their guards, the retent
 product statuses, the REST API the admin screen uses, the token protected worker endpoint, the cron
 maintenance pass and the uninstall behaviour.
 
+The audit scenarios go one level deeper: the worker phases run in **separate PHP processes**
+(`tests/integration/worker.php`), the way Action Scheduler runs them, and the admin REST API is
+exercised over **real HTTP** (`tests/integration/http.php`). The HTTP scenarios skip when no web
+server answers; start one with `php -S 127.0.0.1:8888 -t "$USDTF_WP_PATH" "$USDTF_WP_PATH/index.php"`
+to include them. CI always does.
+
 ## Releases
 
 The zip that is published is the **clean** distribution: source files, assets, the store
@@ -168,11 +174,11 @@ plugin zip: WordPress.org reads it from the `assets/` folder of its own SVN repo
 
 | Job | What it proves |
 | --- | --- |
-| `syntax` | Every PHP file parses on PHP 7.4, 8.0, 8.1, 8.2, 8.3 and 8.4. |
+| `syntax` | Every PHP file parses on PHP 7.4, 8.0, 8.1, 8.2, 8.3 and 8.4, and every shipped version marker agrees. |
 | `standards` | WordPress coding standards, PHPCompatibility and the plugin i18n rules. |
 | `translations` | `languages/*.pot` is up to date and every compiled `.mo` matches its `.po` source. |
-| `dist` | The clean zip builds, validates, contains no development file and has one top level directory. |
-| `integration` | The suite passes against WordPress + WooCommerce, first from the working copy and then from the **built zip**. |
+| `dist` | The clean zip builds, validates, contains no development file, has one top level directory, and ships the REST controller and an admin script that addresses the `usdtf/v1` namespace with consistent versions. |
+| `integration` | The suite passes against WordPress + WooCommerce, first from the working copy and then from the **built zip** — with the worker running in separate PHP processes and the admin REST API over a real HTTP server. |
 
 The integration job pins nothing: it downloads the latest WordPress and the latest stable
 WooCommerce, so a new upstream release is noticed early.

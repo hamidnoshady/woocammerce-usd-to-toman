@@ -398,6 +398,7 @@ function usdtf_it_run_job( $job_id, $max_iterations = 500 ) {
 
 		switch ( $job->phase() ) {
 			case \USDTF\Job::PHASE_DISCOVER:
+			case \USDTF\Job::PHASE_DISCOVER_VARIATIONS:
 				$runner->handle_discovery( $job_id );
 				break;
 			case \USDTF\Job::PHASE_FINALIZE:
@@ -443,6 +444,11 @@ function usdtf_it_reset_plugin_state() {
 	// pinned here instead of being inherited from the default.
 	usdtf_plugin()->settings()->update( array( 'currency_mode' => \USDTF\Settings::MODE_USD ) );
 	usdtf_plugin()->settings()->set_synced_currency_mode( \USDTF\Settings::MODE_USD );
+
+	// The shipped default requires a dry run before every update; the mechanics
+	// scenarios create jobs directly, so they opt out. The enforcement itself
+	// has its own dedicated scenario.
+	usdtf_plugin()->settings()->update( array( 'require_preview' => false ) );
 
 	foreach ( array( \USDTF\Database::jobs_table(), \USDTF\Database::items_table(), \USDTF\Database::rates_table(), \USDTF\Database::logs_table() ) as $table ) {
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared

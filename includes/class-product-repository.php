@@ -30,9 +30,11 @@ final class Product_Repository {
 	const DISCOVERY_PAGE_SIZE = 100;
 
 	/**
-	 * Hard cap for the variations of a single parent product.
+	 * Number of variations returned by one variation_ids() call when no
+	 * explicit number is given. A ceiling for admin screens, never for the
+	 * worker, which pages through every variation of a product.
 	 */
-	const VARIATION_LIMIT = 2000;
+	const VARIATION_PAGE_SIZE = 2000;
 
 	/**
 	 * Settings.
@@ -312,37 +314,50 @@ final class Product_Repository {
 	}
 
 	/**
-	 * Variation IDs of a variable product.
+	 * Variation IDs of a variable product, one page at a time.
+	 *
+	 * The worker pages through the variations of a product with repeated
+	 * calls, so a product with more variations than one page holds is still
+	 * synchronized completely instead of being cut off at a hard ceiling.
 	 *
 	 * @param int $parent_id Parent product ID.
+	 * @param int $offset    Zero based variation offset.
+	 * @param int $number    Variations per page.
 	 * @return int[]
 	 */
-	public function variation_ids( $parent_id ) {
-		$ids = $this->get_ids(
+	public function variation_ids( $parent_id, $offset = 0, $number = self::VARIATION_PAGE_SIZE ) {
+		$number = max( 1, min( 2000, (int) $number ) );
+		$page   = (int) floor( max( 0, (int) $offset ) / $number ) + 1;
+
+		return $this->get_ids(
 			array(
 				'mode'  => 'all',
 				'ids'   => array(),
 				'label' => '',
 			),
-			1,
-			self::VARIATION_LIMIT,
+			$page,
+			$number,
 			'variation',
 			(int) $parent_id
 		);
+	}
 
-		/**
-		 * Filters the maximum number of variations handled for one parent.
-		 *
-		 * @param int $limit     Variation limit.
-		 * @param int $parent_id Parent product ID.
-		 */
-		$limit = (int) apply_filters( 'usdtf_variation_limit', self::VARIATION_LIMIT, (int) $parent_id );
-
-		if ( $limit > 0 && count( $ids ) > $limit ) {
-			$ids = array_slice( $ids, 0, $limit );
-		}
-
-		return $ids;
+	/**
+	 * Total number of variations of a variable product.
+	 *
+	 * @param int $parent_id Parent product ID.
+	 * @return int
+	 */
+	public function count_variations( $parent_id ) {
+		return $this->count(
+			array(
+				'mode'  => 'all',
+				'ids'   => array(),
+				'label' => '',
+			),
+			'variation',
+			(int) $parent_id
+		);
 	}
 
 	/**

@@ -169,6 +169,8 @@ final class Sync_Runner {
 	 *     @type float  $rate          Rate to apply. Defaults to the active rate.
 	 *     @type float  $previous_rate Previous rate, for rollbacks.
 	 *     @type string $note          Extra note stored in the log.
+	 *     @type int    $preview       Preview job ID presented as the completed
+	 *                                 dry run, when preview enforcement is on.
 	 * }
 	 * @return array|\WP_Error Job data or an error, including the blocking job.
 	 */
@@ -181,6 +183,7 @@ final class Sync_Runner {
 				'rate'          => 0,
 				'previous_rate' => null,
 				'note'          => '',
+				'preview'       => 0,
 			)
 		);
 
@@ -218,9 +221,21 @@ final class Sync_Runner {
 		$scope = $this->products->normalize_scope( $args['scope'] );
 
 		// A currency mode change always requires a full recalculation of the price fields.
-		if ( Job::TYPE_PREVIEW !== $type && $this->settings->currency_mode_is_stale() ) {
+		// A dry run has to preview that same full recalculation, so its scope is
+		// forced as well: otherwise the update could never match its preview.
+		if ( $this->settings->currency_mode_is_stale() && in_array( $type, array( Job::TYPE_SYNC, Job::TYPE_PREVIEW ), true ) ) {
 			$scope          = Product_Repository::default_scope();
 			$scope['label'] = __( 'Every managed product (currency mode change)', 'usd-to-toman-price-sync-for-woocommerce' );
+		}
+
+		// Dry run first: a real update needs a completed preview that was made
+		// with the very same rate, currency mode, rounding and scope.
+		if ( Job::TYPE_SYNC === $type && $this->settings->get( 'require_preview' ) ) {
+			$preview_check = $this->check_preview( $rate, $scope, (int) $args['preview'] );
+
+			if ( is_wp_error( $preview_check ) ) {
+				return $preview_check;
+			}
 		}
 
 		if ( $scope['ids'] ) {
@@ -272,13 +287,15 @@ final class Sync_Runner {
 			return new \WP_Error( 'usdtf_job_create_failed', __( 'The job could not be created.', 'usd-to-toman-price-sync-for-woocommerce' ) );
 		}
 
-		if ( Job::TYPE_PREVIEW === $type ) {
-			$this->start_job( $job_id );
-		} else {
-			$this->start_job( $job_id );
+		$started = $this->start_job( $job_id );
+
+		if ( is_wp_error( $started ) ) {
+			return $started;
 		}
 
-		return $job->to_array();
+		$job = $this->jobs->get( $job_id );
+
+		return $job ? $job->to_array() : array();
 	}
 
 	/**
@@ -350,18 +367,125 @@ final class Sync_Runner {
 
 		$this->logger->info( 'Selected products queued.', array( 'count' => count( $items ) ), $job_id );
 
-		$this->start_job( $job_id );
+		$started = $this->start_job( $job_id );
+
+		if ( is_wp_error( $started ) ) {
+			return $started;
+		}
 
 		$job = $this->jobs->get( $job_id );
 
-		return $job->to_array();
+		return $job ? $job->to_array() : array();
+	}
+
+	/**
+	 * Whether a completed dry run exists that matches the requested update.
+	 *
+	 * The dry run and the update must agree on the rate, the transaction
+	 * currency, the rounding settings and the normalized scope. Without a
+	 * matching dry run the update is refused, so nobody can rewrite the
+	 * catalog without having seen what would happen.
+	 *
+	 * @param float $rate       Rate the update would use.
+	 * @param array $scope      Normalized scope the update would use.
+	 * @param int   $preview_id Optional preview job ID the caller presents.
+	 * @return true|\WP_Error True when a matching completed preview exists.
+	 */
+	private function check_preview( $rate, array $scope, $preview_id = 0 ) {
+		$fingerprint = self::job_fingerprint(
+			$rate,
+			(string) $this->settings->get( 'currency_mode' ),
+			$this->settings->rounding_args(),
+			$scope
+		);
+
+		if ( $preview_id > 0 ) {
+			$preview = $this->jobs->get( $preview_id );
+
+			if ( ! $preview || Job::TYPE_PREVIEW !== $preview->type() ) {
+				return new \WP_Error(
+					'usdtf_preview_not_found',
+					__( 'The referenced dry run could not be found. Run the dry run again and start the update from its result.', 'usd-to-toman-price-sync-for-woocommerce' ),
+					array( 'status' => 404 )
+				);
+			}
+
+			$candidates = array( $preview );
+		} else {
+			$candidates = $this->jobs->query(
+				array(
+					'limit'    => 10,
+					'status'   => Job::STATUS_COMPLETED,
+					'job_type' => Job::TYPE_PREVIEW,
+				)
+			);
+		}
+
+		foreach ( $candidates as $candidate ) {
+			if ( Job::STATUS_COMPLETED !== $candidate->status() ) {
+				continue;
+			}
+
+			$preview_fingerprint = self::job_fingerprint(
+				$candidate->rate(),
+				(string) $candidate->data['currency_mode'],
+				array(
+					'rounding'  => (string) $candidate->data['rounding'],
+					'increment' => (float) $candidate->data['increment'],
+					'decimals'  => (int) $candidate->data['decimals'],
+				),
+				$this->products->normalize_scope( $candidate->scope() )
+			);
+
+			if ( $preview_fingerprint === $fingerprint ) {
+				return true;
+			}
+		}
+
+		return new \WP_Error(
+			'usdtf_preview_required',
+			__( 'Run a dry run first: an update may only start after a completed dry run that used the same exchange rate, transaction currency, rounding settings and scope.', 'usd-to-toman-price-sync-for-woocommerce' ),
+			array(
+				'status'     => 428,
+				'fingerprint' => $fingerprint,
+			)
+		);
+	}
+
+	/**
+	 * Fingerprint of what a job would do, used to match a preview to an update.
+	 *
+	 * @param float  $rate          Rate.
+	 * @param string $currency_mode Transaction currency mode.
+	 * @param array  $rounding      Rounding arguments: rounding, increment, decimals.
+	 * @param array  $scope         Normalized scope.
+	 * @return string
+	 */
+	public static function job_fingerprint( $rate, $currency_mode, array $rounding, array $scope ) {
+		unset( $scope['label'] );
+
+		ksort( $scope );
+
+		return md5(
+			wp_json_encode(
+				array(
+					'rate'          => round( (float) $rate, 6 ),
+					'currency_mode' => (string) $currency_mode,
+					'rounding'      => (string) $rounding['rounding'],
+					'increment'     => (float) $rounding['increment'],
+					'decimals'      => (int) $rounding['decimals'],
+					'scope'         => $scope,
+				)
+			)
+		);
 	}
 
 	/**
 	 * Start a queued job and queue its first step.
 	 *
 	 * @param int $job_id Job ID.
-	 * @return bool
+	 * @return bool|\WP_Error True on success, false when the lock is held, or
+	 *                        an error when the first worker step could not be queued.
 	 */
 	public function start_job( $job_id ) {
 		$job = $this->jobs->get( $job_id );
@@ -394,17 +518,73 @@ final class Sync_Runner {
 
 		$job = $this->jobs->get( $job_id );
 
-		if ( Job::PHASE_PROCESS === $job->phase() ) {
-			$this->scheduler->enqueue( self::HOOK_PROCESS, array( $job_id ) );
-		} else {
-			$this->scheduler->enqueue( self::HOOK_DISCOVER, array( $job_id ) );
+		$hook = in_array( $job->phase(), array( Job::PHASE_DISCOVER, Job::PHASE_DISCOVER_VARIATIONS ), true ) ? self::HOOK_DISCOVER : self::HOOK_PROCESS;
+
+		if ( ! $this->queue_step( $job_id, $hook ) ) {
+			return new \WP_Error( 'usdtf_queue_failed', $this->queue_failed_message() );
 		}
 
 		return true;
 	}
 
 	/**
+	 * The message shown when the background queue refuses a worker step.
+	 *
+	 * @return string
+	 */
+	private function queue_failed_message() {
+		return __( 'The background queue could not be reached, so the job was paused. Open the jobs screen and resume it once the queue works again.', 'usd-to-toman-price-sync-for-woocommerce' );
+	}
+
+	/**
+	 * Queue the next worker step, or park the job when queueing fails.
+	 *
+	 * A job whose worker action never reached the queue would look active and
+	 * block every other update while making no progress. On failure the job is
+	 * paused with a clear message, the lease is released and the error is
+	 * logged, so an administrator can resume it once the queue works again.
+	 *
+	 * @param int    $job_id Job ID.
+	 * @param string $hook   Worker hook.
+	 * @param int    $delay  Seconds to wait before running the step.
+	 * @param bool   $unique Whether duplicate pending actions are avoided.
+	 * @return bool True when the step was queued.
+	 */
+	private function queue_step( $job_id, $hook, $delay = 0, $unique = true ) {
+		if ( $this->scheduler->enqueue( $hook, array( (int) $job_id ), $delay, $unique ) ) {
+			return true;
+		}
+
+		$this->logger->error(
+			'Queueing the next worker step failed.',
+			array(
+				'hook'  => $hook,
+				'job'   => (int) $job_id,
+				'delay' => (int) $delay,
+			),
+			$job_id
+		);
+
+		$this->jobs->update(
+			$job_id,
+			array(
+				'status'  => Job::STATUS_PAUSED,
+				'message' => $this->queue_failed_message(),
+			)
+		);
+
+		$this->lock->release( $job_id );
+
+		return false;
+	}
+
+	/**
 	 * Discovery step: queue the products of the next page.
+	 *
+	 * Parent products are discovered first. When the scope addresses the whole
+	 * managed catalog, a second discovery stream then looks for managed
+	 * variations that live under unmanaged parents, which the parent walk
+	 * would never reach.
 	 *
 	 * @param int $job_id Job ID.
 	 * @return void
@@ -413,7 +593,7 @@ final class Sync_Runner {
 		$job_id = (int) $job_id;
 		$job    = $this->jobs->get( $job_id );
 
-		if ( ! $job || Job::STATUS_RUNNING !== $job->status() || Job::PHASE_DISCOVER !== $job->phase() ) {
+		if ( ! $job || Job::STATUS_RUNNING !== $job->status() || ! in_array( $job->phase(), array( Job::PHASE_DISCOVER, Job::PHASE_DISCOVER_VARIATIONS ), true ) ) {
 			return;
 		}
 
@@ -423,6 +603,49 @@ final class Sync_Runner {
 			return;
 		}
 
+		if ( Job::PHASE_DISCOVER === $job->phase() ) {
+			if ( $this->discover_products( $job ) ) {
+				return;
+			}
+
+			if ( $this->variation_discovery_applies( $job->scope() ) ) {
+				$this->jobs->update(
+					$job_id,
+					array(
+						'phase'         => Job::PHASE_DISCOVER_VARIATIONS,
+						'discovery_page' => 1,
+					)
+				);
+
+				$this->jobs->heartbeat( $job_id );
+				$this->queue_step( $job_id, self::HOOK_DISCOVER );
+
+				return;
+			}
+		} elseif ( $this->discover_variations( $job ) ) {
+			return;
+		}
+
+		$this->jobs->update(
+			$job_id,
+			array(
+				'phase'         => Job::PHASE_PROCESS,
+				'discovery_page' => 1,
+			)
+		);
+
+		$this->jobs->heartbeat( $job_id );
+
+		$this->queue_step( $job_id, self::HOOK_PROCESS );
+	}
+
+	/**
+	 * Queue the products of the next discovery page.
+	 *
+	 * @param Job $job Job.
+	 * @return bool True when another product page is waiting.
+	 */
+	private function discover_products( Job $job ) {
 		$scope = $job->scope();
 		$page  = max( 1, (int) $job->data['discovery_page'] );
 
@@ -453,9 +676,9 @@ final class Sync_Runner {
 			);
 		}
 
-		$inserted = $this->jobs->add_items( $job_id, $items );
+		$inserted = $this->jobs->add_items( $job->id(), $items );
 
-		$this->jobs->increment( $job_id, array( 'total_items' => $inserted ) );
+		$this->jobs->increment( $job->id(), array( 'total_items' => $inserted ) );
 
 		$this->logger->info(
 			'Discovery page processed.',
@@ -465,29 +688,115 @@ final class Sync_Runner {
 				'queued' => $inserted,
 				'scope'  => $scope,
 			),
-			$job_id
+			$job->id()
 		);
 
-		$more = count( $ids ) >= $page_size;
+		if ( count( $ids ) >= $page_size ) {
+			$this->jobs->update( $job->id(), array( 'discovery_page' => $page + 1 ) );
+			$this->jobs->heartbeat( $job->id() );
+			$this->queue_step( $job->id(), self::HOOK_DISCOVER );
 
-		if ( $more ) {
-			$this->jobs->update( $job_id, array( 'discovery_page' => $page + 1 ) );
-			$this->jobs->heartbeat( $job_id );
-			$this->scheduler->enqueue( self::HOOK_DISCOVER, array( $job_id ) );
-
-			return;
+			return true;
 		}
 
-		$this->jobs->update(
-			$job_id,
+		return false;
+	}
+
+	/**
+	 * Whether the independent variation discovery applies to a scope.
+	 *
+	 * Only scopes that address the whole managed catalog are eligible:
+	 * category, type and selection scopes cannot be expressed for variation
+	 * posts, so guessing there would queue products nobody asked for.
+	 *
+	 * @param array $scope Normalized scope.
+	 * @return bool
+	 */
+	private function variation_discovery_applies( array $scope ) {
+		$scope = $this->products->normalize_scope( $scope );
+
+		if ( Product_Pricing::MODE_MANAGED !== $scope['mode'] ) {
+			return false;
+		}
+
+		if ( $scope['ids'] || $scope['category'] || $scope['product_type'] ) {
+			return false;
+		}
+
+		return true;
+	}
+
+	/**
+	 * Queue managed variations under unmanaged parents of the next page.
+	 *
+	 * Variations of a managed parent are handled by the parent item, so they
+	 * are skipped here. What remains are exactly the managed variations a
+	 * parent based discovery would have missed.
+	 *
+	 * @param Job $job Job.
+	 * @return bool True when another variation page is waiting.
+	 */
+	private function discover_variations( Job $job ) {
+		$scope = $job->scope();
+		$page  = max( 1, (int) $job->data['discovery_page'] );
+
+		/**
+		 * Filters how many variations are inspected per discovery run.
+		 *
+		 * @param int $page_size Variations per run.
+		 * @param Job $job       Job.
+		 */
+		$page_size = max( 10, min( 500, (int) apply_filters( 'usdtf_variation_discovery_page_size', Product_Repository::DISCOVERY_PAGE_SIZE, $job ) ) );
+
+		$ids = $this->products->get_ids( $scope, $page, $page_size, 'variation', 0, $job->rate() );
+
+		$items = array();
+
+		foreach ( $ids as $variation_id ) {
+			$variation = wc_get_product( $variation_id );
+
+			if ( ! $variation ) {
+				continue;
+			}
+
+			$parent_id = (int) $variation->get_parent_id();
+
+			if ( $parent_id > 0 && $this->pricing->is_managed( $parent_id ) ) {
+				// Reached through the parent item.
+				continue;
+			}
+
+			$items[] = array(
+				'object_id'         => (int) $variation_id,
+				'parent_id'         => $parent_id,
+				'object_type'       => 'variation',
+				'expected_revision' => $this->pricing->get_revision( $variation_id ),
+			);
+		}
+
+		$inserted = $this->jobs->add_items( $job->id(), $items );
+
+		$this->jobs->increment( $job->id(), array( 'total_items' => $inserted ) );
+
+		$this->logger->info(
+			'Variation discovery page processed.',
 			array(
-				'phase' => Job::PHASE_PROCESS,
-			)
+				'page'   => $page,
+				'found'  => count( $ids ),
+				'queued' => $inserted,
+			),
+			$job->id()
 		);
 
-		$this->jobs->heartbeat( $job_id );
+		if ( count( $ids ) >= $page_size ) {
+			$this->jobs->update( $job->id(), array( 'discovery_page' => $page + 1 ) );
+			$this->jobs->heartbeat( $job->id() );
+			$this->queue_step( $job->id(), self::HOOK_DISCOVER );
 
-		$this->scheduler->enqueue( self::HOOK_PROCESS, array( $job_id ) );
+			return true;
+		}
+
+		return false;
 	}
 
 	/**
@@ -504,9 +813,9 @@ final class Sync_Runner {
 			return;
 		}
 
-		if ( Job::PHASE_DISCOVER === $job->phase() ) {
+		if ( in_array( $job->phase(), array( Job::PHASE_DISCOVER, Job::PHASE_DISCOVER_VARIATIONS ), true ) ) {
 			// Discovery stalled (for example after a plugin update): pick it up again.
-			$this->scheduler->enqueue( self::HOOK_DISCOVER, array( $job_id ) );
+			$this->queue_step( $job_id, self::HOOK_DISCOVER );
 
 			return;
 		}
@@ -575,14 +884,16 @@ final class Sync_Runner {
 		$this->jobs->heartbeat( $job_id );
 
 		if ( $this->jobs->pending_count( $job_id ) > 0 ) {
-			$this->scheduler->enqueue( self::HOOK_PROCESS, array( $job_id ) );
+			// Items whose retry delay has not passed yet must not be picked up
+			// immediately again, so the next batch waits for the earliest retry.
+			$this->queue_step( $job_id, self::HOOK_PROCESS, $this->jobs->next_retry_delay( $job_id ) );
 
 			return;
 		}
 
 		$this->jobs->update( $job_id, array( 'phase' => Job::PHASE_FINALIZE ) );
 
-		$this->scheduler->enqueue( self::HOOK_FINALIZE, array( $job_id ) );
+		$this->queue_step( $job_id, self::HOOK_FINALIZE );
 	}
 
 	/**
@@ -621,7 +932,7 @@ final class Sync_Runner {
 			);
 
 			$this->jobs->heartbeat( $job_id );
-			$this->scheduler->enqueue( self::HOOK_FINALIZE, array( $job_id ) );
+			$this->queue_step( $job_id, self::HOOK_FINALIZE );
 
 			return;
 		}
@@ -706,6 +1017,21 @@ final class Sync_Runner {
 		}
 
 		if ( $product->is_type( 'variable' ) ) {
+			$scope = $job->scope();
+
+			if ( empty( $scope['include_variations'] ) ) {
+				$this->complete_item(
+					$item,
+					array(
+						'status'  => Job_Repository::ITEM_SKIPPED,
+						'code'    => 'variations_excluded',
+						'message' => __( 'Variations are excluded from this update, so this variable product was skipped. Select its variations directly to update them anyway.', 'usd-to-toman-price-sync-for-woocommerce' ),
+					)
+				);
+
+				return;
+			}
+
 			$this->process_variable_item( $job, $item, $product );
 
 			return;
@@ -719,16 +1045,22 @@ final class Sync_Runner {
 	/**
 	 * Process one variable product in slices of variations.
 	 *
+	 * Variation IDs are paginated from the database, so a product with more
+	 * variations than one slice holds is walked in as many slices as it needs
+	 * instead of being cut off at a hard limit. The per-item counters are
+	 * cumulative across slices: a failure or conflict in the first slice stays
+	 * visible when the last slice finishes.
+	 *
 	 * @param Job         $job     Job.
 	 * @param array       $item    Item row.
 	 * @param \WC_Product $product Variable product.
 	 * @return void
 	 */
 	private function process_variable_item( Job $job, array $item, $product ) {
-		$parent_id     = $product->get_id();
-		$variation_ids = $this->products->variation_ids( $parent_id );
+		$parent_id = $product->get_id();
+		$total     = $this->products->count_variations( $parent_id );
 
-		if ( ! $variation_ids ) {
+		if ( $total <= 0 ) {
 			$this->complete_item(
 				$item,
 				array(
@@ -750,16 +1082,42 @@ final class Sync_Runner {
 		$slice_size = max( 1, min( 50, (int) apply_filters( 'usdtf_variation_slice', self::VARIATION_SLICE, $parent_id ) ) );
 
 		$offset = max( 0, (int) $item['child_cursor'] );
-		$slice  = array_slice( $variation_ids, $offset, $slice_size );
-		$total  = count( $variation_ids );
+		$slice  = $this->products->variation_ids( $parent_id, $offset, $slice_size );
 
-		$stats = array(
-			'changed'   => 0,
-			'unchanged' => 0,
-			'skipped'   => 0,
-			'failed'    => 0,
-			'conflict'  => 0,
+		if ( ! $slice ) {
+			$this->complete_item(
+				$item,
+				array(
+					'status'  => Job_Repository::ITEM_SKIPPED,
+					'code'    => 'no_variations',
+					'message' => __( 'This variable product has no variations, so there is nothing to synchronize.', 'usd-to-toman-price-sync-for-woocommerce' ),
+				)
+			);
+
+			return;
+		}
+
+		// Counters survive the request boundary: they are read back from the
+		// item row, which is what keeps an early slice failure from disappearing.
+		$stats = array();
+
+		if ( ! empty( $item['child_stats'] ) ) {
+			$stats = json_decode( (string) $item['child_stats'], true );
+		}
+
+		$stats = wp_parse_args(
+			is_array( $stats ) ? $stats : array(),
+			array(
+				'changed'   => 0,
+				'unchanged' => 0,
+				'skipped'   => 0,
+				'failed'    => 0,
+				'conflict'  => 0,
+			)
 		);
+
+		$slice_stats     = $stats;
+		$changed_before  = (int) $stats['changed'];
 
 		$messages = array();
 
@@ -767,7 +1125,7 @@ final class Sync_Runner {
 			$variation = wc_get_product( $variation_id );
 
 			if ( ! $variation ) {
-				++$stats['skipped'];
+				++$slice_stats['skipped'];
 
 				continue;
 			}
@@ -787,8 +1145,8 @@ final class Sync_Runner {
 				$status = $result['status'];
 			}
 
-			if ( isset( $stats[ $status ] ) ) {
-				++$stats[ $status ];
+			if ( array_key_exists( $status, $slice_stats ) ) {
+				++$slice_stats[ $status ];
 			}
 
 			if ( ! empty( $result['message'] ) && count( $messages ) < 10 ) {
@@ -796,7 +1154,8 @@ final class Sync_Runner {
 			}
 		}
 
-		$processed = $offset + count( $slice );
+		$processed = min( $total, $offset + count( $slice ) );
+		$stats     = $slice_stats;
 
 		$summary = sprintf(
 			/* translators: 1: processed variations, 2: total variations, 3: changed, 4: unchanged, 5: skipped, 6: failed. */
@@ -813,7 +1172,7 @@ final class Sync_Runner {
 			$job->id(),
 			array(
 				'variations_processed' => count( $slice ),
-				'variations_changed'   => $stats['changed'],
+				'variations_changed'   => max( 0, (int) $stats['changed'] - $changed_before ),
 			)
 		);
 
@@ -827,6 +1186,7 @@ final class Sync_Runner {
 					'status'       => Job_Repository::ITEM_PROCESSING,
 					'child_cursor' => $processed,
 					'child_total'  => $total,
+					'child_stats'  => wp_json_encode( $stats ),
 					'attempts'     => 0,
 					'retry_after'  => null,
 					'message'      => $message,
@@ -847,7 +1207,7 @@ final class Sync_Runner {
 			$status = Job_Repository::ITEM_CONFLICT;
 		} elseif ( $stats['changed'] > 0 ) {
 			$status = Job_Repository::ITEM_CHANGED;
-		} elseif ( count( $slice ) === $stats['skipped'] ) {
+		} elseif ( $stats['skipped'] >= $total ) {
 			$status = Job_Repository::ITEM_SKIPPED;
 		}
 
@@ -857,6 +1217,7 @@ final class Sync_Runner {
 				'status'       => $status,
 				'child_cursor' => $processed,
 				'child_total'  => $total,
+				'child_stats'  => wp_json_encode( $stats ),
 				'attempts'     => 0,
 				'retry_after'  => null,
 				'message'      => $message,
@@ -1010,7 +1371,7 @@ final class Sync_Runner {
 			)
 		);
 
-		$this->lock->release();
+		$this->lock->release( $job->id() );
 
 		$job = $this->jobs->get( $job->id() );
 
@@ -1114,7 +1475,7 @@ final class Sync_Runner {
 			)
 		);
 
-		$this->lock->release();
+		$this->lock->release( $job_id );
 		$this->logger->info( 'Job paused.', array(), $job_id );
 
 		return true;
@@ -1149,16 +1510,23 @@ final class Sync_Runner {
 
 		$job = $this->jobs->get( $job_id );
 
+		$queued = false;
+
 		switch ( $job->phase() ) {
 			case Job::PHASE_DISCOVER:
-				$this->scheduler->enqueue( self::HOOK_DISCOVER, array( $job_id ) );
+			case Job::PHASE_DISCOVER_VARIATIONS:
+				$queued = $this->queue_step( $job_id, self::HOOK_DISCOVER );
 				break;
 			case Job::PHASE_FINALIZE:
-				$this->scheduler->enqueue( self::HOOK_FINALIZE, array( $job_id ) );
+				$queued = $this->queue_step( $job_id, self::HOOK_FINALIZE );
 				break;
 			default:
-				$this->scheduler->enqueue( self::HOOK_PROCESS, array( $job_id ) );
+				$queued = $this->queue_step( $job_id, self::HOOK_PROCESS );
 				break;
+		}
+
+		if ( ! $queued ) {
+			return false;
 		}
 
 		$this->logger->info( 'Job resumed.', array(), $job_id );
@@ -1191,7 +1559,7 @@ final class Sync_Runner {
 			)
 		);
 
-		$this->lock->release();
+		$this->lock->release( $job_id );
 
 		$this->sync_counters( $job );
 
@@ -1227,9 +1595,7 @@ final class Sync_Runner {
 				$this->resume( $job_id );
 			}
 
-			$this->scheduler->enqueue( self::HOOK_PROCESS, array( $job_id ) );
-
-			return true;
+			return $this->queue_step( $job_id, self::HOOK_PROCESS );
 		}
 
 		if ( ! $this->lock->acquire( $job_id ) ) {
@@ -1248,7 +1614,9 @@ final class Sync_Runner {
 
 		$this->jobs->heartbeat( $job_id, Job::STATUS_RUNNING );
 
-		$this->scheduler->enqueue( self::HOOK_PROCESS, array( $job_id ) );
+		if ( ! $this->queue_step( $job_id, self::HOOK_PROCESS ) ) {
+			return false;
+		}
 
 		return true;
 	}
@@ -1435,14 +1803,18 @@ final class Sync_Runner {
 
 				switch ( $job->phase() ) {
 					case Job::PHASE_DISCOVER:
-						$this->scheduler->enqueue( self::HOOK_DISCOVER, array( $job->id() ), 0, false );
+						$queued = $this->queue_step( $job->id(), self::HOOK_DISCOVER, 0, false );
 						break;
 					case Job::PHASE_FINALIZE:
-						$this->scheduler->enqueue( self::HOOK_FINALIZE, array( $job->id() ), 0, false );
+						$queued = $this->queue_step( $job->id(), self::HOOK_FINALIZE, 0, false );
 						break;
 					default:
-						$this->scheduler->enqueue( self::HOOK_PROCESS, array( $job->id() ), 0, false );
+						$queued = $this->queue_step( $job->id(), self::HOOK_PROCESS, 0, false );
 						break;
+				}
+
+				if ( ! $queued ) {
+					continue;
 				}
 
 				$this->logger->info( 'Job worker re-queued after a lost action.', array( 'phase' => $job->phase() ), $job->id() );
@@ -1490,7 +1862,7 @@ final class Sync_Runner {
 				);
 
 				$this->logger->warning( 'Job paused after repeated worker failures.', array( 'auto_resumes' => $count ), $job_id );
-				$this->lock->release();
+				$this->lock->release( $job_id );
 
 				continue;
 			}
@@ -1500,7 +1872,7 @@ final class Sync_Runner {
 
 			$this->logger->warning( 'Recovering a job whose worker stopped.', array( 'auto_resume' => $count + 1 ), $job_id );
 
-			$this->lock->release();
+			$this->lock->release( $job_id );
 			$this->resume( $job_id );
 
 			++$recovered;
@@ -1513,8 +1885,7 @@ final class Sync_Runner {
 				'limit'  => 20,
 			)
 		) as $job ) {
-			if ( ! $this->scheduler->has_pending( self::HOOK_DISCOVER, array( $job->id() ) ) ) {
-				$this->scheduler->enqueue( self::HOOK_DISCOVER, array( $job->id() ) );
+			if ( ! $this->scheduler->has_pending( self::HOOK_DISCOVER, array( $job->id() ) ) && $this->queue_step( $job->id(), self::HOOK_DISCOVER ) ) {
 				++$recovered;
 			}
 		}
@@ -1552,6 +1923,42 @@ final class Sync_Runner {
 
 		$scope = Product_Repository::default_scope();
 
+		$preview_required = (bool) $this->settings->get( 'require_preview' );
+		$preview_ok       = false;
+
+		if ( $rate > 0 ) {
+			$fingerprint = self::job_fingerprint(
+				$rate,
+				(string) $this->settings->get( 'currency_mode' ),
+				$this->settings->rounding_args(),
+				$scope
+			);
+
+			foreach ( $this->jobs->query(
+				array(
+					'limit'    => 10,
+					'status'   => Job::STATUS_COMPLETED,
+					'job_type' => Job::TYPE_PREVIEW,
+				)
+			) as $candidate ) {
+				$candidate_fingerprint = self::job_fingerprint(
+					$candidate->rate(),
+					(string) $candidate->data['currency_mode'],
+					array(
+						'rounding'  => (string) $candidate->data['rounding'],
+						'increment' => (float) $candidate->data['increment'],
+						'decimals'  => (int) $candidate->data['decimals'],
+					),
+					$this->products->normalize_scope( $candidate->scope() )
+				);
+
+				if ( $candidate_fingerprint === $fingerprint ) {
+					$preview_ok = true;
+					break;
+				}
+			}
+		}
+
 		return array(
 			'rate'                => $rate,
 			'previous_rate'       => $this->rates->previous_rate(),
@@ -1569,6 +1976,8 @@ final class Sync_Runner {
 			'active_job'          => $active ? $active->to_array() : null,
 			'last_job'            => $last ? $last->to_array() : null,
 			'last_preview_job'    => $preview_job ? $preview_job->to_array() : null,
+			'preview_required'    => $preview_required,
+			'preview_ok'          => $preview_ok,
 			'lock'                => $this->lock->status(),
 			'scheduler'           => $this->scheduler->health(),
 			'settings'            => array(

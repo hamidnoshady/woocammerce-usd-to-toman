@@ -52,6 +52,9 @@ jobs:
           find . -name '*.php' -not -path './dist/*' -not -path './node_modules/*' -not -path './vendor/*' -print0 \
             | xargs -0 -n1 -P4 php -l > /dev/null
 
+      - name: Check that every version marker agrees
+        run: php bin/check-versions.php
+
   standards:
     name: Coding standards
     runs-on: ubuntu-latest
@@ -139,6 +142,32 @@ jobs:
             fi
           done
 
+      - name: Check the shipped version markers and runtime files
+        # The admin screen dies with REST rest_no_route when a broken build
+        # omits the REST controller or the admin script, or when the shipped
+        # version markers disagree. This mirrors the runtime checks of the
+        # integration suite against the actual archive contents.
+        run: |
+          set -euo pipefail
+          rm -rf dist/extracted
+          mkdir -p dist/extracted
+          unzip -q dist/*.zip -d dist/extracted
+          php bin/check-versions.php --path="dist/extracted/${PLUGIN_SLUG}"
+          for shipped_file in \
+            "includes/admin/class-rest-controller.php" \
+            "includes/class-plugin.php" \
+            "includes/class-sync-runner.php" \
+            "assets/js/admin.js"; do
+            if [ ! -f "dist/extracted/${PLUGIN_SLUG}/${shipped_file}" ]; then
+              echo "::error::The distribution is missing ${shipped_file}."
+              exit 1
+            fi
+          done
+          if ! grep -q "usdtf/v1" "dist/extracted/${PLUGIN_SLUG}/assets/js/admin.js"; then
+            echo "::error::The shipped admin script must address the usdtf/v1 REST namespace."
+            exit 1
+          fi
+
       - name: Upload the release zip
         uses: actions/upload-artifact@v4
         with:
@@ -203,6 +232,15 @@ jobs:
       - name: Install WordPress, WooCommerce and the plugin from source
         run: |
           php tests/integration/prepare.php "$WP_PATH"
+
+      - name: Start a web server for the real HTTP scenarios
+        # The HTTP scenarios talk to the REST API the way the admin browser
+        # does: a real request, a real response. WordPress' index.php is used
+        # as the router so /wp-json/ requests reach the REST dispatcher.
+        run: |
+          nohup php -S 127.0.0.1:8888 -t "$WP_PATH" "$WP_PATH/index.php" > /tmp/usdtf-server.log 2>&1 &
+          sleep 2
+          curl -fsS -o /dev/null http://localhost:8888/ || (cat /tmp/usdtf-server.log && exit 1)
 
       - name: Run the suite against the working copy
         run: bash tests/integration/ci-run.sh "$WP_PATH" working-copy

@@ -197,9 +197,14 @@ final class Rest_Controller {
 				'callback'            => array( $this, 'create_update' ),
 				'permission_callback' => $permission,
 				'args'                => array(
-					'scope' => array(
+					'scope'   => array(
 						'type'    => 'object',
 						'default' => array(),
+					),
+					'preview' => array(
+						'type'              => 'integer',
+						'default'           => 0,
+						'sanitize_callback' => 'absint',
 					),
 				),
 			)
@@ -457,8 +462,9 @@ final class Rest_Controller {
 
 		$result = $this->runner->create_job(
 			array(
-				'type'  => Job::TYPE_SYNC,
-				'scope' => $scope,
+				'type'    => Job::TYPE_SYNC,
+				'scope'   => $scope,
+				'preview' => (int) $request->get_param( 'preview' ),
 			)
 		);
 

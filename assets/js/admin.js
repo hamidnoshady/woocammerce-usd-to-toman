@@ -3,6 +3,11 @@
  *
  * Talks to the plugin's REST namespace with wp.apiFetch and never blocks the
  * browser: jobs run in the background queue and this script only reads state.
+ *
+ * Every request path is prefixed with the REST namespace that the PHP side
+ * registered. wp.apiFetch only prepends the REST root (/wp-json/), so an
+ * unprefixed path would ask for a route that does not exist and fail with the
+ * REST "rest_no_route" error.
  */
 ( function () {
 	'use strict';
@@ -12,18 +17,83 @@
 	var state = data.state || {};
 	var pollTimer = null;
 
+	var TEXT_DOMAIN = 'usd-to-toman-price-sync-for-woocommerce';
+	var namespace = ( data.restNamespace || 'usdtf/v1' ).replace( /^\/+|\/+$/g, '' );
+	var noRouteWarned = false;
+
+	function i18n() {
+		return window.wp && window.wp.i18n ? window.wp.i18n : null;
+	}
+
+	function __( text ) {
+		var api18n = i18n();
+
+		if ( api18n && api18n.__ ) {
+			return api18n.__( text, TEXT_DOMAIN ) || text;
+		}
+
+		return text;
+	}
+
+	function sprintf( text ) {
+		var api18n = i18n();
+		var args = Array.prototype.slice.call( arguments, 1 );
+
+		if ( api18n && api18n.sprintf ) {
+			return api18n.sprintf.apply( api18n, [ text ].concat( args ) );
+		}
+
+		return text;
+	}
+
 	function api( path, options ) {
 		options = options || {};
 
 		var headers = options.headers || {};
 		headers[ 'X-WP-Nonce' ] = data.nonce;
 
+		var method = options.method || 'GET';
+		var fullPath = '/' + namespace + '/' + String( path ).replace( /^\/+/, '' );
+
 		return window.wp.apiFetch( {
-			path: path,
-			method: options.method || 'GET',
+			path: fullPath,
+			method: method,
 			data: options.data,
 			headers: headers,
+		} ).catch( function ( error ) {
+			reportRequestError( error, method, fullPath );
+
+			throw error;
 		} );
+	}
+
+	/**
+	 * Log every failed REST call with its exact method and path, and explain
+	 * the "rest_no_route" case instead of leaving the admin to guess.
+	 */
+	function reportRequestError( error, method, path ) {
+		var code = error && error.code ? String( error.code ) : '';
+		var message = error && error.message ? error.message : '';
+
+		if ( window.console && window.console.error ) {
+			window.console.error(
+				'USD to Toman Pricing: REST request ' + method + ' ' + path + ' failed' +
+					( code ? ' (' + code + ')' : '' ) + ': ' + ( message || 'unknown error' )
+			);
+		}
+
+		if ( 'rest_no_route' === code && ! noRouteWarned ) {
+			noRouteWarned = true;
+
+			toast(
+				sprintf(
+					/* translators: %s: REST route, for example GET /usdtf/v1/state. */
+					__( 'The REST route %s was not found on this site. Open the Diagnostics tab to see which routes are missing, then resave the permalink settings or reinstall the plugin.', 'usd-to-toman-price-sync-for-woocommerce' ),
+					method + ' ' + path
+				),
+				true
+			);
+		}
 	}
 
 	function $( selector, scope ) {
@@ -65,7 +135,7 @@
 			return error.message;
 		}
 
-		return labels.genericError || 'Error';
+		return labels.genericError || __( 'Something went wrong. Please check the log for details.', 'usd-to-toman-price-sync-for-woocommerce' );
 	}
 
 	function formatNumber( value, digits ) {
@@ -142,36 +212,119 @@
 			bar.style.width = job.progress + '%';
 		}
 
-		var current = job.current_item ?
-			'<p class="usdtf-progress__current">' +
-			( job.is_active ? ( labels.currentProduct || 'Currently processing' ) : ( labels.lastProduct || 'Last product' ) ) +
-			': <strong>' + escapeHtml( job.current_item ) + '</strong></p>' :
-			'';
+		// Dynamic values (product names, status labels, user names) are added
+		// with textContent, never with innerHTML, so nothing can inject HTML.
+		var progress = document.createElement( 'div' );
+		progress.className = 'usdtf-progress';
 
-		panel.innerHTML =
-			'<div class="usdtf-progress">' +
-			'<div class="usdtf-progress__bar"><span style="width:' + job.progress + '%"></span></div>' +
-			'<p class="usdtf-progress__numbers">' +
-			formatNumber( counters.processed ) + ' / ' + formatNumber( counters.total ) + ' (' + job.progress + '%) · ' +
-			formatNumber( job.rate ) + ' ' + ( labels.rateSuffix || 'Toman / USD' ) +
-			'</p>' +
-			current +
-			'<ul class="usdtf-counters">' +
-			'<li>Changed: <strong>' + formatNumber( counters.changed ) + '</strong></li>' +
-			'<li>Unchanged: <strong>' + formatNumber( counters.unchanged ) + '</strong></li>' +
-			'<li>Skipped: <strong>' + formatNumber( counters.skipped ) + '</strong></li>' +
-			'<li>Failed: <strong>' + formatNumber( counters.failed ) + '</strong></li>' +
-			'<li>Conflicts: <strong>' + formatNumber( counters.conflicts ) + '</strong></li>' +
-			'<li>Variations: <strong>' + formatNumber( counters.variations_processed ) + '</strong></li>' +
-			'</ul>' +
-			'<p class="usdtf-job-status">' + job.status + ' · ' + job.type + ' · ' + ( job.user || '' ) + '</p>' +
-			'<p class="usdtf-actions">' +
-			( job.can_pause ? '<button type="button" class="button usdtf-job-action" data-action="pause" data-job-id="' + job.id + '">Pause</button> ' : '' ) +
-			( job.can_resume ? '<button type="button" class="button button-primary usdtf-job-action" data-action="resume" data-job-id="' + job.id + '">Resume</button> ' : '' ) +
-			( job.can_cancel ? '<button type="button" class="button usdtf-job-action" data-action="cancel" data-job-id="' + job.id + '">Cancel</button> ' : '' ) +
-			'<a class="button-link" href="' + data.jobUrl + '&job=' + job.id + '">View details</a>' +
-			'</p>' +
-			'</div>';
+		var progressTrack = document.createElement( 'div' );
+		progressTrack.className = 'usdtf-progress__bar';
+		var progressFill = document.createElement( 'span' );
+		progressFill.style.width = parseInt( job.progress, 10 ) + '%';
+		progressTrack.appendChild( progressFill );
+		progress.appendChild( progressTrack );
+
+		var numbers = document.createElement( 'p' );
+		numbers.className = 'usdtf-progress__numbers';
+		numbers.appendChild( document.createTextNode(
+			formatNumber( counters.processed ) + ' / ' + formatNumber( counters.total ) +
+				' (' + parseInt( job.progress, 10 ) + '%) · ' +
+				formatNumber( job.rate ) + ' ' + ( labels.rateSuffix || __( 'Toman / USD', 'usd-to-toman-price-sync-for-woocommerce' ) )
+		) );
+		progress.appendChild( numbers );
+
+		if ( job.current_item ) {
+			var current = document.createElement( 'p' );
+			current.className = 'usdtf-progress__current';
+			current.appendChild( document.createTextNode(
+				( job.is_active ? ( labels.currentProduct || __( 'Currently processing', 'usd-to-toman-price-sync-for-woocommerce' ) ) : ( labels.lastProduct || __( 'Last product', 'usd-to-toman-price-sync-for-woocommerce' ) ) ) + ': '
+			) );
+
+			var currentItem = document.createElement( 'strong' );
+			currentItem.textContent = job.current_item;
+			current.appendChild( currentItem );
+			progress.appendChild( current );
+		}
+
+		var list = document.createElement( 'ul' );
+		list.className = 'usdtf-counters';
+
+		var counterLabels = [
+			[ 'changed', __( 'Changed', 'usd-to-toman-price-sync-for-woocommerce' ) ],
+			[ 'unchanged', __( 'Unchanged', 'usd-to-toman-price-sync-for-woocommerce' ) ],
+			[ 'skipped', __( 'Skipped', 'usd-to-toman-price-sync-for-woocommerce' ) ],
+			[ 'failed', __( 'Failed', 'usd-to-toman-price-sync-for-woocommerce' ) ],
+			[ 'conflicts', __( 'Conflicts', 'usd-to-toman-price-sync-for-woocommerce' ) ],
+			[ 'variations_processed', __( 'Variations', 'usd-to-toman-price-sync-for-woocommerce' ) ],
+		];
+
+		counterLabels.forEach( function ( entry ) {
+			var item = document.createElement( 'li' );
+			item.appendChild( document.createTextNode( entry[ 1 ] + ': ' ) );
+
+			var value = document.createElement( 'strong' );
+			value.textContent = formatNumber( counters[ entry[ 0 ] ] );
+			item.appendChild( value );
+
+			list.appendChild( item );
+		} );
+
+		progress.appendChild( list );
+
+		var statusLine = document.createElement( 'p' );
+		statusLine.className = 'usdtf-job-status';
+		statusLine.textContent = [
+			job.status_label || job.status,
+			job.type_label || job.type,
+			job.user || '',
+		].filter( function ( part ) {
+			return '' !== part;
+		} ).join( ' · ' );
+		progress.appendChild( statusLine );
+
+		var actions = document.createElement( 'p' );
+		actions.className = 'usdtf-actions';
+
+		if ( job.can_pause ) {
+			var pause = document.createElement( 'button' );
+			pause.type = 'button';
+			pause.className = 'button usdtf-job-action';
+			pause.setAttribute( 'data-action', 'pause' );
+			pause.setAttribute( 'data-job-id', parseInt( job.id, 10 ) );
+			pause.textContent = __( 'Pause', 'usd-to-toman-price-sync-for-woocommerce' );
+			actions.appendChild( pause );
+		}
+
+		if ( job.can_resume ) {
+			var resume = document.createElement( 'button' );
+			resume.type = 'button';
+			resume.className = 'button button-primary usdtf-job-action';
+			resume.setAttribute( 'data-action', 'resume' );
+			resume.setAttribute( 'data-job-id', parseInt( job.id, 10 ) );
+			resume.textContent = __( 'Resume', 'usd-to-toman-price-sync-for-woocommerce' );
+			actions.appendChild( resume );
+		}
+
+		if ( job.can_cancel ) {
+			var cancel = document.createElement( 'button' );
+			cancel.type = 'button';
+			cancel.className = 'button usdtf-job-action';
+			cancel.setAttribute( 'data-action', 'cancel' );
+			cancel.setAttribute( 'data-job-id', parseInt( job.id, 10 ) );
+			cancel.textContent = __( 'Cancel', 'usd-to-toman-price-sync-for-woocommerce' );
+			actions.appendChild( cancel );
+		}
+
+		var details = document.createElement( 'a' );
+		details.className = 'button-link';
+		details.href = data.jobUrl + '&job=' + parseInt( job.id, 10 );
+		details.textContent = __( 'View details', 'usd-to-toman-price-sync-for-woocommerce' );
+		actions.appendChild( details );
+
+		progress.appendChild( actions );
+
+		panel.innerHTML = '';
+		panel.appendChild( progress );
 	}
 
 	function poll( jobId ) {
@@ -194,7 +347,19 @@
 				return;
 			}
 
-			toast( job.type === 'preview' ? ( labels.previewFinished || 'Dry run finished.' ) : ( 'Job #' + job.id + ' finished: ' + job.status ), 'completed_with_errors' === job.status || 'failed' === job.status );
+			if ( 'preview' === job.type ) {
+				toast( labels.previewFinished || __( 'Dry run finished. Nothing was changed.', 'usd-to-toman-price-sync-for-woocommerce' ), 'completed_with_errors' === job.status || 'failed' === job.status );
+			} else {
+				toast(
+					sprintf(
+						/* translators: 1: job ID, 2: job status. */
+						__( 'Job #%1$d finished: %2$s', 'usd-to-toman-price-sync-for-woocommerce' ),
+						parseInt( job.id, 10 ),
+						job.status_label || job.status
+					),
+					'completed_with_errors' === job.status || 'failed' === job.status
+				);
+			}
 
 			window.setTimeout( function () {
 				window.location.reload();
@@ -215,12 +380,12 @@
 			} );
 		}
 
-		toast( labels.working || 'Working…' );
+		toast( labels.working || __( 'Working…', 'usd-to-toman-price-sync-for-woocommerce' ) );
 
 		return api( path, { method: 'POST', data: payload } ).then( function ( response ) {
 			var job = response && response.id ? response : ( response && response.job ? response.job : null );
 
-			toast( labels.jobStarted || 'Job queued.' );
+			toast( labels.jobStarted || __( 'The background job was queued.', 'usd-to-toman-price-sync-for-woocommerce' ) );
 
 			if ( job && job.id ) {
 				poll( job.id );
@@ -237,7 +402,7 @@
 			if ( running ) {
 				// Only one write job may run at a time: surface the job that is
 				// already queued, with its rate, its progress and its controls.
-				toast( ( labels.alreadyRunning || 'Another price update is already running.' ) +
+				toast( ( labels.alreadyRunning || __( 'Another price update is already running. Showing it instead.', 'usd-to-toman-price-sync-for-woocommerce' ) ) +
 					' #' + running.id + ' · ' + formatNumber( running.rate ) + ' · ' + running.progress + '%' );
 
 				renderProgress( running );
@@ -269,9 +434,14 @@
 		var text = $( '.usdtf-confirm__text', box );
 
 		if ( text ) {
-			text.textContent = 'Rate ' + formatNumber( result.previous_rate ) + ' → ' + formatNumber( result.rate ) +
-				' (' + formatNumber( result.change_percent, 2 ) + '%). Managed products that would be affected: about ' +
-				formatNumber( result.affected ) + '. ' + ( result.message || '' );
+			text.textContent = sprintf(
+				/* translators: 1: previous rate, 2: new rate, 3: change in percent, 4: number of affected products. */
+				__( 'Rate %1$s → %2$s (%3$s%%). Managed products that would be affected: about %4$s.', 'usd-to-toman-price-sync-for-woocommerce' ),
+				formatNumber( result.previous_rate ),
+				formatNumber( result.rate ),
+				formatNumber( result.change_percent, 2 ),
+				formatNumber( result.affected )
+			) + ' ' + ( result.message || '' );
 		}
 
 		box.hidden = false;
@@ -290,7 +460,7 @@
 			var value = input ? input.value : '';
 
 			if ( ! value ) {
-				toast( 'Enter a rate first.', true );
+				toast( __( 'Enter a rate first.', 'usd-to-toman-price-sync-for-woocommerce' ), true );
 
 				return;
 			}
@@ -309,7 +479,7 @@
 					return;
 				}
 
-				toast( result.message || labels.savedRate );
+				toast( result.message || labels.savedRate || __( 'Exchange rate saved.', 'usd-to-toman-price-sync-for-woocommerce' ) );
 
 				window.setTimeout( function () {
 					window.location.reload();
@@ -351,7 +521,7 @@
 				var value = input ? input.value : '';
 
 				if ( ! value ) {
-					toast( 'Enter a rate to preview.', true );
+					toast( __( 'Enter a rate to preview.', 'usd-to-toman-price-sync-for-woocommerce' ), true );
 
 					return;
 				}
@@ -402,16 +572,28 @@
 
 						results.forEach( function ( product ) {
 							var item = document.createElement( 'li' );
+							var button = document.createElement( 'button' );
 
-							item.innerHTML = '<button type="button" class="button-link">' +
-								( product.name || labels.unknownProduct ) + ' <span class="usdtf-badge">' + product.mode + '</span></button>';
+							button.type = 'button';
+							button.className = 'button-link';
 
-							$( 'button', item ).addEventListener( 'click', function () {
+							// Product names come from the database and may contain
+							// markup: textContent keeps them plain text.
+							button.appendChild( document.createTextNode( product.name || labels.unknownProduct || __( 'Unknown product', 'usd-to-toman-price-sync-for-woocommerce' ) ) );
+							button.appendChild( document.createTextNode( ' ' ) );
+
+							var badge = document.createElement( 'span' );
+							badge.className = 'usdtf-badge';
+							badge.textContent = product.mode;
+							button.appendChild( badge );
+
+							button.addEventListener( 'click', function () {
 								addChip( product );
 								list.innerHTML = '';
 								search.value = '';
 							} );
 
+							item.appendChild( button );
 							list.appendChild( item );
 						} );
 					} ).catch( function ( error ) {
@@ -432,13 +614,21 @@
 
 			chip.className = 'usdtf-chip';
 			chip.setAttribute( 'data-id', product.id );
-			chip.innerHTML = '<span>' + ( product.name || labels.unknownProduct ) + '</span> ' +
-				'<button type="button" class="usdtf-chip__remove" aria-label="Remove">&times;</button>';
 
-			$( '.usdtf-chip__remove', chip ).addEventListener( 'click', function () {
+			var name = document.createElement( 'span' );
+			name.textContent = product.name || labels.unknownProduct || __( 'Unknown product', 'usd-to-toman-price-sync-for-woocommerce' );
+			chip.appendChild( name );
+
+			var remove = document.createElement( 'button' );
+			remove.type = 'button';
+			remove.className = 'usdtf-chip__remove';
+			remove.setAttribute( 'aria-label', __( 'Remove', 'usd-to-toman-price-sync-for-woocommerce' ) );
+			remove.textContent = '×';
+			remove.addEventListener( 'click', function () {
 				chip.remove();
 			} );
 
+			chip.appendChild( remove );
 			list.appendChild( chip );
 		}
 	}
@@ -451,12 +641,18 @@
 				var scope = collectScope();
 
 				if ( 'selected' === ( $( '#usdtf-scope-mode' ) || {} ).value && ! scope.ids.length ) {
-					toast( 'Select at least one product first.', true );
+					toast( __( 'Select at least one product first.', 'usd-to-toman-price-sync-for-woocommerce' ), true );
 
 					return;
 				}
 
-				if ( window.confirm( 'Start the background price update now?' ) ) {
+				var message = __( 'Start the background price update now?', 'usd-to-toman-price-sync-for-woocommerce' );
+
+				if ( state.preview_required && ! state.preview_ok ) {
+					message += ' ' + __( 'A dry run with the same rate, transaction currency, rounding settings and scope is required first.', 'usd-to-toman-price-sync-for-woocommerce' );
+				}
+
+				if ( window.confirm( message ) ) {
 					startJob( '/update' );
 				}
 			} );
@@ -474,12 +670,12 @@
 
 		if ( rollback ) {
 			rollback.addEventListener( 'click', function () {
-				if ( ! window.confirm( 'Restore the previous exchange rate and recalculate all managed products?' ) ) {
+				if ( ! window.confirm( __( 'Restore the previous exchange rate and recalculate all managed products?', 'usd-to-toman-price-sync-for-woocommerce' ) ) ) {
 					return;
 				}
 
 				api( '/rollback', { method: 'POST' } ).then( function ( response ) {
-					toast( labels.jobStarted || 'Job queued.' );
+					toast( labels.jobStarted || __( 'The background job was queued.', 'usd-to-toman-price-sync-for-woocommerce' ) );
 
 					if ( response && response.id ) {
 						poll( response.id );
@@ -499,12 +695,13 @@
 				var result = $( '#usdtf-loopback-result' );
 
 				if ( result ) {
-					result.textContent = labels.working || 'Working…';
+					result.textContent = labels.working || __( 'Working…', 'usd-to-toman-price-sync-for-woocommerce' );
 				}
 
 				api( '/health/loopback', { method: 'POST' } ).then( function ( response ) {
 					if ( result ) {
-						result.textContent = ( response.ok ? 'OK' : 'Failed' ) + ' — HTTP ' + response.status + ' in ' + response.duration + 'ms. ' + response.description;
+						result.textContent = ( response.ok ? __( 'OK', 'usd-to-toman-price-sync-for-woocommerce' ) : __( 'Failed', 'usd-to-toman-price-sync-for-woocommerce' ) ) +
+							' — HTTP ' + response.status + ' in ' + response.duration + 'ms. ' + response.description;
 					}
 				} ).catch( function ( error ) {
 					if ( result ) {
@@ -528,14 +725,14 @@
 			var action = button.getAttribute( 'data-action' );
 			var jobId = parseInt( button.getAttribute( 'data-job-id' ), 10 );
 
-			if ( 'cancel' === action && ! window.confirm( 'Cancel this job? Prices that were already written are kept.' ) ) {
+			if ( 'cancel' === action && ! window.confirm( __( 'Cancel this job? Prices that were already written are kept.', 'usd-to-toman-price-sync-for-woocommerce' ) ) ) {
 				return;
 			}
 
 			button.disabled = true;
 
 			api( '/jobs/' + jobId + '/' + action, { method: 'POST' } ).then( function ( response ) {
-				toast( '#' + jobId + ': ' + action + ' — ' + ( response.message || 'done' ) );
+				toast( '#' + jobId + ': ' + action + ' — ' + ( response.message || __( 'Done.', 'usd-to-toman-price-sync-for-woocommerce' ) ) );
 
 				if ( response.job && response.job.is_active ) {
 					poll( response.job.id );

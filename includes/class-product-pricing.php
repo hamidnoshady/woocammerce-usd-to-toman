@@ -296,6 +296,9 @@ final class Product_Pricing {
 	 * In Toman mode the price fields *are* the canonical Toman price, so an
 	 * admin edit is treated as a source change instead.
 	 *
+	 * The notice is stored in a per-user transient: wp-admin has no WooCommerce
+	 * customer session, and the admin notice renderer reads exactly this key.
+	 *
 	 * @param \WC_Product $product Product being saved.
 	 * @return void
 	 */
@@ -344,7 +347,7 @@ final class Product_Pricing {
 		}
 
 		if ( $changed ) {
-			WC()->session->set( 'usdtf_manual_price_notice', $product_id );
+			set_transient( 'usdtf_manual_override_' . get_current_user_id(), $product_id, 5 * MINUTE_IN_SECONDS );
 		}
 	}
 
@@ -520,11 +523,9 @@ final class Product_Pricing {
 
 		$code = $this->validate_source_pair( $parsed_regular, $parsed_sale );
 
-		if ( in_array( $code, array( 'negative', 'out_of_range' ), true ) ) {
-			return new \WP_Error( 'usdtf_invalid_source', $this->source_error_message( $code ), array( 'status' => 400 ) );
-		}
-
-		if ( 'sale_above_regular' === $code ) {
+		if ( in_array( $code, array( 'negative', 'out_of_range', 'zero', 'sale_above_regular' ), true ) ) {
+			// Invalid state is refused at write time, so a source that can
+			// never synchronize cannot be saved in the first place.
 			return new \WP_Error( 'usdtf_invalid_source', $this->source_error_message( $code ), array( 'status' => 400 ) );
 		}
 

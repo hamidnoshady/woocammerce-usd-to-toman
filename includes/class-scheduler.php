@@ -111,6 +111,21 @@ final class Scheduler {
 	public function enqueue( $hook, array $args = array(), $delay = 0, $unique = true ) {
 		$delay = max( 0, (int) $delay );
 
+		/**
+		 * Whether queueing is blocked for this action.
+		 *
+		 * Returning true forces a queueing failure, which the runner reacts to
+		 * by pausing the job with a clear message. It exists for tests and for
+		 * developers who need to stop the queue on purpose.
+		 *
+		 * @param bool   $blocked Whether the action must be refused.
+		 * @param string $hook    Action hook.
+		 * @param array  $args    Action arguments.
+		 */
+		if ( apply_filters( 'usdtf_scheduler_enqueue_blocked', false, $hook, $args ) ) {
+			return false;
+		}
+
 		if ( $unique && $this->has_pending( $hook, $args ) ) {
 			return true;
 		}
@@ -384,6 +399,11 @@ final class Scheduler {
 	/**
 	 * Fire a non blocking request that runs a worker action.
 	 *
+	 * The request is verified with normal WordPress TLS rules: disabling
+	 * certificate verification would let a broken loopback silently run over
+	 * an intercepted connection. Hosts whose loopback fails keep the WP-Cron
+	 * twin of the action as their safety net.
+	 *
 	 * @param string $hook  Worker hook.
 	 * @param array  $args  Arguments.
 	 * @param int    $delay Delay in seconds.
@@ -399,10 +419,9 @@ final class Scheduler {
 		wp_remote_post(
 			$url,
 			array(
-				'timeout'   => 0.5,
-				'blocking'  => false,
-				'sslverify' => false,
-				'body'      => array(
+				'timeout'  => 0.5,
+				'blocking' => false,
+				'body'     => array(
 					'action' => self::LOOPBACK_ACTION,
 					'token'  => self::token(),
 					'hook'   => $hook,
@@ -456,6 +475,16 @@ final class Scheduler {
 
 		if ( $job_id <= 0 ) {
 			wp_die( '', '', array( 'response' => 400 ) );
+		}
+
+		// This request owns the work now: drop the WP-Cron twin of the action
+		// so the same step cannot be triggered twice (once here, once by cron).
+		// When the loopback never arrives, the cron event survives as the
+		// safety net, because only a request that got this far removes it.
+		$timestamp = wp_next_scheduled( $hook, $args );
+
+		if ( false !== $timestamp ) {
+			wp_unschedule_event( $timestamp, $hook, $args );
 		}
 
 		$delay = isset( $_GET['usdtf_delay'] ) ? (int) $_GET['usdtf_delay'] : 0; // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Token verified above.

@@ -8,6 +8,7 @@
  */
 
 use USDTF\Calculator;
+use USDTF\Capabilities;
 use USDTF\Settings;
 
 defined( 'ABSPATH' ) || exit;
@@ -154,8 +155,24 @@ $usdtf_options = $settings->all();
 		<tr>
 			<th scope="row"><label for="usdtf-capability"><?php esc_html_e( 'Required capability', 'usd-to-toman-price-sync-for-woocommerce' ); ?></label></th>
 			<td>
-				<input type="text" id="usdtf-capability" name="<?php echo esc_attr( Settings::OPTION ); ?>[required_capability]" value="<?php echo esc_attr( (string) $usdtf_options['required_capability'] ); ?>" class="regular-text" />
-				<p class="description"><?php esc_html_e( 'Default: manage_woocommerce. Everything this plugin does — changing the rate, running updates, editing Toman prices — requires this capability plus, for products, the normal WordPress edit permission.', 'usd-to-toman-price-sync-for-woocommerce' ); ?></p>
+				<select id="usdtf-capability" name="<?php echo esc_attr( Settings::OPTION ); ?>[required_capability]">
+					<?php foreach ( Capabilities::allowed() as $usdtf_capability ) : ?>
+						<option value="<?php echo esc_attr( $usdtf_capability ); ?>" <?php selected( (string) $usdtf_options['required_capability'], $usdtf_capability ); ?>>
+							<?php echo esc_html( $usdtf_capability ); ?>
+						</option>
+					<?php endforeach; ?>
+				</select>
+				<p class="description"><?php esc_html_e( 'Default: manage_woocommerce. Everything this plugin does — changing the rate, running updates, editing Toman prices — requires this capability plus, for products, the normal WordPress edit permission. Only these two capabilities are offered; weaker setups are possible for developers through the usdtf_required_capability filter.', 'usd-to-toman-price-sync-for-woocommerce' ); ?></p>
+			</td>
+		</tr>
+		<tr>
+			<th scope="row"><?php esc_html_e( 'Dry run first', 'usd-to-toman-price-sync-for-woocommerce' ); ?></th>
+			<td>
+				<label class="usdtf-checkbox">
+					<input type="checkbox" name="<?php echo esc_attr( Settings::OPTION ); ?>[require_preview]" value="1" <?php checked( ! empty( $usdtf_options['require_preview'] ) ); ?> />
+					<?php esc_html_e( 'Only start a price update after a completed dry run with the same exchange rate, transaction currency, rounding settings and scope', 'usd-to-toman-price-sync-for-woocommerce' ); ?>
+				</label>
+				<p class="description"><?php esc_html_e( 'Recommended. When enabled, the update button refuses to run until the dry run on the dashboard has previewed exactly the same change, so nothing can rewrite the catalog unseen.', 'usd-to-toman-price-sync-for-woocommerce' ); ?></p>
 			</td>
 		</tr>
 	</table>
