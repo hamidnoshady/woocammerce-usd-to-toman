@@ -41,6 +41,18 @@ function usdtf_it_worker_step( $job_id ) {
 }
 
 /**
+ * Drop the in-memory caches this process built while creating the fixtures.
+ *
+ * The worker steps wrote through their own PHP processes, so every product
+ * cached here still carries the state from before the job ran.
+ *
+ * @return void
+ */
+function usdtf_it_forget_cached_products() {
+	wp_cache_flush();
+}
+
+/**
  * Read the lease straight from the database.
  *
  * The worker steps ran in other PHP processes, so this process's options
@@ -112,6 +124,8 @@ usdtf_it_assert_same( Job::STATUS_COMPLETED, $finished->status(), 'a job whose s
 usdtf_it_assert_same( 3, (int) $finished->data['changed'], 'every queued item must have been changed across the processes' );
 usdtf_it_assert( false === usdtf_it_lease_fresh(), 'the lease must be released once the job finishes' );
 
+usdtf_it_forget_cached_products();
+
 // The prices were really written: both simple products carry their derived
 // USD price, and the variable product did it through its variations.
 $cross_items = $wpdb->get_results( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
@@ -167,6 +181,9 @@ while ( $steps < 100 ) {
 
 $finished_resume = usdtf_plugin()->jobs()->get( (int) $resume_job['id'] );
 usdtf_it_assert_same( Job::STATUS_COMPLETED, $finished_resume->status(), 'a job resumed in one process must finish through other processes' );
+
+usdtf_it_forget_cached_products();
+
 usdtf_it_assert_same( '10', usdtf_it_price( $resume_product->get_id() ), 'the resumed job must write its price' );
 
 usdtf_it_pass( 'the worker phases run across independent PHP requests' );
