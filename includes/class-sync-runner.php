@@ -494,7 +494,7 @@ final class Sync_Runner {
 			return false;
 		}
 
-		if ( ! $this->lock->acquire( $job_id ) ) {
+		if ( $job->is_write_job() && ! $this->lock->acquire( $job_id ) ) {
 			$holder = $this->lock->read();
 
 			$this->logger->warning(
@@ -599,7 +599,7 @@ final class Sync_Runner {
 			return;
 		}
 
-		if ( ! $this->lock->heartbeat( $job_id ) ) {
+		if ( $job->is_write_job() && ! $this->lock->heartbeat( $job_id ) ) {
 			$this->logger->warning( 'Discovery stopped: the job lock is held by another process.', array(), $job_id );
 
 			return;
@@ -865,7 +865,7 @@ final class Sync_Runner {
 			return;
 		}
 
-		if ( ! $this->lock->heartbeat( $job_id ) ) {
+		if ( $job->is_write_job() && ! $this->lock->heartbeat( $job_id ) ) {
 			$this->logger->warning( 'Batch stopped: the job lock is held by another process.', array(), $job_id );
 
 			return;
@@ -955,7 +955,7 @@ final class Sync_Runner {
 			return;
 		}
 
-		if ( ! $this->lock->heartbeat( $job_id ) ) {
+		if ( $job->is_write_job() && ! $this->lock->heartbeat( $job_id ) ) {
 			$this->logger->warning( 'Finalize stopped: the job lock is held by another process.', array(), $job_id );
 
 			return;
@@ -1548,7 +1548,7 @@ final class Sync_Runner {
 			return false;
 		}
 
-		if ( ! $this->lock->acquire( $job_id ) ) {
+		if ( $job->is_write_job() && ! $this->lock->acquire( $job_id ) ) {
 			return false;
 		}
 
@@ -1652,7 +1652,7 @@ final class Sync_Runner {
 			return $this->queue_step( $job_id, self::HOOK_PROCESS );
 		}
 
-		if ( ! $this->lock->acquire( $job_id ) ) {
+		if ( $job->is_write_job() && ! $this->lock->acquire( $job_id ) ) {
 			return false;
 		}
 

@@ -134,7 +134,7 @@ Yes. Every string uses the `usd-to-toman-price-sync-for-woocommerce` text domain
 = 1.1.0 =
 Production audit release: every finding of the production audit is fixed and covered by the integration suite, which now runs the worker phases in separate PHP processes and the admin REST API over real HTTP.
 * Fixed: the admin screen called the REST API without the plugin namespace, so every action failed with the REST `rest_no_route` error. Requests now address `usdtf/v1`, a failing request logs its exact method and path, and the diagnostics name missing routes after a broken upgrade.
-* Fixed: the synchronization lease was owned by a per-request token, so the background worker — a different PHP process — could not continue the job it was running. The lease now belongs to the job and survives request boundaries.
+* Fixed: the synchronization lease was owned by a per-request token, so the background worker — a different PHP process — could not continue the job it was running. The lease now belongs to the job, survives request boundaries, and is only held by write jobs — a dry run never blocks a real update.
 * Fixed: the worker rewrote the canonical Toman source price from its snapshot, so an edit saved during a synchronization could be overwritten. The source price is read only during a sync.
 * Fixed: variable product failures disappeared between worker slices; the per-item counters now persist across slices and an early failure finishes the item as failed.
 * Fixed: the retry delay now applies to pending items as well, so a failed item is retried after its backoff and not immediately.

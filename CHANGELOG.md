@@ -22,8 +22,9 @@ API over real HTTP.
 - The synchronization lease was owned by a per-request random token, so the Action Scheduler worker
   — a different PHP process — could never heartbeat a job it was legitimately continuing. The lease
   is now owned by the job ID with compare-and-swap writes, heartbeats work across request
-  boundaries, and releases are scoped to the owning job. The integration suite runs a job step by
-  step through separate PHP processes to keep it that way.
+  boundaries, and releases are scoped to the owning job. Only write jobs hold the exclusive lease:
+  a dry run never blocks a real update. The integration suite runs a job step by step through
+  separate PHP processes to keep it that way.
 - The worker rewrote the canonical Toman source meta from its snapshot during every refresh, which
   could overwrite an admin edit that landed mid-synchronization. The source meta is now read only
   during a sync: only derived, rate and sync markers are written, so a concurrent edit survives and
