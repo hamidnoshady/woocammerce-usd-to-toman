@@ -349,7 +349,7 @@ $adopt_job = usdtf_it_create_job( array( 'type' => Job::TYPE_SYNC ) );
 usdtf_it_run_job( (int) $adopt_job['id'] );
 
 usdtf_it_assert_same( '9999999', usdtf_it_meta( $race_id, Product_Pricing::META_SOURCE_REGULAR ), 'later jobs must also keep the concurrent source' );
-usdtf_it_assert_same( '37', usdtf_it_price( $race_id ), 'the next job derives the USD price from the surviving source (9999999 / 270000 = 37)' );
+usdtf_it_assert_same( '38', usdtf_it_price( $race_id ), 'the next job derives the USD price from the surviving source (9999999 / 270000 = 37.037, rounded up to 38)' );
 
 usdtf_it_pass( 'the worker never rewrites the canonical Toman source meta' );
 
