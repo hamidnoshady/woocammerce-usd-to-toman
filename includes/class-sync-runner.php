@@ -489,13 +489,6 @@ final class Sync_Runner {
 	}
 
 	/**
-	 * Start a queued job and queue its first step.
-	 *
-	 * @param int $job_id Job ID.
-	 * @return bool|\WP_Error True on success, false when the lock is held, or
-	 *                        an error when the first worker step could not be queued.
-	 */
-	/**
 	 * Fail a newly-created job that lost the exclusive-start race.
 	 *
 	 * The catalog was not touched yet, so leaving this row queued/paused would
@@ -531,6 +524,13 @@ final class Sync_Runner {
 		return new \WP_Error( 'usdtf_job_running', $message, $data );
 	}
 
+	/**
+	 * Start a queued job and queue its first step.
+	 *
+	 * @param int $job_id Job ID.
+	 * @return bool|\WP_Error True on success, false when the lock is held, or
+	 *                        an error when the first worker step could not be queued.
+	 */
 	public function start_job( $job_id ) {
 		$job = $this->jobs->get( $job_id );
 
