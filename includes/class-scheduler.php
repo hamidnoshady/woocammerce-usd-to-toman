@@ -525,20 +525,28 @@ final class Scheduler {
 			wp_die( '', '', array( 'response' => 400 ) );
 		}
 
-		// This request owns the work now: drop the WP-Cron twin of the action
-		// so the same step cannot be triggered twice (once here, once by cron).
-		// When the loopback never arrives, the cron event survives as the
-		// safety net, because only a request that got this far removes it.
+		$delay = isset( $_GET['usdtf_delay'] ) ? max( 0, (int) $_GET['usdtf_delay'] ) : 0; // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Token verified above.
+
+		// Long retry delays must not be shortened to ten seconds. Chain small
+		// non-blocking loopbacks instead, and keep the WP-Cron event in place as
+		// a safety net until the final request actually owns the worker step.
+		if ( $delay > 10 ) {
+			sleep( 10 );
+			$this->fire_loopback( $hook, $args, $delay - 10 );
+			wp_die( 'queued', '', array( 'response' => 202 ) );
+		}
+
+		if ( $delay > 0 ) {
+			sleep( $delay );
+		}
+
+		// This final request owns the work now: drop the WP-Cron twin so the
+		// same step cannot run twice. If any earlier loopback in the chain dies,
+		// the cron event remains untouched.
 		$timestamp = wp_next_scheduled( $hook, $args );
 
 		if ( false !== $timestamp ) {
 			wp_unschedule_event( $timestamp, $hook, $args );
-		}
-
-		$delay = isset( $_GET['usdtf_delay'] ) ? (int) $_GET['usdtf_delay'] : 0; // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Token verified above.
-
-		if ( $delay > 0 ) {
-			sleep( min( 10, $delay ) );
 		}
 
 		// Only the hooks returned by allowed_worker_hooks() can reach this line.
