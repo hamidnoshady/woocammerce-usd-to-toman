@@ -676,7 +676,46 @@ usdtf_it_assert( false !== strpos( $active_range, '1,500,000' ), 'an active sale
 usdtf_it_pass( 'a scheduled sale that ended must not feed the Toman range' );
 
 // ---------------------------------------------------------------------------
-// 45. Cross-request workers and real HTTP REST (separate files).
+// 45. Maintenance cron can schedule its custom recurrence even on activation.
+// ---------------------------------------------------------------------------
+\USDTF\Cron::unschedule();
+\USDTF\Cron::schedule();
+
+usdtf_it_assert( false !== wp_next_scheduled( \USDTF\Cron::EVENT_TICK ), 'the five-minute recovery cron must be scheduled even when schedule() runs before Cron::hooks()' );
+usdtf_it_assert( false !== wp_next_scheduled( \USDTF\Cron::EVENT_DAILY ), 'the daily maintenance cron must be scheduled' );
+usdtf_it_pass( 'maintenance cron registers its recurrence before scheduling' );
+
+// ---------------------------------------------------------------------------
+// 46. Bulk mode changes cover a variable product and all of its variations.
+// ---------------------------------------------------------------------------
+usdtf_it_reset_plugin_state();
+usdtf_it_delete_products();
+
+$bulk_variable = usdtf_it_make_variable_product(
+	'Bulk mode variable',
+	array(
+		array( '1000000' ),
+		array( '2000000' ),
+		array( '3000000' ),
+		array( '4000000' ),
+		array( '5000000' ),
+		array( '6000000' ),
+	)
+);
+
+$panel = new \USDTF\Admin\Product_Panel( $settings, $pricing, usdtf_plugin()->products() );
+$panel->handle_bulk_actions( admin_url( 'edit.php?post_type=product' ), 'usdtf_exclude', array( $bulk_variable->get_id() ) );
+
+usdtf_it_assert_same( \USDTF\Product_Pricing::MODE_EXCLUDED, $pricing->get_mode( $bulk_variable->get_id() ), 'the variable parent must receive the bulk mode' );
+
+foreach ( usdtf_plugin()->products()->all_variation_ids( $bulk_variable->get_id() ) as $bulk_child_id ) {
+	usdtf_it_assert_same( \USDTF\Product_Pricing::MODE_EXCLUDED, $pricing->get_mode( $bulk_child_id ), 'every variation must receive the parent bulk mode too' );
+}
+
+usdtf_it_pass( 'bulk mode changes propagate to every variation' );
+
+// ---------------------------------------------------------------------------
+// 47. Cross-request workers and real HTTP REST (separate files).
 // ---------------------------------------------------------------------------
 require __DIR__ . '/crossrequest.php';
 require __DIR__ . '/http.php';
