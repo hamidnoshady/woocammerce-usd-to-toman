@@ -137,26 +137,41 @@ final class Scheduler {
 				return true;
 			}
 
-			if ( $delay > 0 ) {
-				as_schedule_single_action( time() + $delay, $hook, $args, self::GROUP, $unique );
-			} else {
-				as_enqueue_async_action( $hook, $args, self::GROUP, $unique );
+			$action_id = $delay > 0
+				? as_schedule_single_action( time() + $delay, $hook, $args, self::GROUP, $unique )
+				: as_enqueue_async_action( $hook, $args, self::GROUP, $unique );
+
+			if ( ! $action_id ) {
+				return false;
+			}
+
+			// Action Scheduler only auto-dispatches its async runner on wp-admin
+			// shutdown. Jobs are started through REST, where is_admin() is false,
+			// so explicitly wake the queue or it can sit at 0/0 until an admin
+			// page is refreshed.
+			if ( 0 === $delay ) {
+				$this->dispatch_action_scheduler();
 			}
 
 			return true;
 		}
 
 		if ( self::BACKEND_WP_CRON === $backend || self::BACKEND_LOOPBACK === $backend ) {
+			$scheduled = true;
+
 			if ( ! wp_next_scheduled( $hook, $args ) ) {
-				wp_schedule_single_event( time() + $delay, $hook, $args );
+				$result    = wp_schedule_single_event( time() + $delay, $hook, $args, array(), true );
+				$scheduled = ! is_wp_error( $result ) && (bool) $result;
 			}
+
+			$loopback = false;
 
 			// WP-Cron only runs on page loads. Kick a non blocking request as well.
 			if ( $this->settings->get( 'loopback_fallback' ) ) {
-				$this->fire_loopback( $hook, $args, $delay );
+				$loopback = $this->fire_loopback( $hook, $args, $delay );
 			}
 
-			return true;
+			return self::BACKEND_LOOPBACK === $backend ? $loopback : ( $scheduled || $loopback );
 		}
 
 		return false;
@@ -397,6 +412,37 @@ final class Scheduler {
 	}
 
 	/**
+	 * Wake Action Scheduler after a REST request queued immediate work.
+	 *
+	 * Action Scheduler's normal shutdown dispatcher deliberately runs only in
+	 * wp-admin. The plugin creates jobs from authenticated REST requests, so an
+	 * immediate action otherwise waits for WP-Cron or the next admin page load.
+	 * This uses Action Scheduler's own async request runner and keeps its normal
+	 * concurrency and due-action checks.
+	 *
+	 * @return void
+	 */
+	private function dispatch_action_scheduler() {
+		if ( ! class_exists( '\\ActionScheduler' ) || ! class_exists( '\\ActionScheduler_AsyncRequest_QueueRunner' ) ) {
+			return;
+		}
+
+		$store = \ActionScheduler::store();
+
+		if ( ! $store ) {
+			return;
+		}
+
+		try {
+			$runner = new \ActionScheduler_AsyncRequest_QueueRunner( $store );
+			$runner->maybe_dispatch();
+		} catch ( \Throwable $error ) {
+			// The action is already persisted and WP-Cron remains its safety net.
+			unset( $error );
+		}
+	}
+
+	/**
 	 * Fire a non blocking request that runs a worker action.
 	 *
 	 * The request is verified with normal WordPress TLS rules: disabling
@@ -407,16 +453,16 @@ final class Scheduler {
 	 * @param string $hook  Worker hook.
 	 * @param array  $args  Arguments.
 	 * @param int    $delay Delay in seconds.
-	 * @return void
+	 * @return bool True when WordPress accepted the non-blocking HTTP request.
 	 */
 	private function fire_loopback( $hook, array $args, $delay = 0 ) {
 		if ( ! in_array( $hook, self::allowed_worker_hooks(), true ) ) {
-			return;
+			return false;
 		}
 
 		$url = add_query_arg( 'usdtf_delay', max( 0, (int) $delay ), admin_url( 'admin-ajax.php' ) );
 
-		wp_remote_post(
+		$response = wp_remote_post(
 			$url,
 			array(
 				'timeout'  => 0.5,
@@ -429,6 +475,8 @@ final class Scheduler {
 				),
 			)
 		);
+
+		return ! is_wp_error( $response );
 	}
 
 	/**
