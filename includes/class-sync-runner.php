@@ -1158,11 +1158,12 @@ final class Sync_Runner {
 				'skipped'   => 0,
 				'failed'    => 0,
 				'conflict'  => 0,
+				'attention' => 0,
 			)
 		);
 
-		$slice_stats     = $stats;
-		$changed_before  = (int) $stats['changed'];
+		$slice_stats    = $stats;
+		$changed_before = (int) $stats['changed'];
 
 		$messages = array();
 
@@ -1177,6 +1178,12 @@ final class Sync_Runner {
 
 			$revision_before = $this->pricing->get_revision( $variation_id );
 			$result          = $this->calculate_and_write( $job, $item, $variation, $revision_before );
+
+			if ( ! empty( $result['code'] ) && in_array( $result['code'], self::ATTENTION_CODES, true ) ) {
+				// An invalid variation source is an error worth reporting even
+				// when the rest of the slices finish cleanly.
+				$slice_stats['attention'] = 1;
+			}
 
 			if ( ! $job->is_write_job() ) {
 				// A dry run never writes, so a concurrent edit is not a conflict.
@@ -1235,6 +1242,7 @@ final class Sync_Runner {
 					'attempts'     => 0,
 					'retry_after'  => null,
 					'message'      => $message,
+					'attention'    => (int) $stats['attention'],
 				)
 			);
 
@@ -1266,6 +1274,7 @@ final class Sync_Runner {
 				'attempts'     => 0,
 				'retry_after'  => null,
 				'message'      => $message,
+				'attention'    => (int) $stats['attention'],
 			)
 		);
 	}

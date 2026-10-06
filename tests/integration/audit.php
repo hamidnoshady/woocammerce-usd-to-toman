@@ -59,7 +59,10 @@ $retry_product = usdtf_it_make_simple_product( 'Retry product', '5400000' );
 
 $retry_job = $runner->create_job( array( 'type' => Job::TYPE_SYNC ) );
 $retry_id  = (int) $retry_job['id'];
-usdtf_it_run_job( $retry_id );
+
+// Run the discovery step only: the job stays running with the item queued,
+// the way it is while the queue works through the batch.
+$runner->handle_discovery( $retry_id );
 
 $retry_item = $wpdb->get_row( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 	$wpdb->prepare( 'SELECT id FROM ' . Database::items_table() . ' WHERE job_id = %d AND object_id = %d', $retry_id, $retry_product->get_id() ),
@@ -102,12 +105,13 @@ usdtf_it_assert_same( 0, usdtf_plugin()->jobs()->next_retry_delay( $retry_id ), 
 usdtf_it_assert( count( usdtf_plugin()->jobs()->next_items( $retry_id, 20 ) ) === 1, 'a pending item must become due once its retry delay has passed' );
 
 usdtf_it_run_job( $retry_id );
+usdtf_it_assert_same( Job::STATUS_COMPLETED, usdtf_plugin()->jobs()->get( $retry_id )->status(), 'the job must finish once the retry is due' );
 usdtf_it_assert_same( '20', usdtf_it_price( $retry_product->get_id() ), 'the retried item must be processed normally' );
 
 usdtf_it_pass( 'the retry delay is respected for pending items' );
 
 // ---------------------------------------------------------------------------
-// 34. A variation failure in an early slice survives every later slice.
+// 34. A variation error in an early slice survives every later slice.
 // ---------------------------------------------------------------------------
 usdtf_it_reset_plugin_state();
 usdtf_it_delete_products();
@@ -122,7 +126,7 @@ for ( $i = 1; $i <= 25; $i++ ) {
 
 $sliced_product = usdtf_it_make_variable_product( 'Sliced variable product', $usdtf_it_variation_prices );
 
-// Variation #3 carries an invalid source: it fails in the first slice.
+// Variation #3 carries an invalid source: it is reported in the first slice.
 $usdtf_it_children = $sliced_product->get_children();
 $broken_variation  = (int) $usdtf_it_children[2];
 
@@ -146,17 +150,60 @@ $sliced_item = $wpdb->get_row( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.
 	ARRAY_A
 );
 
-usdtf_it_assert_same( Job_Repository::ITEM_FAILED, $sliced_item['status'], 'a variable item whose variation failed in the first slice must finish as failed' );
 usdtf_it_assert_same( '25', (string) $sliced_item['child_total'], 'the item must know all of its variations' );
-usdtf_it_assert( false !== strpos( (string) $sliced_item['message'], 'failed: 1' ), 'the cumulative counters must keep the early failure visible: ' . (string) $sliced_item['message'] );
+usdtf_it_assert( false !== strpos( (string) $sliced_item['message'], 'skipped: 1' ), 'the cumulative counters must keep the early slice problem visible: ' . (string) $sliced_item['message'] );
+usdtf_it_assert_same( '1', (string) $sliced_item['attention'], 'an invalid variation source in an early slice must flag the item for attention' );
 
 $usdtf_it_child_stats = json_decode( (string) $sliced_item['child_stats'], true );
-usdtf_it_assert( is_array( $usdtf_it_child_stats ) && 1 === (int) $usdtf_it_child_stats['failed'], 'the persisted per-item counters must remember the early slice failure' );
+usdtf_it_assert( is_array( $usdtf_it_child_stats ) && 1 === (int) $usdtf_it_child_stats['skipped'], 'the persisted per-item counters must remember the early slice skip' );
 usdtf_it_assert( is_array( $usdtf_it_child_stats ) && 24 === (int) $usdtf_it_child_stats['changed'], 'the working variations must be counted as changed' );
+usdtf_it_assert( is_array( $usdtf_it_child_stats ) && 1 === (int) $usdtf_it_child_stats['attention'], 'the attention flag must be sticky across the slices' );
 
-usdtf_it_assert_same( Job::STATUS_COMPLETED_WITH_ERRORS, $sliced_job_row->status(), 'the job must finish with errors when a variation failed' );
+usdtf_it_assert_same( Job::STATUS_COMPLETED_WITH_ERRORS, $sliced_job_row->status(), 'the job must finish with errors when a variation had an invalid source' );
 
-usdtf_it_pass( 'a variation failure in an early slice survives every later slice' );
+// A variation whose price cannot be written at all fails the item in the slice
+// it happens in, no matter how many slices follow.
+$usdtf_it_fail_prices = array();
+
+for ( $i = 1; $i <= 12; $i++ ) {
+	$usdtf_it_fail_prices[] = array( (string) ( 2000000 + $i * 10000 ) );
+}
+
+$failing_product = usdtf_it_make_variable_product( 'Failing variable product', $usdtf_it_fail_prices );
+$failing_broken  = (int) $failing_product->get_children()[2];
+
+$failing_hook = function ( $saved_product ) use ( $failing_broken ) {
+	if ( (int) $saved_product->get_id() === $failing_broken ) {
+		throw new RuntimeException( 'simulated write failure' );
+	}
+};
+
+add_action( 'woocommerce_update_product', $failing_hook );
+
+add_filter( 'usdtf_variation_slice', function () {
+	return 5;
+} );
+
+$failing_job = $runner->create_job( array( 'type' => Job::TYPE_SYNC ) );
+usdtf_it_run_job( (int) $failing_job['id'] );
+
+remove_all_filters( 'usdtf_variation_slice' );
+remove_action( 'woocommerce_update_product', $failing_hook );
+
+$failing_item = $wpdb->get_row( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+	$wpdb->prepare( 'SELECT * FROM ' . Database::items_table() . ' WHERE job_id = %d AND object_id = %d', (int) $failing_job['id'], $failing_product->get_id() ),
+	ARRAY_A
+);
+
+usdtf_it_assert_same( Job_Repository::ITEM_FAILED, $failing_item['status'], 'a variable item whose variation failed in the first slice must finish as failed' );
+usdtf_it_assert( false !== strpos( (string) $failing_item['message'], 'failed: 1' ), 'the failure of the early slice must survive the later slices: ' . (string) $failing_item['message'] );
+
+$usdtf_it_fail_stats = json_decode( (string) $failing_item['child_stats'], true );
+usdtf_it_assert( is_array( $usdtf_it_fail_stats ) && 1 === (int) $usdtf_it_fail_stats['failed'], 'the persisted counters must remember the early slice failure' );
+
+usdtf_it_assert_same( Job::STATUS_COMPLETED_WITH_ERRORS, usdtf_plugin()->jobs()->get( (int) $failing_job['id'] )->status(), 'the job must finish with errors when a variation failed' );
+
+usdtf_it_pass( 'a variation error in an early slice survives every later slice' );
 
 // ---------------------------------------------------------------------------
 // 35. The variation mode select of the product panel is persisted.
@@ -418,6 +465,12 @@ $orphan_variable = usdtf_it_make_variable_product(
 	Product_Pricing::MODE_NATIVE
 );
 
+// The factory applies the parent mode to its variations; the orphan scenario
+// needs managed variations under a native parent.
+foreach ( $orphan_variable->get_children() as $orphan_child_id ) {
+	$pricing->set_mode( (int) $orphan_child_id, Product_Pricing::MODE_MANAGED );
+}
+
 $orphan_job = $runner->create_job( array( 'type' => Job::TYPE_SYNC ) );
 usdtf_it_run_job( (int) $orphan_job['id'] );
 
@@ -525,9 +578,23 @@ usdtf_it_assert_same( \USDTF\Capabilities::DEFAULT_CAPABILITY, \USDTF\Capabiliti
 usdtf_plugin()->settings()->reset();
 
 // Saving the settings screen is guarded by the plugin capability, not by manage_options.
+$usdtf_admin_screen = new \USDTF\Admin\Admin(
+	usdtf_plugin()->settings(),
+	usdtf_plugin()->runner(),
+	usdtf_plugin()->rates(),
+	usdtf_plugin()->jobs(),
+	usdtf_plugin()->products(),
+	usdtf_plugin()->pricing(),
+	usdtf_plugin()->health(),
+	usdtf_plugin()->logger(),
+	usdtf_plugin()->scheduler()
+);
+
+$usdtf_admin_screen->register_settings();
+
 usdtf_it_assert_same(
 	\USDTF\Capabilities::required(),
-	apply_filters( 'option_page_capability_usdtf_settings_group', 'manage_options' ),
+	apply_filters( 'option_page_capability_' . \USDTF\Admin\Admin::OPTION_GROUP, 'manage_options' ),
 	'options.php must demand the plugin capability, aligned with the settings screen'
 );
 
@@ -540,6 +607,12 @@ usdtf_it_reset_plugin_state();
 usdtf_it_delete_products();
 
 $rates->save_rate( 270000 );
+$settings->update(
+	array(
+		'display_toman'  => true,
+		'persian_digits' => false,
+	)
+);
 
 $expired_sale_product = usdtf_it_make_variable_product( 'Expired sale variable', array( array( '2000000', '1500000' ), array( '4000000' ) ) );
 

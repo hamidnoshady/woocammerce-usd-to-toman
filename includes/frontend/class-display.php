@@ -181,7 +181,7 @@ final class Display {
 		}
 
 		$quantity   = max( 1, (int) $quantity );
-		$is_on_sale = null !== $source['sale'] && $product->is_on_sale();
+		$is_on_sale = null !== $source['sale'] && $product->is_on_sale() && $this->sale_window_open( $product );
 
 		if ( $is_on_sale ) {
 			$regular = $this->money( $this->display_price( $product, (float) $source['regular'] ) * $quantity, true, true );
@@ -230,7 +230,7 @@ final class Display {
 
 			$value = null;
 
-			if ( null !== $source['sale'] && $child->is_on_sale() ) {
+			if ( null !== $source['sale'] && $child->is_on_sale() && $this->sale_window_open( $child ) ) {
 				$value = $this->display_price( $child, (float) $source['sale'] );
 			} elseif ( null !== $source['regular'] ) {
 				$value = $this->display_price( $child, (float) $source['regular'] );
@@ -277,6 +277,33 @@ final class Display {
 		}
 
 		return (float) $toman;
+	}
+
+	/**
+	 * Whether the scheduled sale window of a product is open right now.
+	 *
+	 * WooCommerce honours sale dates in its own price display. The Toman
+	 * reference does the same instead of trusting the stored sale price
+	 * outside its window: a sale that ended must not keep discounting the
+	 * Toman range, and a sale that has not started must not either.
+	 *
+	 * @param \WC_Product $product Product.
+	 * @return bool
+	 */
+	private function sale_window_open( $product ) {
+		$from = method_exists( $product, 'get_date_on_sale_from' ) ? $product->get_date_on_sale_from( 'edit' ) : null;
+		$to   = method_exists( $product, 'get_date_on_sale_to' ) ? $product->get_date_on_sale_to( 'edit' ) : null;
+		$now  = time();
+
+		if ( $from && $from->getTimestamp() > $now ) {
+			return false;
+		}
+
+		if ( $to && $to->getTimestamp() < $now ) {
+			return false;
+		}
+
+		return true;
 	}
 
 	/**

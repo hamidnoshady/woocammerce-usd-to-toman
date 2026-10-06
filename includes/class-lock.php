@@ -162,7 +162,11 @@ final class Lock {
 	 * Refresh the lease TTL. Returns false when the lease was lost.
 	 *
 	 * Any process that knows the job ID may refresh the lease, which is what
-	 * makes the worker safe across request boundaries.
+	 * makes the worker safe across request boundaries. Like the original
+	 * token based heartbeat, a free or dead lease is (re)established for the
+	 * job: the maintenance pass releases the lease of a recovered job before
+	 * its worker runs again, and that worker must be able to pick the lease
+	 * back up. Only a lease held by another live job is refused.
 	 *
 	 * @param int $job_id Job ID.
 	 * @return bool
@@ -171,14 +175,26 @@ final class Lock {
 		$job_id = (int) $job_id;
 		$lock   = $this->read();
 
-		if ( $job_id <= 0 || (int) $lock['job_id'] !== $job_id ) {
+		if ( $job_id <= 0 ) {
 			return false;
 		}
 
-		if ( (int) $lock['expires'] <= time() ) {
-			// The lease expired: another job may have taken it over already,
-			// so the refresh has to win atomically or give up.
-			return $this->write( $job_id, $lock );
+		$alive = ! empty( $lock['token'] ) && (int) $lock['expires'] > time();
+
+		if ( $alive && (int) $lock['job_id'] !== $job_id ) {
+			// Another live job owns the lease.
+			return false;
+		}
+
+		if ( empty( $lock['token'] ) && empty( $lock['job_id'] ) ) {
+			// Free lease: the atomic INSERT wins against concurrent takers.
+			if ( add_option( self::OPTION, $this->lock_value( $job_id ), '', false ) ) {
+				return true;
+			}
+
+			$fresh = $this->read();
+
+			return (int) $fresh['job_id'] === $job_id;
 		}
 
 		return $this->write( $job_id, $lock );
