@@ -118,7 +118,7 @@ maintenance pass and the uninstall behaviour.
 The audit scenarios go one level deeper: the worker phases run in **separate PHP processes**
 (`tests/integration/worker.php`), the way Action Scheduler runs them, and the admin REST API is
 exercised over **real HTTP** (`tests/integration/http.php`). The HTTP scenarios skip when no web
-server answers; start one with `php -S 127.0.0.1:8888 -t "$USDTF_WP_PATH" "$USDTF_WP_PATH/index.php"`
+server answers; start one with `php -S 127.0.0.1:8888 -t "$USDTF_WP_PATH" tests/integration/router.php`
 to include them. CI always does.
 
 ## Releases

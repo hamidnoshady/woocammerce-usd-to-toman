@@ -28,6 +28,14 @@ All notable changes to this plugin are documented here. The format follows
 - A newly-created job that loses the exclusive lock race is finalized as failed before any catalog
   write instead of remaining as an orphaned active job.
 - Job-item updates are constrained to the known job-item table columns.
+- With the loopback fallback disabled, REST-started Action Scheduler jobs explicitly wake Action
+  Scheduler's own async runner instead of waiting for another wp-admin request.
+- The custom five-minute recovery recurrence is registered before activation/upgrade schedules it,
+  so recovery cron is no longer silently missing.
+- Bulk managed/native/excluded mode changes cover every variation of a variable product; variation
+  IDs are enumerated with pagination for admin and bulk work.
+- The category scope selector lists every category instead of the first 200, and job CSV export no
+  longer truncates at 20,000 rows.
 
 ### Added
 

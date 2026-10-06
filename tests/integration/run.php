@@ -35,6 +35,10 @@ usdtf_it_boot();
 // Any wp_die() from now on fails the scenario that caused it (see lib.php).
 usdtf_it_catch_wp_die();
 
+// Most scenarios drive worker phases directly in this CLI process; keep the
+// background queue from running the same jobs behind their back.
+require_once __DIR__ . '/isolate.php';
+
 /**
  * Read a product meta value.
  *

@@ -230,7 +230,9 @@
 		progress.className = 'usdtf-progress';
 
 		var progressTrack = document.createElement( 'div' );
-		var discovering = ( 'discover' === job.phase || 'discover_vars' === job.phase ) && 0 === Number( counters.total || 0 );
+		var discovering = !! job.is_active &&
+			( 'discover' === job.phase || 'discover_vars' === job.phase ) &&
+			0 === Number( counters.total || 0 );
 
 		progressTrack.className = 'usdtf-progress__bar' + ( discovering ? ' is-indeterminate' : '' );
 
@@ -421,6 +423,7 @@
 			toast( labels.jobStarted || __( 'The background job was queued.', 'usd-to-toman-price-sync-for-woocommerce' ) );
 
 			if ( job && job.id ) {
+				renderProgress( job );
 				poll( job.id );
 			} else {
 				window.setTimeout( function () {

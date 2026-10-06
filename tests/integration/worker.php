@@ -36,6 +36,7 @@ $_SERVER['REQUEST_URI']    = '/';
 $_SERVER['REQUEST_METHOD'] = 'GET';
 
 require_once $usdtf_wp_path . '/wp-load.php';
+require_once __DIR__ . '/isolate.php';
 
 if ( ! function_exists( 'usdtf_plugin' ) ) {
 	fwrite( STDERR, "The plugin under test is not active.\n" );

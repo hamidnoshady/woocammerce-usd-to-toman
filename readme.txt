@@ -141,6 +141,10 @@ Yes. Every string uses the `usd-to-toman-price-sync-for-woocommerce` text domain
 * Fixed: a job that loses the exclusive-start race is closed as failed before processing instead of becoming an orphan that can occupy the update slot.
 * Hardened: job-item updates accept only known table columns.
 * Added: integration coverage for the lightweight live-status route, cache-safe polling wiring and discovery progress state.
+* Fixed: when the loopback fallback is disabled, REST-started Action Scheduler jobs explicitly wake Action Scheduler's own async runner instead of waiting for another wp-admin request.
+* Fixed: the custom five-minute recovery recurrence is registered before activation/upgrade attempts to schedule it.
+* Fixed: bulk mode changes now cover every variation, complete variation IDs are paginated for admin/bulk work, all categories are available to scope selection, and job CSV export no longer truncates at 20,000 rows.
+* Tests: the real HTTP suite now starts jobs over REST and waits for the background queue to finish them without manually stepping the worker or refreshing an admin page.
 
 = 1.1.0 =
 Production audit release: every finding of the production audit is fixed and covered by the integration suite, which now runs the worker phases in separate PHP processes and the admin REST API over real HTTP.

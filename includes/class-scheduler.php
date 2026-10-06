@@ -164,8 +164,15 @@ final class Scheduler {
 			// handle_loopback() claims (unschedules) the Action Scheduler action
 			// before running it, so the native queue remains a fallback rather than
 			// a duplicate execution path.
-			if ( $queued && 0 === $delay && $this->settings->get( 'loopback_fallback' ) ) {
-				$this->fire_loopback( $hook, $args );
+			if ( $queued && 0 === $delay ) {
+				if ( $this->settings->get( 'loopback_fallback' ) ) {
+					$this->fire_loopback( $hook, $args );
+				} elseif ( defined( 'REST_REQUEST' ) && REST_REQUEST ) {
+					// Without the loopback, still wake Action Scheduler's own async
+					// runner: REST requests do not reliably reach its wp-admin
+					// shutdown dispatcher.
+					$this->dispatch_action_scheduler();
+				}
 			}
 
 			return $queued;
@@ -426,6 +433,37 @@ final class Scheduler {
 		}
 
 		return hash_equals( $expected, $token );
+	}
+
+	/**
+	 * Wake Action Scheduler after an immediate action is queued from REST.
+	 *
+	 * Action Scheduler normally attaches its async dispatcher to wp-admin
+	 * shutdown. The plugin creates jobs through REST, so invoke the same async
+	 * runner explicitly. The action remains persisted in Action Scheduler if
+	 * dispatching is unavailable, and WP-Cron can still pick it up later.
+	 *
+	 * @return void
+	 */
+	private function dispatch_action_scheduler() {
+		if ( ! class_exists( '\\ActionScheduler' ) || ! class_exists( '\\ActionScheduler_AsyncRequest_QueueRunner' ) ) {
+			return;
+		}
+
+		try {
+			$store = \ActionScheduler::store();
+
+			if ( ! $store ) {
+				return;
+			}
+
+			$runner = new \ActionScheduler_AsyncRequest_QueueRunner( $store );
+			$runner->maybe_dispatch();
+		} catch ( \Throwable $error ) {
+			// Queue persistence succeeded; the normal scheduled runner remains
+			// the safety net when an async HTTP dispatch cannot be started.
+			unset( $error );
+		}
 	}
 
 	/**

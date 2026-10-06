@@ -574,7 +574,11 @@ final class Rest_Controller {
 		$data['totals'] = $this->jobs->item_totals( $job->id() );
 		$data['page']   = $page;
 
-		return rest_ensure_response( $data );
+		$response = rest_ensure_response( $data );
+		$response->header( 'Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0' );
+		$response->header( 'Pragma', 'no-cache' );
+
+		return $response;
 	}
 
 	/**

@@ -565,7 +565,7 @@ final class Admin {
 			}
 
 			++$page;
-		} while ( 500 === $found && $page < 40 );
+		} while ( 500 === $found );
 
 		fclose( $output ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose -- Streaming a CSV download.
 		exit;

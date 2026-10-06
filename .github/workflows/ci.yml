@@ -235,10 +235,12 @@ jobs:
 
       - name: Start a web server for the real HTTP scenarios
         # The HTTP scenarios talk to the REST API the way the admin browser
-        # does: a real request, a real response. WordPress' index.php is used
-        # as the router so /wp-json/ requests reach the REST dispatcher.
+        # does: a real request, a real response. The router serves existing
+        # PHP files directly (admin-ajax.php, wp-cron.php) so the worker
+        # loopback and Action Scheduler's async runner reach their handlers,
+        # and sends everything else, /wp-json/ included, through index.php.
         run: |
-          nohup php -S 127.0.0.1:8888 -t "$WP_PATH" "$WP_PATH/index.php" > /tmp/usdtf-server.log 2>&1 &
+          nohup php -S 127.0.0.1:8888 -t "$WP_PATH" tests/integration/router.php > /tmp/usdtf-server.log 2>&1 &
           sleep 2
           curl -fsS -o /dev/null http://localhost:8888/ || (cat /tmp/usdtf-server.log && exit 1)
 

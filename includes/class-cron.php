@@ -64,6 +64,11 @@ final class Cron {
 	 * @return void
 	 */
 	public static function schedule() {
+		// Activation and upgrade can call this before Cron::hooks(). Register the
+		// custom recurrence here as well, otherwise wp_schedule_event() rejects
+		// usdtf_five_minutes and recovery silently remains unscheduled.
+		add_filter( 'cron_schedules', array( __CLASS__, 'add_schedule' ) ); // phpcs:ignore WordPress.WP.CronInterval.CronSchedulesInterval -- Plugin maintenance schedule.
+
 		if ( ! wp_next_scheduled( self::EVENT_TICK ) ) {
 			wp_schedule_event( time() + 120, self::SCHEDULE, self::EVENT_TICK );
 		}
