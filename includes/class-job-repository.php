@@ -589,10 +589,16 @@ final class Job_Repository {
 			'job_id'            => '%d',
 		);
 
-		$clean = array();
+		$clean   = array();
+		$allowed = array_merge( self::ITEM_COLUMNS, array( 'attention' ) );
 
+		// This method is intentionally used by several internal worker paths.
+		// Keep those writes constrained to real job-item columns: passing an
+		// unexpected key must never turn into a malformed SQL UPDATE.
 		foreach ( $data as $key => $value ) {
-			$clean[ $key ] = $value;
+			if ( in_array( $key, $allowed, true ) ) {
+				$clean[ $key ] = $value;
+			}
 		}
 
 		$clean['updated_at'] = current_time( 'mysql', true );

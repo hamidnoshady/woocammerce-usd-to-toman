@@ -270,6 +270,11 @@ final class Admin {
 				'jobId'         => $job_id,
 				'state'         => $state,
 				'currencyMode'  => (string) $this->settings->get( 'currency_mode' ),
+				// JavaScript translation JSON is not guaranteed to be generated or
+				// installed with a custom plugin. Ship every dynamic admin string
+				// through PHP as well, so the bundled MO catalogue translates the
+				// live progress UI in Persian immediately.
+				'strings'       => $this->javascript_strings(),
 				'labels'        => array(
 					'confirmPhrase'   => \USDTF\Rate_Guard::confirmation_phrase(),
 					'savedRate'       => __( 'Exchange rate saved.', 'usd-to-toman-price-sync-for-woocommerce' ),
@@ -286,6 +291,64 @@ final class Admin {
 				),
 			)
 		);
+	}
+
+	/**
+	 * Dynamic strings used by the admin JavaScript.
+	 *
+	 * WordPress' JavaScript i18n normally needs generated Jed JSON files.
+	 * This plugin ships PO/MO catalogues, so translate the same msgids through
+	 * PHP and expose them to the script as a lookup table. The literal msgids
+	 * remain in admin.js, where the POT generator also discovers them.
+	 *
+	 * @return array<string,string> English msgid => translated text.
+	 */
+	private function javascript_strings() {
+		$messages = array(
+			'A dry run with the same rate, transaction currency, rounding settings and scope is required first.',
+			'Another price update is already running. Showing it instead.',
+			'Cancel',
+			'Cancel this job? Prices that were already written are kept.',
+			'Changed',
+			'Conflicts',
+			'Currently processing',
+			'Done.',
+			'Dry run finished. Nothing was changed.',
+			'Enter a rate first.',
+			'Enter a rate to preview.',
+			'Exchange rate saved.',
+			'Failed',
+			'Job #%1$d finished: %2$s',
+			'Last product',
+			'OK',
+			'Pause',
+			'Rate %1$s → %2$s (%3$s%%). Managed products that would be affected: about %4$s.',
+			'Remove',
+			'Restore the previous exchange rate and recalculate all managed products?',
+			'Resume',
+			'Select at least one product first.',
+			'Skipped',
+			'Something went wrong. Please check the log for details.',
+			'Start the background price update now?',
+			'The background job was queued.',
+			'The REST route %s was not found on this site. Open the Diagnostics tab to see which routes are missing, then resave the permalink settings or reinstall the plugin.',
+			'Toman / USD',
+			'Unchanged',
+			'Unknown product',
+			'Variations',
+			'View details',
+			'Working…',
+		);
+		$strings  = array();
+
+		foreach ( $messages as $message ) {
+			// The literal msgids live in admin.js and are extracted into the POT.
+			// Translating the same runtime key here lets the bundled MO catalogue
+			// drive JavaScript without requiring separately generated Jed JSON.
+			$strings[ $message ] = __( $message, 'usd-to-toman-price-sync-for-woocommerce' ); // phpcs:ignore WordPress.WP.I18n.NonSingularStringLiteralText
+		}
+
+		return $strings;
 	}
 
 	/**

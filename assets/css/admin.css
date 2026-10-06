@@ -148,6 +148,22 @@
 	transition: width 0.4s ease;
 }
 
+.usdtf-progress__bar.is-indeterminate span {
+	animation: usdtf-progress-indeterminate 1.2s ease-in-out infinite;
+	transform: translateX(-140%);
+	width: 35% !important;
+}
+
+@keyframes usdtf-progress-indeterminate {
+	0% {
+		transform: translateX(-140%);
+	}
+
+	100% {
+		transform: translateX(390%);
+	}
+}
+
 .usdtf-progress__numbers {
 	margin: 8px 0 4px;
 	font-weight: 600;

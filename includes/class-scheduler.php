@@ -126,11 +126,20 @@ final class Scheduler {
 			return false;
 		}
 
+		$backend = $this->backend();
+
 		if ( $unique && $this->has_pending( $hook, $args ) ) {
+			// A due-now action may be waiting only because the original async
+			// dispatch/loopback was dropped by the host. Re-poke the exact queued
+			// action instead of waiting for another page load. handle_loopback()
+			// claims the Action Scheduler/WP-Cron action before executing it, so
+			// multiple pokes cannot run the same queued step twice.
+			if ( 0 === $delay && self::BACKEND_NONE !== $backend && $this->settings->get( 'loopback_fallback' ) ) {
+				$this->fire_loopback( $hook, $args );
+			}
+
 			return true;
 		}
-
-		$backend = $this->backend();
 
 		if ( self::BACKEND_ACTION_SCHEDULER === $backend ) {
 			if ( function_exists( 'as_has_scheduled_action' ) && $unique && as_has_scheduled_action( $hook, $args, self::GROUP ) ) {
@@ -138,22 +147,45 @@ final class Scheduler {
 			}
 
 			if ( $delay > 0 ) {
-				as_schedule_single_action( time() + $delay, $hook, $args, self::GROUP, $unique );
+				$action_id = as_schedule_single_action( time() + $delay, $hook, $args, self::GROUP, $unique );
 			} else {
-				as_enqueue_async_action( $hook, $args, self::GROUP, $unique );
+				$action_id = as_enqueue_async_action( $hook, $args, self::GROUP, $unique );
 			}
 
-			return true;
+			// Action Scheduler returns 0 when it could not create the action.
+			// A concurrent unique enqueue may have won the race, so accept an
+			// already-pending twin before declaring queue failure.
+			$queued = (int) $action_id > 0 || $this->has_pending( $hook, $args );
+
+			// Some hosts do not dispatch Action Scheduler's async runner until the
+			// next normal WordPress request. That made the live panel sit at 0/0
+			// until the administrator refreshed the page. For work that is due now,
+			// use the plugin's token-protected loopback as an immediate wake-up.
+			// handle_loopback() claims (unschedules) the Action Scheduler action
+			// before running it, so the native queue remains a fallback rather than
+			// a duplicate execution path.
+			if ( $queued && 0 === $delay && $this->settings->get( 'loopback_fallback' ) ) {
+				$this->fire_loopback( $hook, $args );
+			}
+
+			return $queued;
 		}
 
 		if ( self::BACKEND_WP_CRON === $backend || self::BACKEND_LOOPBACK === $backend ) {
 			if ( ! wp_next_scheduled( $hook, $args ) ) {
-				wp_schedule_single_event( time() + $delay, $hook, $args );
+				$scheduled = wp_schedule_single_event( time() + $delay, $hook, $args, true );
+
+				if ( is_wp_error( $scheduled ) || false === $scheduled ) {
+					return false;
+				}
 			}
 
-			// WP-Cron only runs on page loads. Kick a non blocking request as well.
-			if ( $this->settings->get( 'loopback_fallback' ) ) {
-				$this->fire_loopback( $hook, $args, $delay );
+			// WP-Cron only runs on requests. For work that is due now, also kick a
+			// non-blocking token-protected loopback. Delayed work must never be
+			// executed early: the previous implementation slept for at most ten
+			// seconds and could violate a 30–300 second retry backoff.
+			if ( 0 === $delay && $this->settings->get( 'loopback_fallback' ) ) {
+				$this->fire_loopback( $hook, $args );
 			}
 
 			return true;
@@ -406,18 +438,15 @@ final class Scheduler {
 	 *
 	 * @param string $hook  Worker hook.
 	 * @param array  $args  Arguments.
-	 * @param int    $delay Delay in seconds.
-	 * @return void
+	 * @return bool Whether WordPress accepted the non-blocking HTTP request.
 	 */
-	private function fire_loopback( $hook, array $args, $delay = 0 ) {
+	private function fire_loopback( $hook, array $args ) {
 		if ( ! in_array( $hook, self::allowed_worker_hooks(), true ) ) {
-			return;
+			return false;
 		}
 
-		$url = add_query_arg( 'usdtf_delay', max( 0, (int) $delay ), admin_url( 'admin-ajax.php' ) );
-
-		wp_remote_post(
-			$url,
+		$result = wp_remote_post(
+			admin_url( 'admin-ajax.php' ),
 			array(
 				'timeout'  => 0.5,
 				'blocking' => false,
@@ -429,6 +458,8 @@ final class Scheduler {
 				),
 			)
 		);
+
+		return ! is_wp_error( $result );
 	}
 
 	/**
@@ -481,16 +512,30 @@ final class Scheduler {
 		// so the same step cannot be triggered twice (once here, once by cron).
 		// When the loopback never arrives, the cron event survives as the
 		// safety net, because only a request that got this far removes it.
-		$timestamp = wp_next_scheduled( $hook, $args );
+		$claimed = false;
 
-		if ( false !== $timestamp ) {
-			wp_unschedule_event( $timestamp, $hook, $args );
+		// Action Scheduler is the preferred backend. Claiming means removing the
+		// exact queued action before executing it ourselves; if its native runner
+		// already claimed it, there is nothing left for this loopback to do.
+		if ( self::is_action_scheduler_available() && function_exists( 'as_unschedule_action' ) ) {
+			$action_id = as_unschedule_action( $hook, $args, self::GROUP );
+			$claimed   = is_numeric( $action_id ) && (int) $action_id > 0;
 		}
 
-		$delay = isset( $_GET['usdtf_delay'] ) ? (int) $_GET['usdtf_delay'] : 0; // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Token verified above.
+		// WP-Cron is the fallback backend. Its scheduled event is likewise used
+		// as the claim token, so two concurrent loopbacks cannot both execute the
+		// worker step.
+		if ( ! $claimed ) {
+			$timestamp = wp_next_scheduled( $hook, $args );
 
-		if ( $delay > 0 ) {
-			sleep( min( 10, $delay ) );
+			if ( false !== $timestamp ) {
+				$result  = wp_unschedule_event( $timestamp, $hook, $args, true );
+				$claimed = ! is_wp_error( $result ) && false !== $result;
+			}
+		}
+
+		if ( ! $claimed ) {
+			wp_die( 'already claimed', '', array( 'response' => 200 ) );
 		}
 
 		// Only the hooks returned by allowed_worker_hooks() can reach this line.

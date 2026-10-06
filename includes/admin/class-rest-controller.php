@@ -282,6 +282,19 @@ final class Rest_Controller {
 			)
 		);
 
+		register_rest_route(
+			self::NAMESPACE_V1,
+			'/jobs/(?P<id>\d+)/status',
+			array(
+				'methods'             => 'GET',
+				'callback'            => array( $this, 'get_job_status' ),
+				'permission_callback' => $permission,
+				'args'                => array(
+					'id' => array( 'type' => 'integer' ),
+				),
+			)
+		);
+
 		foreach ( array( 'pause', 'resume', 'cancel', 'retry-failed', 'recalculate-conflicts' ) as $action ) {
 			register_rest_route(
 				self::NAMESPACE_V1,
@@ -562,6 +575,32 @@ final class Rest_Controller {
 		$data['page']   = $page;
 
 		return rest_ensure_response( $data );
+	}
+
+	/**
+	 * GET /jobs/<id>/status
+	 *
+	 * Lightweight, cache-safe endpoint used by the live progress card. It does
+	 * not load product objects or job-item rows, which keeps a 2.5 second poll
+	 * cheap even on large catalogs.
+	 *
+	 * @param \WP_REST_Request $request Request.
+	 * @return \WP_REST_Response|\WP_Error
+	 */
+	public function get_job_status( $request ) {
+		$job = $this->jobs->get( (int) $request->get_param( 'id' ) );
+
+		if ( ! $job ) {
+			return new \WP_Error( 'usdtf_job_not_found', __( 'The job could not be found.', 'usd-to-toman-price-sync-for-woocommerce' ), array( 'status' => 404 ) );
+		}
+
+		$response = rest_ensure_response( $job->to_array() );
+
+		$response->header( 'Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0' );
+		$response->header( 'Pragma', 'no-cache' );
+		$response->header( 'Expires', 'Wed, 11 Jan 1984 05:00:00 GMT' );
+
+		return $response;
 	}
 
 	/**

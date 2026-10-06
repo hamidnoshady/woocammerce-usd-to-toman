@@ -6,7 +6,7 @@ Tested up to: 6.6
 Requires PHP: 7.4
 WC requires at least: 7.0
 WC tested up to: 9.9
-Stable tag: 1.1.0
+Stable tag: 1.1.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -131,6 +131,17 @@ Yes. Every string uses the `usd-to-toman-price-sync-for-woocommerce` text domain
 
 == Changelog ==
 
+= 1.1.1 =
+* Fixed: live jobs no longer appear frozen at 0/0 until the next page refresh on hosts where Action Scheduler waits for another WordPress request. Immediate worker steps receive a token-protected loopback wake-up while the native queue remains the fallback.
+* Fixed: the progress card polls a lightweight, explicitly uncached job-status endpoint instead of rebuilding product/item details every 2.5 seconds. A cache-busting request token protects sites behind aggressive admin/proxy caching.
+* Changed: the discovery phase now uses an animated indeterminate progress bar instead of presenting 0/0 as if no work were happening, and worker messages are shown directly in the live card.
+* Fixed: Persian live progress labels/buttons no longer fall back to English when JavaScript translation JSON is unavailable; dynamic strings are also localized through the bundled PHP MO catalogue.
+* Fixed: delayed retry actions are never executed early by the loopback fallback; the configured retry backoff is left to the scheduler.
+* Fixed: Action Scheduler and WP-Cron enqueue failures are checked instead of being reported as successfully queued.
+* Fixed: a job that loses the exclusive-start race is closed as failed before processing instead of becoming an orphan that can occupy the update slot.
+* Hardened: job-item updates accept only known table columns.
+* Added: integration coverage for the lightweight live-status route, cache-safe polling wiring and discovery progress state.
+
 = 1.1.0 =
 Production audit release: every finding of the production audit is fixed and covered by the integration suite, which now runs the worker phases in separate PHP processes and the admin REST API over real HTTP.
 * Fixed: the admin screen called the REST API without the plugin namespace, so every action failed with the REST `rest_no_route` error. Requests now address `usdtf/v1`, a failing request logs its exact method and path, and the diagnostics name missing routes after a broken upgrade.
@@ -176,6 +187,9 @@ Production audit release: every finding of the production audit is fixed and cov
 * Diagnostics for the queue, the lock and the configured batch size.
 
 == Upgrade Notice ==
+
+= 1.1.1 =
+Fixes live progress that could remain at 0/0 until a refresh, hardens background worker wake-ups and queue failure handling, and makes progress polling lightweight and cache-safe.
 
 = 1.1.0 =
 Fixes the admin REST errors (rest_no_route), makes background updates survive request boundaries, protects the canonical Toman price from being overwritten during a sync, and enforces a dry run before every update. Update as usual; no action is needed after upgrading.

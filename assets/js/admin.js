@@ -14,6 +14,7 @@
 
 	var data = window.usdtfData || {};
 	var labels = data.labels || {};
+	var strings = data.strings || {};
 	var state = data.state || {};
 	var pollTimer = null;
 
@@ -26,6 +27,10 @@
 	}
 
 	function __( text ) {
+		if ( Object.prototype.hasOwnProperty.call( strings, text ) ) {
+			return strings[ text ];
+		}
+
 		var api18n = i18n();
 
 		if ( api18n && api18n.__ ) {
@@ -53,6 +58,13 @@
 		headers[ 'X-WP-Nonce' ] = data.nonce;
 
 		var method = options.method || 'GET';
+
+		// Live job state must never come from a proxy/browser cache. The server
+		// also marks the lightweight status response no-store, but sending this
+		// request header protects stores behind over-aggressive admin caching.
+		if ( 'GET' === method ) {
+			headers[ 'Cache-Control' ] = 'no-cache';
+		}
 		var fullPath = '/' + namespace + '/' + String( path ).replace( /^\/+/, '' );
 
 		return window.wp.apiFetch( {
@@ -218,19 +230,29 @@
 		progress.className = 'usdtf-progress';
 
 		var progressTrack = document.createElement( 'div' );
-		progressTrack.className = 'usdtf-progress__bar';
+		var discovering = ( 'discover' === job.phase || 'discover_vars' === job.phase ) && 0 === Number( counters.total || 0 );
+
+		progressTrack.className = 'usdtf-progress__bar' + ( discovering ? ' is-indeterminate' : '' );
+
 		var progressFill = document.createElement( 'span' );
-		progressFill.style.width = parseInt( job.progress, 10 ) + '%';
+		progressFill.style.width = discovering ? '35%' : parseInt( job.progress, 10 ) + '%';
 		progressTrack.appendChild( progressFill );
 		progress.appendChild( progressTrack );
 
 		var numbers = document.createElement( 'p' );
 		numbers.className = 'usdtf-progress__numbers';
-		numbers.appendChild( document.createTextNode(
-			formatNumber( counters.processed ) + ' / ' + formatNumber( counters.total ) +
-				' (' + parseInt( job.progress, 10 ) + '%) · ' +
+		if ( discovering ) {
+			numbers.appendChild( document.createTextNode(
+				( labels.working || __( 'Working…', 'usd-to-toman-price-sync-for-woocommerce' ) ) + ' · ' +
 				formatNumber( job.rate ) + ' ' + ( labels.rateSuffix || __( 'Toman / USD', 'usd-to-toman-price-sync-for-woocommerce' ) )
-		) );
+			) );
+		} else {
+			numbers.appendChild( document.createTextNode(
+				formatNumber( counters.processed ) + ' / ' + formatNumber( counters.total ) +
+					' (' + parseInt( job.progress, 10 ) + '%) · ' +
+					formatNumber( job.rate ) + ' ' + ( labels.rateSuffix || __( 'Toman / USD', 'usd-to-toman-price-sync-for-woocommerce' ) )
+			) );
+		}
 		progress.appendChild( numbers );
 
 		if ( job.current_item ) {
@@ -281,6 +303,13 @@
 			return '' !== part;
 		} ).join( ' · ' );
 		progress.appendChild( statusLine );
+
+		if ( job.message ) {
+			var message = document.createElement( 'p' );
+			message.className = 'usdtf-message';
+			message.textContent = job.message;
+			progress.appendChild( message );
+		}
 
 		var actions = document.createElement( 'p' );
 		actions.className = 'usdtf-actions';
@@ -336,7 +365,11 @@
 			return;
 		}
 
-		api( '/jobs/' + jobId ).then( function ( job ) {
+		// The status endpoint is deliberately lightweight: the old polling path
+		// loaded and formatted 25 product rows every 2.5 seconds even though the
+		// progress card only needs the job summary. The timestamp also defeats
+		// intermediary caches that ignore response cache headers.
+		api( '/jobs/' + jobId + '/status?_usdtf=' + Date.now() ).then( function ( job ) {
 			renderProgress( job );
 
 			if ( job.is_active ) {

@@ -293,6 +293,10 @@ final class Sync_Runner {
 			return $started;
 		}
 
+		if ( false === $started ) {
+			return $this->fail_unstarted_job( $job_id );
+		}
+
 		$job = $this->jobs->get( $job_id );
 
 		return $job ? $job->to_array() : array();
@@ -371,6 +375,10 @@ final class Sync_Runner {
 
 		if ( is_wp_error( $started ) ) {
 			return $started;
+		}
+
+		if ( false === $started ) {
+			return $this->fail_unstarted_job( $job_id );
 		}
 
 		$job = $this->jobs->get( $job_id );
@@ -478,6 +486,42 @@ final class Sync_Runner {
 				)
 			)
 		);
+	}
+
+	/**
+	 * Fail a newly-created job that lost the exclusive-start race.
+	 *
+	 * The catalog was not touched yet, so leaving this row queued/paused would
+	 * incorrectly occupy the single-job slot forever. Keep it as an audit row
+	 * in a terminal state and return the same 409 contract as the earlier
+	 * active-job guard.
+	 *
+	 * @param int $job_id Job ID.
+	 * @return \WP_Error
+	 */
+	private function fail_unstarted_job( $job_id ) {
+		$message = __( 'Another price update is already running. Only one update can run at a time.', 'usd-to-toman-price-sync-for-woocommerce' );
+
+		$this->jobs->update(
+			$job_id,
+			array(
+				'status'      => Job::STATUS_FAILED,
+				'phase'       => Job::PHASE_DONE,
+				'finished_at' => current_time( 'mysql', true ),
+				'message'     => $message,
+			)
+		);
+
+		$data   = array( 'status' => 409 );
+		$active = $this->jobs->active_write_job();
+
+		if ( $active ) {
+			$data['job'] = $active->to_array();
+		}
+
+		$this->logger->warning( 'A newly-created job lost the exclusive lock race and was closed before processing.', array(), $job_id );
+
+		return new \WP_Error( 'usdtf_job_running', $message, $data );
 	}
 
 	/**

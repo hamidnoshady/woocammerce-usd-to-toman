@@ -4,6 +4,36 @@ All notable changes to this plugin are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.1] - 2026-10-06
+
+### Fixed
+
+- Live synchronization no longer waits for the administrator to refresh the page on hosts where
+  Action Scheduler does not dispatch its async runner immediately. Due-now worker actions receive a
+  token-protected loopback wake-up; the queued Action Scheduler/WP-Cron action remains the fallback,
+  and the loopback claims that exact action before running it.
+- The dashboard no longer polls the heavyweight job-details endpoint every 2.5 seconds. A new
+  `/jobs/<id>/status` endpoint returns only the job summary, sends explicit no-store headers, and
+  the client adds a cache-busting token so proxy/admin caches cannot freeze the visible progress.
+- Catalog discovery no longer looks like a dead `0 / 0 (0%)` job. The live card displays an
+  animated indeterminate bar until discovery determines the product count, then switches to exact
+  processed/total progress.
+- Dynamic progress labels and buttons now use a PHP-localized lookup table before falling back to
+  WordPress JavaScript i18n. This fixes Persian screens showing English labels such as Changed,
+  Failed, Pause and View details when no generated Jed JSON catalogue is installed.
+- Delayed retries are no longer shortened to at most ten seconds by the loopback fallback. Delayed
+  work stays in the scheduler until its real due time.
+- Action Scheduler and WP-Cron scheduling return values are checked; a failed enqueue is no longer
+  treated as a successful background job.
+- A newly-created job that loses the exclusive lock race is finalized as failed before any catalog
+  write instead of remaining as an orphaned active job.
+- Job-item updates are constrained to the known job-item table columns.
+
+### Added
+
+- Integration coverage for the live status route over HTTP, cache-safe polling wiring and
+  indeterminate discovery progress.
+
 ## [1.1.0] - 2026-10-06
 
 Production audit release: every finding of the production audit (issue #4) is fixed and covered by
@@ -235,3 +265,5 @@ First release, implementing the specification in
 [1.0.2]: https://github.com/hamidnoshady/woocammerce-usd-to-toman/releases/tag/1.0.2
 [1.0.1]: https://github.com/hamidnoshady/woocammerce-usd-to-toman/releases/tag/1.0.1
 [1.0.0]: https://github.com/hamidnoshady/woocammerce-usd-to-toman/releases/tag/1.0.0
+
+[1.1.1]: https://github.com/hamidnoshady/woocammerce-usd-to-toman/releases/tag/1.1.1
