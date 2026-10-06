@@ -160,7 +160,7 @@ final class Scheduler {
 			$scheduled = true;
 
 			if ( ! wp_next_scheduled( $hook, $args ) ) {
-				$result    = wp_schedule_single_event( time() + $delay, $hook, $args, array(), true );
+				$result    = wp_schedule_single_event( time() + $delay, $hook, $args, true );
 				$scheduled = ! is_wp_error( $result ) && (bool) $result;
 			}
 
