@@ -40,6 +40,20 @@ function usdtf_it_worker_step( $job_id ) {
 	);
 }
 
+/**
+ * Read the lease straight from the database.
+ *
+ * The worker steps ran in other PHP processes, so this process's options
+ * cache would keep the value from the moment the job started.
+ *
+ * @return mixed Lease row, or false when it is free.
+ */
+function usdtf_it_lease_fresh() {
+	wp_cache_delete( Lock::OPTION, 'options' );
+
+	return get_option( Lock::OPTION );
+}
+
 // ---------------------------------------------------------------------------
 // 46. The job survives when every worker step runs in its own PHP request.
 // ---------------------------------------------------------------------------
@@ -76,7 +90,7 @@ while ( $steps < 100 ) {
 
 	// While the job runs, the lease must stay owned by this job no matter
 	// which process heartbeats it.
-	$lease = get_option( Lock::OPTION );
+	$lease = usdtf_it_lease_fresh();
 
 	usdtf_it_assert( is_array( $lease ) && (int) $lease['job_id'] === $cross_id, 'the lease must stay owned by the running job between processes' );
 
@@ -96,7 +110,7 @@ usdtf_it_assert( $steps >= 3, 'the job must have needed several worker processes
 $finished = usdtf_plugin()->jobs()->get( $cross_id );
 usdtf_it_assert_same( Job::STATUS_COMPLETED, $finished->status(), 'a job whose steps run in separate PHP processes must complete — got ' . $finished->status() . ' after ' . $steps . ' steps' );
 usdtf_it_assert_same( 3, (int) $finished->data['changed'], 'every queued item must have been changed across the processes' );
-usdtf_it_assert( false === get_option( Lock::OPTION ), 'the lease must be released once the job finishes' );
+usdtf_it_assert( false === usdtf_it_lease_fresh(), 'the lease must be released once the job finishes' );
 
 // The prices were really written: both simple products carry their derived
 // USD price, and the variable product did it through its variations.
