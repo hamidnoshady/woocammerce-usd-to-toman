@@ -31,7 +31,7 @@ usdtf_it_reset_plugin_state();
 
 $usdtf_it_routes = rest_get_server()->get_routes();
 
-foreach ( array( '/state', '/rate', '/preview', '/update', '/rollback', '/recalculate', '/jobs', '/health', '/health/loopback', '/products' ) as $usdtf_it_path ) {
+foreach ( array( '/state', '/rate', '/preview', '/update', '/rollback', '/recalculate', '/jobs', '/jobs/(?P<id>\\d+)/status', '/health', '/health/loopback', '/products' ) as $usdtf_it_path ) {
 	usdtf_it_assert( isset( $usdtf_it_routes[ '/usdtf/v1' . $usdtf_it_path ] ), 'the live REST server must register /usdtf/v1' . $usdtf_it_path . ' — a missing route is what turns every admin action into rest_no_route' );
 }
 
