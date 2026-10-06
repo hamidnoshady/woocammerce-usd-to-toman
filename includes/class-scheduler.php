@@ -146,12 +146,11 @@ final class Scheduler {
 			}
 
 			// Jobs are created through REST, where Action Scheduler's normal
-			// wp-admin shutdown wake-up is not guaranteed to run. Poke the
-			// plugin's authenticated worker endpoint immediately. The scheduled
-			// Action Scheduler action remains the safety net if the HTTP request
-			// cannot reach the site.
+			// wp-admin shutdown dispatcher is not guaranteed to run. Explicitly
+			// wake Action Scheduler's own async queue runner so the first worker
+			// request starts without waiting for another admin page load.
 			if ( 0 === $delay ) {
-				$this->fire_loopback( $hook, $args, 0 );
+				$this->dispatch_action_scheduler();
 			}
 
 			return true;
@@ -413,6 +412,37 @@ final class Scheduler {
 	}
 
 	/**
+	 * Wake Action Scheduler after an immediate action is queued from REST.
+	 *
+	 * Action Scheduler normally attaches its async dispatcher to wp-admin
+	 * shutdown. The plugin creates jobs through REST, so invoke the same async
+	 * runner explicitly. The action remains persisted in Action Scheduler if
+	 * dispatching is unavailable, and WP-Cron can still pick it up later.
+	 *
+	 * @return void
+	 */
+	private function dispatch_action_scheduler() {
+		if ( ! class_exists( '\\ActionScheduler' ) || ! class_exists( '\\ActionScheduler_AsyncRequest_QueueRunner' ) ) {
+			return;
+		}
+
+		try {
+			$store = \ActionScheduler::store();
+
+			if ( ! $store ) {
+				return;
+			}
+
+			$runner = new \ActionScheduler_AsyncRequest_QueueRunner( $store );
+			$runner->maybe_dispatch();
+		} catch ( \Throwable $error ) {
+			// Queue persistence succeeded; the normal scheduled runner remains
+			// the safety net when an async HTTP dispatch cannot be started.
+			unset( $error );
+		}
+	}
+
+	/**
 	 * Fire a non blocking request that runs a worker action.
 	 *
 	 * The request is verified with normal WordPress TLS rules: disabling
@@ -503,10 +533,6 @@ final class Scheduler {
 
 		if ( false !== $timestamp ) {
 			wp_unschedule_event( $timestamp, $hook, $args );
-		}
-
-		if ( self::is_action_scheduler_available() && function_exists( 'as_unschedule_action' ) ) {
-			as_unschedule_action( $hook, $args, self::GROUP );
 		}
 
 		$delay = isset( $_GET['usdtf_delay'] ) ? (int) $_GET['usdtf_delay'] : 0; // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Token verified above.
