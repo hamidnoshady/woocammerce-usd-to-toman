@@ -277,7 +277,7 @@ msgstr ""
 msgid "DISABLE_WP_CRON is set, but Action Scheduler takes care of the queue through its own runner."
 msgstr ""
 
-#: includes/admin/class-admin.php:407
+#: includes/admin/class-admin.php:410
 msgid "Dashboard"
 msgstr ""
 
@@ -313,7 +313,7 @@ msgstr ""
 msgid "Details"
 msgstr ""
 
-#: includes/admin/class-admin.php:409 includes/admin/views/health.php:100
+#: includes/admin/class-admin.php:412 includes/admin/views/health.php:100
 msgid "Diagnostics"
 msgstr ""
 
@@ -386,7 +386,7 @@ msgstr ""
 msgid "Every job either finished or is progressing normally."
 msgstr ""
 
-#: includes/admin/class-admin.php:358 includes/admin/views/dashboard.php:219 includes/class-product-repository.php:158
+#: includes/admin/class-admin.php:361 includes/admin/views/dashboard.php:219 includes/class-product-repository.php:158
 msgid "Every managed product"
 msgstr ""
 
@@ -510,7 +510,7 @@ msgstr ""
 msgid "Job lock"
 msgstr ""
 
-#: includes/admin/class-admin.php:408
+#: includes/admin/class-admin.php:411
 msgid "Jobs & history"
 msgstr ""
 
@@ -969,7 +969,7 @@ msgstr ""
 msgid "Run a dry run first: an update may only start after a completed dry run that used the same exchange rate, transaction currency, rounding settings and scope."
 msgstr ""
 
-#: includes/admin/class-admin.php:436
+#: includes/admin/class-admin.php:439
 msgid "Run the update"
 msgstr ""
 
@@ -1040,7 +1040,7 @@ msgstr ""
 msgid "Selected products"
 msgstr ""
 
-#: includes/admin/class-admin.php:167 includes/admin/class-admin.php:410
+#: includes/admin/class-admin.php:167 includes/admin/class-admin.php:413
 msgid "Settings"
 msgstr ""
 
@@ -1196,7 +1196,7 @@ msgstr ""
 msgid "The job could not be created. Check the plugin log for details."
 msgstr ""
 
-#: includes/admin/class-admin.php:528 includes/admin/class-rest-controller.php:558 includes/admin/class-rest-controller.php:594
+#: includes/admin/class-admin.php:531 includes/admin/class-rest-controller.php:558 includes/admin/class-rest-controller.php:594
 msgid "The job could not be found."
 msgstr ""
 
@@ -1413,7 +1413,7 @@ msgstr ""
 msgid "USD/Toman pricing needs attention"
 msgstr ""
 
-#: includes/admin/class-admin.php:433 includes/admin/class-admin.php:446 includes/admin/class-admin.php:459
+#: includes/admin/class-admin.php:436 includes/admin/class-admin.php:449 includes/admin/class-admin.php:462
 msgid "USD/Toman pricing:"
 msgstr ""
 
@@ -1516,7 +1516,7 @@ msgstr ""
 msgid "WP-Cron is disabled and Action Scheduler is missing, so worker runs are triggered by non blocking loopback requests. A real cron job is strongly recommended."
 msgstr ""
 
-#: includes/admin/class-admin.php:447
+#: includes/admin/class-admin.php:450
 msgid "WP-Cron is disabled and WooCommerce Action Scheduler was not found. Background updates can only run through loopback requests; a real cron job on wp-cron.php is recommended."
 msgstr ""
 
@@ -1571,11 +1571,11 @@ msgstr ""
 msgid "Yes"
 msgstr ""
 
-#: includes/admin/class-admin.php:472
+#: includes/admin/class-admin.php:475
 msgid "You are not allowed to export this data."
 msgstr ""
 
-#: includes/admin/class-admin.php:370
+#: includes/admin/class-admin.php:373
 msgid "You are not allowed to manage USD/Toman pricing."
 msgstr ""
 
@@ -1583,7 +1583,7 @@ msgstr ""
 msgid "You are not allowed to recalculate prices."
 msgstr ""
 
-#: includes/admin/class-admin.php:460
+#: includes/admin/class-admin.php:463
 msgid "a manual price change on a managed product was reverted, because in USD mode the price fields are calculated from the Toman source price. Edit the Toman price instead, or switch the product to “Native USD”."
 msgstr ""
 
@@ -1600,7 +1600,7 @@ msgstr ""
 msgid "started by %s"
 msgstr ""
 
-#: includes/admin/class-admin.php:434
+#: includes/admin/class-admin.php:437
 msgid "the transaction currency changed after the last full update, so the stored price fields no longer match. Run a full update to rewrite them."
 msgstr ""
 
