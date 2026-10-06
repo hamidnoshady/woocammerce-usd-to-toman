@@ -416,7 +416,7 @@ final class Health {
 			'/rollback'                    => 'POST',
 			'/recalculate'                 => 'POST',
 			'/jobs'                        => 'GET',
-			'/jobs/(?P<id>\\d+)/status' => 'GET',
+			'/jobs/(?P<id>\\d+)/status'    => 'GET',
 			'/health'                      => 'GET',
 			'/products'                    => 'GET',
 		);
