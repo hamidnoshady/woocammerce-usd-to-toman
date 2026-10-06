@@ -582,9 +582,11 @@ final class Sync_Runner {
 	 * Discovery step: queue the products of the next page.
 	 *
 	 * Parent products are discovered first. When the scope addresses the whole
-	 * managed catalog, a second discovery stream then looks for managed
-	 * variations that live under unmanaged parents, which the parent walk
-	 * would never reach.
+	 * managed catalog, a second stream then looks for managed variations that
+	 * live under unmanaged parents, which the parent walk would never reach.
+	 * Both streams run in this one call for as many pages as the run budget
+	 * allows; a catalog that needs more pages continues in the next request
+	 * through the saved phase and page.
 	 *
 	 * @param int $job_id Job ID.
 	 * @return void
@@ -603,33 +605,75 @@ final class Sync_Runner {
 			return;
 		}
 
-		if ( Job::PHASE_DISCOVER === $job->phase() ) {
-			if ( $this->discover_products( $job ) ) {
+		/**
+		 * Filters how many discovery pages (products and variations together)
+		 * one worker run may process before it continues in the next request.
+		 *
+		 * @param int $pages  Pages per run.
+		 * @param Job $job    Job.
+		 */
+		$max_pages = max( 1, (int) apply_filters( 'usdtf_discovery_pages_per_run', 20, $job ) );
+
+		$pages = 0;
+
+		while ( true ) {
+			$job = $this->jobs->get( $job_id );
+
+			if ( ! $job || Job::STATUS_RUNNING !== $job->status() ) {
 				return;
 			}
 
-			if ( $this->variation_discovery_applies( $job->scope() ) ) {
-				$this->jobs->update(
-					$job_id,
-					array(
-						'phase'         => Job::PHASE_DISCOVER_VARIATIONS,
-						'discovery_page' => 1,
-					)
-				);
+			if ( Job::PHASE_DISCOVER === $job->phase() ) {
+				if ( $this->discover_products( $job ) ) {
+					if ( ++$pages >= $max_pages ) {
+						$this->jobs->heartbeat( $job_id );
+						$this->queue_step( $job_id, self::HOOK_DISCOVER );
 
-				$this->jobs->heartbeat( $job_id );
-				$this->queue_step( $job_id, self::HOOK_DISCOVER );
+						return;
+					}
 
-				return;
+					continue;
+				}
+
+				if ( $this->variation_discovery_applies( $job->scope() ) ) {
+					$this->jobs->update(
+						$job_id,
+						array(
+							'phase'          => Job::PHASE_DISCOVER_VARIATIONS,
+							'discovery_page' => 1,
+						)
+					);
+
+					$this->jobs->heartbeat( $job_id );
+
+					continue;
+				}
+
+				break;
 			}
-		} elseif ( $this->discover_variations( $job ) ) {
-			return;
+
+			if ( Job::PHASE_DISCOVER_VARIATIONS === $job->phase() ) {
+				if ( $this->discover_variations( $job ) ) {
+					if ( ++$pages >= $max_pages ) {
+						$this->jobs->heartbeat( $job_id );
+						$this->queue_step( $job_id, self::HOOK_DISCOVER );
+
+						return;
+					}
+
+					continue;
+				}
+
+				break;
+			}
+
+			break;
 		}
 
 		$this->jobs->update(
 			$job_id,
 			array(
-				'phase'         => Job::PHASE_PROCESS,
+				'phase'          => Job::PHASE_PROCESS,
 				'discovery_page' => 1,
 			)
 		);
@@ -693,8 +737,6 @@ final class Sync_Runner {
 
 		if ( count( $ids ) >= $page_size ) {
 			$this->jobs->update( $job->id(), array( 'discovery_page' => $page + 1 ) );
-			$this->jobs->heartbeat( $job->id() );
-			$this->queue_step( $job->id(), self::HOOK_DISCOVER );
 
 			return true;
 		}
@@ -707,7 +749,8 @@ final class Sync_Runner {
 	 *
 	 * Only scopes that address the whole managed catalog are eligible:
 	 * category, type and selection scopes cannot be expressed for variation
-	 * posts, so guessing there would queue products nobody asked for.
+	 * posts, so guessing there would queue products nobody asked for. Scopes
+	 * that exclude variations never walk variations at all.
 	 *
 	 * @param array $scope Normalized scope.
 	 * @return bool
@@ -720,6 +763,10 @@ final class Sync_Runner {
 		}
 
 		if ( $scope['ids'] || $scope['category'] || $scope['product_type'] ) {
+			return false;
+		}
+
+		if ( empty( $scope['include_variations'] ) ) {
 			return false;
 		}
 
@@ -790,8 +837,6 @@ final class Sync_Runner {
 
 		if ( count( $ids ) >= $page_size ) {
 			$this->jobs->update( $job->id(), array( 'discovery_page' => $page + 1 ) );
-			$this->jobs->heartbeat( $job->id() );
-			$this->queue_step( $job->id(), self::HOOK_DISCOVER );
 
 			return true;
 		}
