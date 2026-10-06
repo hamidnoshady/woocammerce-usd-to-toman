@@ -1,0 +1,38 @@
+# Keep the repository files consistent across platforms and keep development
+# files out of `git archive` exports.
+
+* text=auto eol=lf
+
+*.php text
+*.css text
+*.js text
+*.json text
+*.md text
+*.txt text
+*.xml text
+*.yml text
+
+*.png binary
+*.jpg binary
+*.gif binary
+*.zip binary
+*.mo binary
+
+# Exports (git archive) should look like the release zip.
+/tests export-ignore
+/bin export-ignore
+/.github export-ignore
+/dist export-ignore
+/.distignore export-ignore
+/.editorconfig export-ignore
+/.gitattributes export-ignore
+/.gitignore export-ignore
+/phpcs.xml.dist export-ignore
+/phpunit.xml.dist export-ignore
+/composer.json export-ignore
+/composer.lock export-ignore
+/package.json export-ignore
+/package-lock.json export-ignore
+/CHANGELOG.md export-ignore
+/README.md export-ignore
+/languages/*.po export-ignore

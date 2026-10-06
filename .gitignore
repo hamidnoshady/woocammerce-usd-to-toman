@@ -1,0 +1,14 @@
+# Build output.
+/dist/
+
+# Composer and npm development dependencies.
+/vendor/
+/node_modules/
+
+# Local test installations and logs.
+*.log
+.DS_Store
+
+# Python bytecode from the artwork tooling.
+__pycache__/
+*.pyc

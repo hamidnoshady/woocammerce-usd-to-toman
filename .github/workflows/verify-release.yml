@@ -1,0 +1,136 @@
+name: Verify release
+
+# Proves that the archive people download from GitHub Releases is the archive
+# that works: it is fetched back, its checksum checked against the published
+# one, its contents inspected and the integration suite run against it in a
+# fresh WordPress + WooCommerce install.
+
+on:
+  release:
+    types:
+      - published
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to verify (for example 1.0.0).'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  PLUGIN_SLUG: usd-to-toman-price-sync-for-woocommerce
+
+jobs:
+  verify:
+    name: Verify the published release
+    runs-on: ubuntu-latest
+    env:
+      WP_PATH: ${{ github.workspace }}/wp
+      TAG: ${{ github.event_name == 'release' && github.event.release.tag_name || inputs.tag }}
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          coverage: none
+          extensions: pdo_sqlite, sqlite3, mbstring, zip
+          tools: none
+
+      - name: Download the published assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          gh release download "${TAG}" \
+            --pattern '*.zip' \
+            --pattern '*.zip.sha256' \
+            --dir dist \
+            --clobber
+          ls -l dist
+
+      - name: Verify the checksum that was published with the release
+        run: |
+          set -euo pipefail
+          cd dist
+          sha256sum -c ./*.zip.sha256
+
+      - name: Inspect the archive
+        run: |
+          set -euo pipefail
+          version="${TAG#v}"
+          zip_file="$(ls dist/*.zip | head -n1)"
+          listing="$(unzip -Z1 "${zip_file}")"
+
+          echo "${listing}"
+          echo "The archive holds $(echo "${listing}" | wc -l) files."
+
+          # One top level directory, named after the plugin slug.
+          if echo "${listing}" | grep -qv "^${PLUGIN_SLUG}/"; then
+            echo "::error::The archive must contain a single ${PLUGIN_SLUG}/ directory."
+            exit 1
+          fi
+
+          if echo "${listing}" | grep -Eq '^(tests|bin|\.github|node_modules)/|phpcs\.xml|composer\.(json|lock)|\.distignore|\.git'; then
+            echo "::error::The published archive contains development files."
+            exit 1
+          fi
+
+          header="$(unzip -p "${zip_file}" "${PLUGIN_SLUG}/${PLUGIN_SLUG}.php" | grep -m1 -E '^[ \t\/*#@]*Version:' | sed -E 's/.*Version:[ \t]*//' | tr -d '\r')"
+
+          if [ "${header}" != "${version}" ]; then
+            echo "::error::The archive contains version ${header} but the release is ${version}."
+            exit 1
+          fi
+
+          echo "Version header matches the release: ${version}."
+
+      - name: Download WordPress
+        run: |
+          set -euo pipefail
+          curl -sSL -o wordpress.tar.gz https://wordpress.org/latest.tar.gz
+          tar -xzf wordpress.tar.gz
+          mv wordpress "$WP_PATH"
+          rm wordpress.tar.gz
+
+      - name: Download WooCommerce
+        run: |
+          set -euo pipefail
+          curl -sSL -o woocommerce.zip https://downloads.wordpress.org/plugin/woocommerce.latest-stable.zip
+          unzip -q woocommerce.zip -d "$WP_PATH/wp-content/plugins"
+          rm woocommerce.zip
+
+      - name: Install the SQLite database drop-in
+        run: |
+          set -euo pipefail
+          curl -sSL -o sqlite.zip https://downloads.wordpress.org/plugin/sqlite-database-integration.zip
+          unzip -q sqlite.zip -d "$WP_PATH/wp-content/plugins"
+          rm sqlite.zip
+          cp "$WP_PATH/wp-content/plugins/sqlite-database-integration/db.copy" "$WP_PATH/wp-content/db.php"
+          sed -i "s#{SQLITE_IMPLEMENTATION_FOLDER_PATH}#$WP_PATH/wp-content/plugins/sqlite-database-integration#; s#{SQLITE_PLUGIN}#sqlite-database-integration/load.php#" "$WP_PATH/wp-content/db.php"
+
+      - name: Configure WordPress
+        run: |
+          php tests/integration/make-config.php "$WP_PATH" --url=http://localhost:8888
+
+      - name: Install the released archive
+        run: |
+          set -euo pipefail
+          php tests/integration/prepare.php "$WP_PATH" --from-zip="$(ls dist/*.zip | head -n1)"
+
+      - name: Run the integration suite against the release
+        run: bash tests/integration/ci-run.sh "$WP_PATH" published-release
+
+      - name: Show the debug log when something failed
+        if: failure()
+        run: |
+          [ -f "$WP_PATH/../debug.log" ] && tail -n 200 "$WP_PATH/../debug.log" || true

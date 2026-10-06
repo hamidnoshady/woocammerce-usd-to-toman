@@ -1,0 +1,72 @@
+<?xml version="1.0"?>
+<ruleset name="USD to Toman Price Sync for WooCommerce">
+	<description>Coding standards for the plugin: WordPress core standards, extra sniffs and PHP compatibility with the declared minimum.</description>
+
+	<file>.</file>
+
+	<exclude-pattern>/dist/*</exclude-pattern>
+	<exclude-pattern>/node_modules/*</exclude-pattern>
+	<exclude-pattern>/vendor/*</exclude-pattern>
+	<exclude-pattern>/languages/*</exclude-pattern>
+
+	<arg name="extensions" value="php"/>
+	<arg name="colors"/>
+	<arg value="ps"/>
+	<arg name="basepath" value="."/>
+
+	<rule ref="WordPress">
+		<!-- The plugin ships its own table prefix based SQL, prepared and documented. -->
+		<exclude name="WordPress.DB.DirectDatabaseQuery.DirectQuery"/>
+		<exclude name="WordPress.DB.DirectDatabaseQuery.NoCaching"/>
+		<exclude name="WordPress.DB.PreparedSQL.InterpolatedNotPrepared"/>
+		<exclude name="WordPress.DB.PreparedSQL.NotPrepared"/>
+	</rule>
+
+	<rule ref="WordPress.WP.I18n">
+		<properties>
+			<property name="text_domain" type="array">
+				<element value="usd-to-toman-price-sync-for-woocommerce"/>
+			</property>
+		</properties>
+	</rule>
+
+	<rule ref="WordPress.WP.Capabilities">
+		<properties>
+			<property name="custom_capabilities" type="array">
+				<element value="manage_woocommerce"/>
+				<element value="edit_product"/>
+				<element value="edit_products"/>
+				<element value="read_product"/>
+			</property>
+		</properties>
+	</rule>
+
+	<rule ref="WordPress.NamingConventions.PrefixAllGlobals">
+		<properties>
+			<property name="prefixes" type="array">
+				<element value="usdtf"/>
+				<element value="USDTF"/>
+			</property>
+		</properties>
+	</rule>
+
+	<rule ref="WordPress.Files.FileName">
+		<properties>
+			<property name="strict_class_file_names" value="false"/>
+		</properties>
+	</rule>
+
+	<config name="testVersion" value="7.4-"/>
+	<config name="minimum_wp_version" value="6.2"/>
+
+	<!-- Tooling and test scaffolding run on the command line, never inside
+	     WordPress, so the WordPress sniffs do not apply to them. -->
+	<rule ref="WordPress">
+		<exclude-pattern>/tests/*</exclude-pattern>
+		<exclude-pattern>/bin/*</exclude-pattern>
+	</rule>
+
+	<rule ref="PHPCompatibilityWP">
+		<include-pattern>/(includes|tests|bin)/.*\.php$</include-pattern>
+	</rule>
+</ruleset>

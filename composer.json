@@ -1,0 +1,34 @@
+{
+	"name": "hamidnoshady/usd-to-toman-price-sync-for-woocommerce",
+	"description": "Development tooling for the USD to Toman Price Sync for WooCommerce plugin.",
+	"type": "wordpress-plugin",
+	"license": "GPL-2.0-or-later",
+	"require-dev": {
+		"php": ">=7.4",
+		"dealerdirect/phpcodesniffer-composer-installer": "^1.0",
+		"phpcompatibility/phpcompatibility-wp": "^2.1",
+		"wp-coding-standards/wpcs": "^3.0"
+	},
+	"config": {
+		"allow-plugins": {
+			"dealerdirect/phpcodesniffer-composer-installer": true
+		},
+		"sort-packages": true
+	},
+	"scripts": {
+		"lint": "php bin/lint.php",
+		"phpcs": "phpcs",
+		"phpcbf": "phpcbf",
+		"pot": "php bin/make-pot.php",
+		"pot:check": "php bin/make-pot.php --check",
+		"mo": "php bin/make-mo.php",
+		"mo:check": "php bin/make-mo.php --check",
+		"dist": "php bin/build-dist.php",
+		"dist:check": "php bin/build-dist.php --check",
+		"check": [
+			"@phpcs",
+			"@pot:check",
+			"@mo:check"
+		]
+	}
+}

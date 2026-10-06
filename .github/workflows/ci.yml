@@ -1,0 +1,219 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+    tags-ignore:
+      - '**'
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PLUGIN_SLUG: usd-to-toman-price-sync-for-woocommerce
+
+jobs:
+  syntax:
+    name: PHP ${{ matrix.php }} syntax
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php:
+          - '7.4'
+          - '8.0'
+          - '8.1'
+          - '8.2'
+          - '8.3'
+          - '8.4'
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Set up PHP ${{ matrix.php }}
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+          tools: none
+
+      - name: Parse every PHP file (in process)
+        run: php bin/lint.php
+
+      - name: Parse every PHP file (php -l)
+        run: |
+          find . -name '*.php' -not -path './dist/*' -not -path './node_modules/*' -not -path './vendor/*' -print0 \
+            | xargs -0 -n1 -P4 php -l > /dev/null
+
+  standards:
+    name: Coding standards
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          coverage: none
+          tools: composer
+
+      - name: Install the coding standards
+        run: composer install --no-interaction --no-progress --prefer-dist
+
+      - name: Run PHPCS
+        run: composer phpcs -- --report=source
+
+  translations:
+    name: Translations
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          coverage: none
+          tools: none
+
+      - name: Regenerate and compare the .pot file
+        run: php bin/make-pot.php --check
+
+      - name: Verify the compiled catalogues are up to date
+        # Compares the shipped .mo files with a fresh compilation of their .po
+        # sources, and refuses catalogues that do not read back byte for byte.
+        run: php bin/make-mo.php --check
+
+  dist:
+    name: Release zip
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          coverage: none
+          extensions: zip
+          tools: none
+
+      - name: Build the distribution
+        run: php bin/build-dist.php --source-date="$(git log -1 --format=%cI)"
+
+      - name: Validate the archive
+        run: php bin/build-dist.php --check
+
+      - name: Make sure no development file shipped
+        run: |
+          set -euo pipefail
+          listing="$(unzip -Z1 dist/*.zip)"
+          echo "$listing"
+          if echo "$listing" | grep -Eq '^(tests|bin|\.github|wordpress-org)/|phpcs\.xml|composer\.(json|lock)|\.distignore|\.git'; then
+            echo "::error::The distribution archive contains development files."
+            exit 1
+          fi
+          top_level="$(echo "$listing" | cut -d/ -f1 | sort -u)"
+          if [ "$top_level" != "${PLUGIN_SLUG}" ]; then
+            echo "::error::The archive must contain exactly one top level directory named ${PLUGIN_SLUG}."
+            exit 1
+          fi
+          for catalogue in \
+            "languages/${PLUGIN_SLUG}-fa_IR.po" \
+            "languages/${PLUGIN_SLUG}-fa_IR.mo" \
+            "languages/${PLUGIN_SLUG}.pot"; do
+            if ! echo "$listing" | grep -qx "${PLUGIN_SLUG}/${catalogue}"; then
+              echo "::error::The distribution is missing ${catalogue}."
+              exit 1
+            fi
+          done
+
+      - name: Upload the release zip
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.PLUGIN_SLUG }}
+          path: |
+            dist/*.zip
+            dist/*.zip.sha256
+          if-no-files-found: error
+
+  integration:
+    name: WordPress + WooCommerce integration
+    runs-on: ubuntu-latest
+    needs: dist
+    env:
+      WP_PATH: ${{ github.workspace }}/wp
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          coverage: none
+          extensions: pdo_sqlite, sqlite3, mbstring, zip
+          tools: none
+
+      - name: Download the release zip built by the dist job
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.PLUGIN_SLUG }}
+          path: dist
+
+      - name: Download WordPress
+        run: |
+          set -euo pipefail
+          curl -sSL -o wordpress.tar.gz https://wordpress.org/latest.tar.gz
+          tar -xzf wordpress.tar.gz
+          mv wordpress "$WP_PATH"
+          rm wordpress.tar.gz
+
+      - name: Download WooCommerce
+        run: |
+          set -euo pipefail
+          curl -sSL -o woocommerce.zip https://downloads.wordpress.org/plugin/woocommerce.latest-stable.zip
+          unzip -q woocommerce.zip -d "$WP_PATH/wp-content/plugins"
+          rm woocommerce.zip
+
+      - name: Install the SQLite database drop-in
+        run: |
+          set -euo pipefail
+          curl -sSL -o sqlite.zip https://downloads.wordpress.org/plugin/sqlite-database-integration.zip
+          unzip -q sqlite.zip -d "$WP_PATH/wp-content/plugins"
+          rm sqlite.zip
+          cp "$WP_PATH/wp-content/plugins/sqlite-database-integration/db.copy" "$WP_PATH/wp-content/db.php"
+          sed -i "s#{SQLITE_IMPLEMENTATION_FOLDER_PATH}#$WP_PATH/wp-content/plugins/sqlite-database-integration#; s#{SQLITE_PLUGIN}#sqlite-database-integration/load.php#" "$WP_PATH/wp-content/db.php"
+
+      - name: Configure WordPress
+        run: |
+          php tests/integration/make-config.php "$WP_PATH" --url=http://localhost:8888
+
+      - name: Install WordPress, WooCommerce and the plugin from source
+        run: |
+          php tests/integration/prepare.php "$WP_PATH"
+
+      - name: Run the suite against the working copy
+        run: bash tests/integration/ci-run.sh "$WP_PATH" working-copy
+
+      - name: Install the built distribution and run the suite again
+        run: |
+          set -euo pipefail
+          php tests/integration/prepare.php "$WP_PATH" --from-zip="$(ls dist/*.zip | head -n1)"
+          bash tests/integration/ci-run.sh "$WP_PATH" built-zip
+
+      - name: Show the debug log when something failed
+        if: failure()
+        run: |
+          [ -f "$WP_PATH/../debug.log" ] && tail -n 200 "$WP_PATH/../debug.log" || true
