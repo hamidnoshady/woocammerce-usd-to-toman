@@ -224,7 +224,7 @@ usdtf_it_assert( ! \USDTF\Scheduler::verify_token( 'not-the-token' ), 'a wrong l
 usdtf_it_assert( \USDTF\Scheduler::verify_token( \USDTF\Scheduler::token() ), 'the stored loopback token must be accepted' );
 
 $loopback_product = usdtf_it_make_simple_product( 'Loopback product', 5400000 );
-$loopback_job     = $runner->create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
+$loopback_job     = usdtf_it_create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
 $loopback_job_id  = (int) $loopback_job['id'];
 
 $runner->handle_discovery( $loopback_job_id );
@@ -305,7 +305,7 @@ usdtf_it_assert( false !== wp_next_scheduled( \USDTF\Cron::EVENT_DAILY ), 'the d
 
 // A job whose worker died is picked up by the recovery pass.
 $cron_product = usdtf_it_make_simple_product( 'Cron product', 2700000 );
-$cron_job     = $runner->create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
+$cron_job     = usdtf_it_create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
 $cron_job_id  = (int) $cron_job['id'];
 
 $runner->handle_discovery( $cron_job_id );
@@ -362,7 +362,7 @@ usdtf_it_reset_plugin_state();
 $rates->save_rate( 270000 );
 
 $uninstall_product = usdtf_it_make_simple_product( 'Uninstall product', 5000000 );
-$uninstall_job     = $runner->create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
+$uninstall_job     = usdtf_it_create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
 
 usdtf_it_run_job( (int) $uninstall_job['id'] );
 

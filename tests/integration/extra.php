@@ -26,7 +26,7 @@ $settings->update(
 );
 
 $display_product = usdtf_it_make_simple_product( 'Displayed simple product', 5000000 );
-$display_job     = $runner->create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
+$display_job     = usdtf_it_create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
 usdtf_it_run_job( (int) $display_job['id'] );
 
 // This is what WooCommerce hands to the shop loop, the single product page, the
@@ -38,7 +38,7 @@ usdtf_it_assert( false !== strpos( $shown, '5,000,000 تومان' ), 'the storef
 usdtf_it_assert( false === strpos( $shown, 'woocommerce-Price-currencySymbol' ), 'the derived USD price must not leak into the storefront price' );
 
 $variable_display = usdtf_it_make_variable_product( 'Displayed variable product', array( array( 2000000 ), array( 5000000 ) ) );
-$variable_job     = $runner->create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
+$variable_job     = usdtf_it_create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
 usdtf_it_run_job( (int) $variable_job['id'] );
 
 $range = apply_filters( 'woocommerce_get_price_html', $usd_html, $variable_display );
@@ -78,12 +78,12 @@ $settings->update(
 		'increment' => 1,
 	)
 );
-$rounding_job = $runner->create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
+$rounding_job = usdtf_it_create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
 usdtf_it_run_job( (int) $rounding_job['id'] );
 usdtf_it_assert_same( '4', usdtf_it_price( $rounding_product->get_id() ), 'the nearest mode must round 3.70 up to 4' );
 
 $settings->update( array( 'rounding' => \USDTF\Calculator::ROUND_DOWN ) );
-$rounding_job = $runner->create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
+$rounding_job = usdtf_it_create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
 usdtf_it_run_job( (int) $rounding_job['id'] );
 usdtf_it_assert_same( '3', usdtf_it_price( $rounding_product->get_id() ), 'the downward mode must round 3.70 down to 3' );
 
@@ -93,7 +93,7 @@ $settings->update(
 		'increment' => 5,
 	)
 );
-$rounding_job = $runner->create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
+$rounding_job = usdtf_it_create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
 usdtf_it_run_job( (int) $rounding_job['id'] );
 usdtf_it_assert_same( '5', usdtf_it_price( $rounding_product->get_id() ), 'a $5 increment must round 3.70 up to 5' );
 usdtf_it_assert_same( '1000000', usdtf_it_meta( $rounding_product->get_id(), \USDTF\Product_Pricing::META_SOURCE_REGULAR ), 'every mode must keep converting from the same Toman source' );
@@ -120,7 +120,7 @@ usdtf_it_reset_plugin_state();
 $rates->save_rate( 270000 );
 
 $retention_product = usdtf_it_make_simple_product( 'Retention product', 2700000 );
-$retention_job     = $runner->create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
+$retention_job     = usdtf_it_create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
 usdtf_it_run_job( (int) $retention_job['id'] );
 $retention_job_id = (int) $retention_job['id'];
 
@@ -142,7 +142,7 @@ usdtf_it_assert_same( 0, (int) $wpdb->get_var( "SELECT COUNT(*) FROM `{$logs_tab
 wp_delete_post( $retention_product->get_id(), true );
 
 $fresh_product = usdtf_it_make_simple_product( 'Fresh retention product', 5400000 );
-$fresh_job     = $runner->create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
+$fresh_job     = usdtf_it_create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
 usdtf_it_run_job( (int) $fresh_job['id'] );
 
 usdtf_plugin()->logger()->info( 'Fresh log entry.' );
@@ -180,7 +180,7 @@ $trashed_edit->set_regular_price( '77' );
 $trashed_edit->save();
 wp_trash_post( $trashed->get_id() );
 
-$status_job = $runner->create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
+$status_job = usdtf_it_create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
 usdtf_it_run_job( (int) $status_job['id'] );
 
 usdtf_it_assert_same( '10', usdtf_it_price( $published->get_id() ), 'a published product must be synchronized' );
@@ -276,7 +276,7 @@ $rate_row = $rates->history( 1 );
 usdtf_it_assert_same( $audit_admin, (int) $rate_row[0]['user_id'], 'the rate history must record which admin saved the rate' );
 
 $audit_product = usdtf_it_make_simple_product( 'Audited product', 2700000 );
-$audit_job     = $runner->create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
+$audit_job     = usdtf_it_create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
 
 usdtf_it_assert_same( $audit_admin, (int) $audit_job['user_id'], 'the job must remember who started it' );
 
@@ -321,7 +321,7 @@ $wpdb->update(
 );
 clean_post_cache( $untouched->get_id() );
 
-$changed_job = $runner->create_job(
+$changed_job = usdtf_it_create_job(
 	array(
 		'type'  => \USDTF\Job::TYPE_SYNC,
 		'scope' => array(

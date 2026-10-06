@@ -52,7 +52,7 @@ usdtf_it_make_simple_product( 'Cross request one', '5000000' );
 usdtf_it_make_simple_product( 'Cross request two', '8100000' );
 usdtf_it_make_variable_product( 'Cross request variable', array( array( '2000000' ), array( '4000000' ) ) );
 
-$cross_job = $runner->create_job( array( 'type' => Job::TYPE_SYNC ) );
+$cross_job = usdtf_it_create_job( array( 'type' => Job::TYPE_SYNC ) );
 usdtf_it_assert( ! is_wp_error( $cross_job ) && ! empty( $cross_job['id'] ), 'the cross request job must be created' );
 
 $cross_id = (int) $cross_job['id'];
@@ -124,7 +124,7 @@ foreach ( $cross_items as $cross_item ) {
 
 // A paused job can be resumed from a different process as well.
 $resume_product = usdtf_it_make_simple_product( 'Cross request resumed', '2700000' );
-$resume_job     = $runner->create_job( array( 'type' => Job::TYPE_SYNC ) );
+$resume_job     = usdtf_it_create_job( array( 'type' => Job::TYPE_SYNC ) );
 usdtf_it_assert( ! is_wp_error( $resume_job ) && ! empty( $resume_job['id'] ), 'the resume job must be created' );
 
 usdtf_it_assert_same( true, $runner->pause( (int) $resume_job['id'] ), 'the job must pause' );

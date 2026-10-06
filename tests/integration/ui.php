@@ -31,7 +31,7 @@ usdtf_it_assert_same(
 $queue_product = usdtf_it_make_simple_product( 'Queue product', 2700000 );
 $baseline      = $scheduler_under_test->pending_count();
 
-$queue_job = $runner->create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
+$queue_job = usdtf_it_create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
 
 usdtf_it_assert( ! is_wp_error( $queue_job ), 'the queue scenario needs a job to watch' );
 
@@ -109,7 +109,7 @@ usdtf_it_assert_same( $baseline, $scheduler_under_test->pending_count(), 'unsche
 // An action left over from a job that was cancelled in the meantime must do
 // nothing when it finally runs.
 $cancel_product = usdtf_it_make_simple_product( 'Cancelled queue product', 8100000 );
-$cancel_job     = $runner->create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
+$cancel_job     = usdtf_it_create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
 $cancel_job_id  = (int) $cancel_job['id'];
 
 $runner->handle_discovery( $cancel_job_id );
@@ -124,7 +124,7 @@ usdtf_it_assert_same( '', usdtf_it_price( $cancel_product->get_id() ), 'a leftov
 
 // A paused job, on the other hand, continues where it stopped.
 $pause_queue_product = usdtf_it_make_simple_product( 'Paused queue product', 5400000 );
-$pause_queue_job     = $runner->create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
+$pause_queue_job     = usdtf_it_create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
 $pause_queue_id      = (int) $pause_queue_job['id'];
 
 $runner->handle_discovery( $pause_queue_id );
@@ -295,7 +295,7 @@ usdtf_it_assert( false !== strpos( $fallback, 'usdtf-rate-value' ), 'an unknown 
 
 // Values coming from a product name must be escaped on every screen.
 $escaping_product = usdtf_it_make_simple_product( 'Escaping <script>alert(1)</script>', 2700000 );
-$escaping_runs    = $runner->create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
+$escaping_runs    = usdtf_it_create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
 
 usdtf_it_run_job( (int) $escaping_runs['id'] );
 
@@ -376,7 +376,7 @@ $panel_object = new $panel( $settings, $pricing, usdtf_plugin()->products() );
 wp_set_current_user( $ui_admin );
 
 $panel_product = usdtf_it_make_simple_product( 'Panel product', 5000000 );
-$panel_job     = $runner->create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
+$panel_job     = usdtf_it_create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
 
 usdtf_it_run_job( (int) $panel_job['id'] );
 
@@ -511,6 +511,11 @@ delete_option( \USDTF\Settings::OPTION_RATE );
 
 // Force the shared instance to re-read the option, the way a new request would.
 usdtf_plugin()->settings()->all( true );
+
+// The fresh install restores every default, including the dry-run-first rule.
+// This scenario is about the currency semantics; the gate itself is covered by
+// the dry-run scenarios, so it is pinned off like in every other scenario.
+usdtf_plugin()->settings()->update( array( 'require_preview' => false ) );
 $fresh = new \USDTF\Settings();
 
 usdtf_it_assert_same( \USDTF\Settings::MODE_TOMAN, $fresh->get( 'currency_mode' ), 'a fresh install must transact in Toman' );
@@ -526,7 +531,7 @@ usdtf_it_assert_same( 'تومان', get_woocommerce_currency_symbol(), 'the defa
 // Products then hold their canonical Toman price in the normal price fields.
 $rates->save_rate( 270000 );
 $fresh_product = usdtf_it_make_simple_product( 'Fresh install product', 5400000 );
-$fresh_job     = $runner->create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
+$fresh_job     = usdtf_it_create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
 usdtf_it_run_job( (int) $fresh_job['id'] );
 
 usdtf_it_assert_same( '5400000', usdtf_it_price( $fresh_product->get_id() ), 'the price field must hold the canonical Toman price' );

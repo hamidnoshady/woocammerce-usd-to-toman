@@ -57,7 +57,7 @@ usdtf_it_delete_products();
 $rates->save_rate( 270000 );
 $retry_product = usdtf_it_make_simple_product( 'Retry product', '5400000' );
 
-$retry_job = $runner->create_job( array( 'type' => Job::TYPE_SYNC ) );
+$retry_job = usdtf_it_create_job( array( 'type' => Job::TYPE_SYNC ) );
 $retry_id  = (int) $retry_job['id'];
 
 // Run the discovery step only: the job stays running with the item queued,
@@ -137,7 +137,7 @@ add_filter( 'usdtf_variation_slice', function () {
 	return 10;
 } );
 
-$sliced_job = $runner->create_job( array( 'type' => Job::TYPE_SYNC ) );
+$sliced_job = usdtf_it_create_job( array( 'type' => Job::TYPE_SYNC ) );
 usdtf_it_run_job( (int) $sliced_job['id'] );
 
 remove_all_filters( 'usdtf_variation_slice' );
@@ -184,7 +184,7 @@ add_filter( 'usdtf_variation_slice', function () {
 	return 5;
 } );
 
-$failing_job = $runner->create_job( array( 'type' => Job::TYPE_SYNC ) );
+$failing_job = usdtf_it_create_job( array( 'type' => Job::TYPE_SYNC ) );
 usdtf_it_run_job( (int) $failing_job['id'] );
 
 remove_all_filters( 'usdtf_variation_slice' );
@@ -263,7 +263,7 @@ $rates->save_rate( 270000 );
 $scope_variable = usdtf_it_make_variable_product( 'Scope variable', array( array( '2000000' ), array( '4000000' ) ) );
 $scope_simple   = usdtf_it_make_simple_product( 'Scope simple', '5000000' );
 
-$no_variations_job = $runner->create_job(
+$no_variations_job = usdtf_it_create_job(
 	array(
 		'type'  => Job::TYPE_SYNC,
 		'scope' => array( 'include_variations' => false ),
@@ -283,7 +283,7 @@ $first_child = wc_get_product( (int) $scope_variable->get_children()[0] );
 usdtf_it_assert_same( '', (string) $first_child->get_regular_price( 'edit' ), 'the variations must not be written when the scope excludes them' );
 usdtf_it_assert_same( '19', usdtf_it_price( $scope_simple->get_id() ), 'the simple product in the same job must still be updated' );
 
-$with_variations_job = $runner->create_job( array( 'type' => Job::TYPE_SYNC ) );
+$with_variations_job = usdtf_it_create_job( array( 'type' => Job::TYPE_SYNC ) );
 usdtf_it_run_job( (int) $with_variations_job['id'] );
 
 $first_child = wc_get_product( (int) $scope_variable->get_children()[0] );
@@ -324,7 +324,7 @@ $race_edit = function ( $saved_product ) use ( $race_id, $pricing, &$race_edit )
 
 add_action( 'woocommerce_update_product', $race_edit );
 
-$race_job = $runner->create_job( array( 'type' => Job::TYPE_SYNC ) );
+$race_job = usdtf_it_create_job( array( 'type' => Job::TYPE_SYNC ) );
 usdtf_it_run_job( (int) $race_job['id'] );
 
 remove_action( 'woocommerce_update_product', $race_edit );
@@ -338,7 +338,7 @@ $race_item = $wpdb->get_row( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.Di
 usdtf_it_assert( in_array( $race_item['status'], array( Job_Repository::ITEM_CHANGED, Job_Repository::ITEM_CONFLICT ), true ), 'the raced item must finish as changed or as a conflict, never as a silent overwrite' );
 
 // The next run adopts the new source without losing it.
-$adopt_job = $runner->create_job( array( 'type' => Job::TYPE_SYNC ) );
+$adopt_job = usdtf_it_create_job( array( 'type' => Job::TYPE_SYNC ) );
 usdtf_it_run_job( (int) $adopt_job['id'] );
 
 usdtf_it_assert_same( '9999999', usdtf_it_meta( $race_id, Product_Pricing::META_SOURCE_REGULAR ), 'later jobs must also keep the concurrent source' );
@@ -471,7 +471,7 @@ foreach ( $orphan_variable->get_children() as $orphan_child_id ) {
 	$pricing->set_mode( (int) $orphan_child_id, Product_Pricing::MODE_MANAGED );
 }
 
-$orphan_job = $runner->create_job( array( 'type' => Job::TYPE_SYNC ) );
+$orphan_job = usdtf_it_create_job( array( 'type' => Job::TYPE_SYNC ) );
 usdtf_it_run_job( (int) $orphan_job['id'] );
 
 $orphan_items = $wpdb->get_results( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
@@ -523,7 +523,7 @@ add_filter( 'usdtf_variation_slice', function () {
 	return 5;
 } );
 
-$paged_job = $runner->create_job( array( 'type' => Job::TYPE_SYNC ) );
+$paged_job = usdtf_it_create_job( array( 'type' => Job::TYPE_SYNC ) );
 usdtf_it_run_job( (int) $paged_job['id'] );
 
 remove_all_filters( 'usdtf_variation_slice' );
@@ -623,7 +623,7 @@ $expired_child->save();
 
 $active_child = wc_get_product( (int) $expired_sale_product->get_children()[1] );
 
-$expired_job = $runner->create_job( array( 'type' => Job::TYPE_SYNC ) );
+$expired_job = usdtf_it_create_job( array( 'type' => Job::TYPE_SYNC ) );
 usdtf_it_run_job( (int) $expired_job['id'] );
 
 usdtf_it_assert( ! $expired_child->is_on_sale(), 'the expired sale variation must not be on sale' );
@@ -642,7 +642,7 @@ $active_sale_child->set_date_on_sale_from( time() - HOUR_IN_SECONDS );
 $active_sale_child->set_date_on_sale_to( time() + DAY_IN_SECONDS );
 $active_sale_child->save();
 
-$active_sale_job = $runner->create_job( array( 'type' => Job::TYPE_SYNC ) );
+$active_sale_job = usdtf_it_create_job( array( 'type' => Job::TYPE_SYNC ) );
 usdtf_it_run_job( (int) $active_sale_job['id'] );
 
 usdtf_it_assert( $active_sale_child->is_on_sale(), 'the active sale variation must be on sale' );

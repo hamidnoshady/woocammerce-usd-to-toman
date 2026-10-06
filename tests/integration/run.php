@@ -107,7 +107,7 @@ $laptop_a = usdtf_it_make_simple_product( 'Laptop A', 5000000 );
 $laptop_b = usdtf_it_make_simple_product( 'Laptop B', 5400000 );
 $laptop_c = usdtf_it_make_simple_product( 'Laptop C', 5410000 );
 
-$job = $runner->create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
+$job = usdtf_it_create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
 usdtf_it_assert( ! is_wp_error( $job ), 'the update job should be created' );
 usdtf_it_run_job( (int) $job['id'] );
 
@@ -164,7 +164,7 @@ usdtf_it_assert_same( 3, (int) $preview_job->data['changed'], 'the dry run must 
 usdtf_it_pass( 'dry run reports changes without writing them' );
 
 // The real update applies the new rate and recalculates from the Toman source.
-$update = $runner->create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
+$update = usdtf_it_create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
 usdtf_it_run_job( (int) $update['id'] );
 usdtf_it_assert_same( '17', usdtf_it_price( $laptop_a->get_id() ), 'ceil(5,000,000 / 300,000) must be 17 USD' );
 
@@ -173,7 +173,7 @@ usdtf_it_assert_same( '17', usdtf_it_price( $laptop_a->get_id() ), 'ceil(5,000,0
 // ---------------------------------------------------------------------------
 $before = get_post_modified_time( 'Y-m-d H:i:s', true, $laptop_a->get_id(), true );
 
-$second = $runner->create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
+$second = usdtf_it_create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
 usdtf_it_run_job( (int) $second['id'] );
 
 $second_job = $jobs->get( (int) $second['id'] );
@@ -185,13 +185,13 @@ usdtf_it_pass( 'unchanged prices are not rewritten' );
 // A tiny rate change that does not move any rounded price:
 // 300,300 keeps 5,000,000 → $17, 5,400,000 → $18 and 5,410,000 → $19.
 $rates->save_rate( 300300 );
-$third = $runner->create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
+$third = usdtf_it_create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
 usdtf_it_run_job( (int) $third['id'] );
 $third_job = $jobs->get( (int) $third['id'] );
 usdtf_it_assert_same( 0, (int) $third_job->data['changed'], 'a rate change that keeps every rounded price must not write' );
 
 $rates->save_rate( 270000 );
-$fourth = $runner->create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
+$fourth = usdtf_it_create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
 usdtf_it_run_job( (int) $fourth['id'] );
 usdtf_it_pass( 'rate changes that do not move a price cause zero writes' );
 
@@ -203,7 +203,7 @@ usdtf_it_reset_plugin_state();
 $rates->save_rate( 270000 );
 
 $sale_product = usdtf_it_make_simple_product( 'Mouse', 900000, 400000 );
-$job          = $runner->create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
+$job          = usdtf_it_create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
 usdtf_it_run_job( (int) $job['id'] );
 
 usdtf_it_assert_same( '4', usdtf_it_price( $sale_product->get_id() ), '900,000 / 270,000 must round up to 4 USD' );
@@ -218,7 +218,7 @@ $scheduled_product->set_date_on_sale_from( gmdate( 'Y-m-d', time() + 86400 ) );
 $scheduled_product->set_date_on_sale_to( gmdate( 'Y-m-d', time() + 172800 ) );
 $scheduled_product->save();
 
-$job = $runner->create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
+$job = usdtf_it_create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
 usdtf_it_run_job( (int) $job['id'] );
 
 $scheduled_product = wc_get_product( $scheduled->get_id() );
@@ -238,7 +238,7 @@ usdtf_it_pass( 'scheduled sale dates survive a synchronization' );
 
 // Clearing the sale price in the source clears it in WooCommerce.
 $pricing->set_source( $sale_product->get_id(), 900000, '' );
-$job = $runner->create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
+$job = usdtf_it_create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
 usdtf_it_run_job( (int) $job['id'] );
 usdtf_it_assert_same( '', usdtf_it_sale( $sale_product->get_id() ), 'clearing the source sale price must clear the WooCommerce sale price' );
 usdtf_it_pass( 'sale prices are derived and cleared from the source' );
@@ -252,7 +252,7 @@ for ( $i = 1; $i <= 25; $i++ ) {
 
 $variable = usdtf_it_make_variable_product( 'Variable Laptop', $variations );
 
-$job = $runner->create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
+$job = usdtf_it_create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
 usdtf_it_assert( ! is_wp_error( $job ), 'the variable product update should be created' );
 $steps = usdtf_it_run_job( (int) $job['id'] );
 
@@ -280,7 +280,7 @@ $rates->save_rate( 270000 );
 
 $conflict_product = usdtf_it_make_simple_product( 'Conflict Product', 5000000 );
 
-$job    = $runner->create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
+$job    = usdtf_it_create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
 $job_id = (int) $job['id'];
 
 // Discovery queues the item with the current revision.
@@ -330,7 +330,7 @@ $excluded = usdtf_it_make_simple_product( 'Excluded product', 3000000, '', \USDT
 $trashed = usdtf_it_make_simple_product( 'Trashed product', 4000000 );
 wp_trash_post( $trashed->get_id() );
 
-$job = $runner->create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
+$job = usdtf_it_create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
 usdtf_it_run_job( (int) $job['id'] );
 
 $statuses = usdtf_it_item_statuses( (int) $job['id'] );
@@ -361,7 +361,7 @@ wp_set_object_terms( $in_category_a->get_id(), array( (int) $category_a ), 'prod
 $in_category_b = usdtf_it_make_simple_product( 'Category B product', 2700000 );
 wp_set_object_terms( $in_category_b->get_id(), array( (int) $category_b ), 'product_cat' );
 
-$job = $runner->create_job(
+$job = usdtf_it_create_job(
 	array(
 		'type'  => \USDTF\Job::TYPE_SYNC,
 		'scope' => array(
@@ -375,7 +375,7 @@ usdtf_it_run_job( (int) $job['id'] );
 usdtf_it_assert_same( '10', usdtf_it_price( $in_category_a->get_id() ), 'the product in scope must be updated' );
 usdtf_it_assert_same( '', usdtf_it_price( $in_category_b->get_id() ), 'the product outside the scope must stay untouched' );
 
-$job = $runner->create_job(
+$job = usdtf_it_create_job(
 	array(
 		'type'  => \USDTF\Job::TYPE_SYNC,
 		'scope' => array(
@@ -387,7 +387,7 @@ $job = $runner->create_job(
 usdtf_it_run_job( (int) $job['id'] );
 usdtf_it_assert_same( '10', usdtf_it_price( $in_category_b->get_id() ), 'a selected product must be updated' );
 
-$job = $runner->create_job(
+$job = usdtf_it_create_job(
 	array(
 		'type'  => \USDTF\Job::TYPE_SYNC,
 		'scope' => array(
@@ -412,7 +412,7 @@ for ( $i = 1; $i <= 6; $i++ ) {
 	usdtf_it_make_simple_product( 'Job product ' . $i, 270000 * $i );
 }
 
-$job    = $runner->create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
+$job    = usdtf_it_create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
 $job_id = (int) $job['id'];
 
 $second = $runner->create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
@@ -442,7 +442,7 @@ $runner->resume( $job_id );
 usdtf_it_run_job( $job_id );
 usdtf_it_assert_same( \USDTF\Job::STATUS_COMPLETED, $jobs->get( $job_id )->status(), 'a resumed job must finish' );
 
-$job    = $runner->create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
+$job    = usdtf_it_create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
 $job_id = (int) $job['id'];
 $runner->handle_discovery( $job_id );
 $runner->cancel( $job_id );
@@ -488,12 +488,12 @@ $rates->save_rate( 270000 );
 
 $product = usdtf_it_make_simple_product( 'Rollback product', 5400000 );
 
-$job = $runner->create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
+$job = usdtf_it_create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
 usdtf_it_run_job( (int) $job['id'] );
 usdtf_it_assert_same( '20', usdtf_it_price( $product->get_id() ), 'the first rate must produce 20 USD' );
 
 $rates->save_rate( 400000 );
-$job = $runner->create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
+$job = usdtf_it_create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
 usdtf_it_run_job( (int) $job['id'] );
 usdtf_it_assert_same( '14', usdtf_it_price( $product->get_id() ), 'ceil(5,400,000 / 400,000) must be 14 USD' );
 
@@ -515,7 +515,7 @@ $rates->save_rate( 270000 );
 $product = usdtf_it_make_simple_product( 'Display product', 5000000, 2500000 );
 
 // Mode A first: WooCommerce stores USD, the storefront shows Toman.
-$job = $runner->create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
+$job = usdtf_it_create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
 usdtf_it_run_job( (int) $job['id'] );
 
 $html = wc_get_product( $product->get_id() )->get_price_html();
@@ -539,7 +539,7 @@ $settings->update(
 
 usdtf_it_assert( $settings->currency_mode_is_stale(), 'a mode switch must mark the catalog as needing a full update' );
 
-$job = $runner->create_job(
+$job = usdtf_it_create_job(
 	array(
 		'type'  => \USDTF\Job::TYPE_SYNC,
 		'scope' => array(
@@ -568,7 +568,7 @@ usdtf_it_pass( 'Toman transaction mode stores and charges canonical Toman prices
 
 // Back to USD mode for the remaining scenarios.
 $settings->update( array( 'currency_mode' => \USDTF\Settings::MODE_USD ) );
-$job = $runner->create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
+$job = usdtf_it_create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
 usdtf_it_run_job( (int) $job['id'] );
 usdtf_it_assert_same( '19', usdtf_it_price( $product->get_id() ), 'switching back must restore derived USD prices' );
 usdtf_it_pass( 'switching the transaction currency back rewrites the price fields' );
@@ -586,7 +586,7 @@ for ( $i = 1; $i <= 4; $i++ ) {
 	$recovery_products[] = usdtf_it_make_simple_product( 'Recovery product ' . $i, 270000 * $i );
 }
 
-$job    = $runner->create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
+$job    = usdtf_it_create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
 $job_id = (int) $job['id'];
 $runner->handle_discovery( $job_id );
 $runner->handle_batch( $job_id );
@@ -634,7 +634,7 @@ usdtf_it_reset_plugin_state();
 $rates->save_rate( 270000 );
 
 $product = usdtf_it_make_simple_product( 'Disappearing product', 2700000 );
-$job     = $runner->create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
+$job     = usdtf_it_create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
 $job_id  = (int) $job['id'];
 $runner->handle_discovery( $job_id );
 wp_delete_post( $product->get_id(), true );
@@ -665,7 +665,7 @@ $pricing->set_mode( $fixture->get_id(), \USDTF\Product_Pricing::MODE_MANAGED );
 $imported = $pricing->import_current_price_as_source( $fixture->get_id() );
 usdtf_it_assert( ! is_wp_error( $imported ), 'importing the existing price must work' );
 
-$job = $runner->create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
+$job = usdtf_it_create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
 usdtf_it_run_job( (int) $job['id'] );
 
 usdtf_it_assert_same( '19', usdtf_it_price( $fixture->get_id() ), 'the imported Toman price must convert to 19 USD' );

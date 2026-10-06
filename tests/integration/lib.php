@@ -385,6 +385,26 @@ function usdtf_it_term( $name ) {
  * @param int $max_iterations Safety limit.
  * @return int Number of worker steps performed.
  */
+/**
+ * Create a job and stop with a readable failure when it is refused.
+ *
+ * @param array $args Job arguments.
+ * @return array Job payload.
+ */
+function usdtf_it_create_job( array $args = array() ) {
+	global $runner;
+
+	$job = $runner->create_job( $args );
+
+	usdtf_it_assert(
+		! is_wp_error( $job ) && isset( $job['id'] ),
+		'the job must be created'
+			. ( is_wp_error( $job ) ? ' (' . $job->get_error_code() . ': ' . $job->get_error_message() . ')' : '' )
+	);
+
+	return $job;
+}
+
 function usdtf_it_run_job( $job_id, $max_iterations = 500 ) {
 	$runner = usdtf_plugin()->runner();
 	$steps  = 0;
