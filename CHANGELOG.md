@@ -4,6 +4,107 @@ All notable changes to this plugin are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-10-06
+
+Production audit release: every finding of the production audit (issue #4) is fixed and covered by
+the integration suite, which now runs the worker phases in separate PHP processes and the admin REST
+API over real HTTP.
+
+### Fixed
+
+- The admin screen talked to `/wp-json/state`, `/wp-json/rate`, … instead of the plugin namespace,
+  so every action failed with the REST `rest_no_route` error ("هیچ مسیری…"). The admin script now
+  prefixes every request with the registered namespace, logs the failing method and path for any
+  request that errors, and explains a `rest_no_route` response on screen. The diagnostics gained a
+  REST route check that names the missing routes, so a broken upgrade cannot hide behind a generic
+  error. CI now verifies the built zip ships the REST controller and an admin script that addresses
+  the `usdtf/v1` namespace.
+- The synchronization lease was owned by a per-request random token, so the Action Scheduler worker
+  — a different PHP process — could never heartbeat a job it was legitimately continuing. The lease
+  is now owned by the job ID with compare-and-swap writes, heartbeats work across request
+  boundaries, and releases are scoped to the owning job. Only write jobs hold the exclusive lease:
+  a dry run never blocks a real update. The integration suite runs a job step by step through
+  separate PHP processes to keep it that way.
+- The worker rewrote the canonical Toman source meta from its snapshot during every refresh, which
+  could overwrite an admin edit that landed mid-synchronization. The source meta is now read only
+  during a sync: only derived, rate and sync markers are written, so a concurrent edit survives and
+  the next run adopts it.
+- Variable product failures disappeared between slices: every slice reset the per-item counters,
+  so an invalid variation in the first slice was forgotten by the last. The counters now persist in
+  the item row across slices (a `child_stats` column, schema version 5) and the item finishes as
+  failed or conflicted whenever any slice hit a problem.
+- A failed item was retried immediately because the retry delay only gated `processing` rows. It now
+  gates pending rows too, and the worker schedules the next batch no earlier than the earliest due
+  retry instead of spinning.
+- Jobs were marked running even when their first worker action never reached the queue. Every
+  enqueue result is now checked; on failure the job is paused with a clear message, the lease is
+  released, the error is logged and the REST call returns an actionable `usdtf_queue_failed`
+  response. A `usdtf_scheduler_enqueue_blocked` filter makes the failure path testable.
+- The per-variation mode select of the product panel was submitted but never saved. The mode is now
+  validated and persisted per variation, both from the variations screen and from the product save.
+- The `include_variations` scope flag was ignored by the worker: a variable product walked its
+  variations even when the scope excluded them. The flag is now honored; the item is skipped with an
+  explanatory message. Selecting variations explicitly still updates them.
+- The manual-price notice was written to a WooCommerce customer session (which does not exist in
+  `wp-admin`) under a key the admin notice never read. It now uses the per-user transient the
+  renderer reads.
+- The loopback fallback disabled TLS certificate verification. It now verifies certificates like
+  every other request; hosts whose loopback fails keep the WP-Cron twin of the action.
+- The loopback and its WP-Cron twin could both trigger the same worker step. The loopback now owns
+  its run: when it arrives it unschedules the matching cron event, and the cron event only survives
+  as the safety net when the loopback never makes it.
+- Managed variations under a non-managed parent were invisible to full-catalog updates, because
+  discovery only walked parents. A second discovery stream now finds managed variations whose
+  parent is not managed, in pages, and queues them on their own.
+- Variable products with more than 2000 variations silently lost everything beyond the first 2000.
+  Variation IDs are paginated from the database per slice, so a product is synchronized completely
+  no matter how many variations it has.
+- The Toman price range of a variable product used the stored sale source even when the scheduled
+  sale was over. It now mirrors WooCommerce's sale-date state: an expired sale shows the regular
+  Toman price, an active sale shows the sale price.
+- The Toman reference price was formatted from the raw canonical value, bypassing the store's tax
+  display configuration. It now goes through `wc_get_price_to_display()`, so the reference follows
+  the same including/excluding tax treatment as every other displayed price (a pass-through when no
+  tax rates are configured).
+- `uninstall.php` still declared version 1.0.2. All shipped version markers (plugin header,
+  `USDTF_VERSION`, the uninstall fallback and the readme stable tag) now agree, and
+  `bin/check-versions.php` fails the build — for the working copy and for the built zip — when they
+  do not.
+- The uninstall left pending worker actions and the `usdtf_stale_resumes` bookkeeping behind. It now
+  unschedules every worker action of every backend, removes the stale-resume option and clears the
+  plugin's transients, including the per-user notices.
+
+### Added
+
+- **Dry run first** is now enforced by default: an update only starts after a completed dry run that
+  used the same exchange rate, transaction currency, rounding settings and normalized scope. The
+  fingerprint match covers rate, mode, rounding, increment, decimals and scope; the REST `/update`
+  endpoint accepts a `preview` job ID and answers 428 `usdtf_preview_required` with the expected
+  fingerprint otherwise. The rule is a setting and can be turned off; the dashboard says so before
+  the button is clicked.
+- Integration coverage for the audit: live REST route registration and version marker agreement,
+  retry timing, cross-slice variation failures, variation mode persistence, the `include_variations`
+  flag, the read-only source meta rule under a mid-write edit, queue failures, the dry-run gate,
+  variation discovery under unmanaged parents, variation pagination, the zero source rule, the
+  capability allowlist, scheduled sales, worker phases in separate PHP processes
+  (`tests/integration/worker.php`) and the admin REST API over real HTTP
+  (`tests/integration/http.php`, with a `php -S` server in CI). 48 scenario groups in total.
+
+### Changed
+
+- The `required_capability` setting only accepts the documented allowlist
+  (`manage_woocommerce`, `manage_options`) and the settings screen offers a select instead of a
+  free text field. Weaker setups remain possible for developers through the `usdtf_required_capability`
+  filter.
+- Saving the settings screen through `options.php` now requires the plugin capability instead of
+  `manage_options`, aligned with the capability that opens the screen — shop managers can save what
+  they can edit.
+- A zero price is refused as a Toman source at write time (like negative values), so a source that
+  can never synchronize cannot be saved.
+- All admin script strings are translatable through `wp.i18n` (the Persian catalogue ships them),
+  and product names from the product search are rendered as text nodes instead of HTML, so nothing
+  can inject markup through a product name.
+
 ## [1.0.3] - 2026-10-05
 
 ### Added
@@ -129,6 +230,8 @@ First release, implementing the specification in
   template, the distribution archive and a WordPress + WooCommerce integration suite that also runs
   against the built zip. Tagging a version publishes the zip and its checksum to a GitHub release.
 
+[1.1.0]: https://github.com/hamidnoshady/woocammerce-usd-to-toman/releases/tag/1.1.0
+[1.0.3]: https://github.com/hamidnoshady/woocammerce-usd-to-toman/releases/tag/1.0.3
 [1.0.2]: https://github.com/hamidnoshady/woocammerce-usd-to-toman/releases/tag/1.0.2
 [1.0.1]: https://github.com/hamidnoshady/woocammerce-usd-to-toman/releases/tag/1.0.1
 [1.0.0]: https://github.com/hamidnoshady/woocammerce-usd-to-toman/releases/tag/1.0.0

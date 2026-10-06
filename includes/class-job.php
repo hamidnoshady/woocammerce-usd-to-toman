@@ -55,6 +55,12 @@ final class Job {
 	const PHASE_DISCOVER = 'discover';
 
 	/**
+	 * Phase: discovering managed variations that live under unmanaged
+	 * parents and would be missed by the parent walk.
+	 */
+	const PHASE_DISCOVER_VARIATIONS = 'discover_vars';
+
+	/**
 	 * Phase: processing queued items.
 	 */
 	const PHASE_PROCESS = 'process';
@@ -302,7 +308,9 @@ final class Job {
 		return array(
 			'id'            => $this->id(),
 			'status'        => $this->status(),
+			'status_label'  => $this->status_label(),
 			'type'          => $this->type(),
+			'type_label'    => $this->type_label(),
 			'phase'         => $this->phase(),
 			'rate'          => $this->rate(),
 			'previous_rate' => isset( $this->data['previous_rate'] ) && '' !== $this->data['previous_rate'] ? (float) $this->data['previous_rate'] : null,

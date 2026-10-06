@@ -6,7 +6,7 @@ Tested up to: 6.6
 Requires PHP: 7.4
 WC requires at least: 7.0
 WC tested up to: 9.9
-Stable tag: 1.0.3
+Stable tag: 1.1.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -131,6 +131,21 @@ Yes. Every string uses the `usd-to-toman-price-sync-for-woocommerce` text domain
 
 == Changelog ==
 
+= 1.1.0 =
+Production audit release: every finding of the production audit is fixed and covered by the integration suite, which now runs the worker phases in separate PHP processes and the admin REST API over real HTTP.
+* Fixed: the admin screen called the REST API without the plugin namespace, so every action failed with the REST `rest_no_route` error. Requests now address `usdtf/v1`, a failing request logs its exact method and path, and the diagnostics name missing routes after a broken upgrade.
+* Fixed: the synchronization lease was owned by a per-request token, so the background worker — a different PHP process — could not continue the job it was running. The lease now belongs to the job, survives request boundaries, and is only held by write jobs — a dry run never blocks a real update.
+* Fixed: the worker rewrote the canonical Toman source price from its snapshot, so an edit saved during a synchronization could be overwritten. The source price is read only during a sync.
+* Fixed: variable product failures disappeared between worker slices; the per-item counters now persist across slices and an early failure finishes the item as failed.
+* Fixed: the retry delay now applies to pending items as well, so a failed item is retried after its backoff and not immediately.
+* Fixed: when queueing a worker step fails, the job is paused with a clear message, the lock is released and the REST call returns an actionable error — instead of looking active forever.
+* Fixed: the per-variation mode select of the product panel is saved; the include-variations scope flag is honored; managed variations under unmanaged parents are discovered; variable products with more than 2000 variations are no longer cut off.
+* Fixed: the Toman price range follows scheduled sale dates, the Toman reference price follows the store's tax display settings, the loopback verifies TLS certificates and no longer duplicates the cron trigger, and uninstall removes pending worker actions.
+* New: dry run first is enforced by default — an update only starts after a completed dry run with the same exchange rate, transaction currency, rounding settings and scope. It is a setting.
+* New: the required capability only accepts the documented allowlist, and saving the settings screen requires the plugin capability instead of manage_options.
+* Every admin script string is translatable, and product names from the product search are rendered as plain text.
+* The integration suite grew to 48 scenario groups, including the REST API over real HTTP and worker steps in separate PHP processes.
+
 = 1.0.3 =
 * New: a complete Persian (`fa_IR`) translation ships with the plugin, as a `.po` source and a compiled `.mo` catalogue that loads on `init`. A language pack installed on the site still takes precedence.
 * New: `bin/make-mo.php` compiles and verifies the catalogues, and CI fails when a `.mo` file is missing or does not match its `.po` source. The release archive is checked for the shipped catalogues too.
@@ -161,6 +176,9 @@ Yes. Every string uses the `usd-to-toman-price-sync-for-woocommerce` text domain
 * Diagnostics for the queue, the lock and the configured batch size.
 
 == Upgrade Notice ==
+
+= 1.1.0 =
+Fixes the admin REST errors (rest_no_route), makes background updates survive request boundaries, protects the canonical Toman price from being overwritten during a sync, and enforces a dry run before every update. Update as usual; no action is needed after upgrading.
 
 = 1.0.3 =
 Bundles a complete Persian translation and makes Toman transactions the default for new installs. Existing stores keep their currency mode.

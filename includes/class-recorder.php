@@ -196,7 +196,7 @@ final class Recorder {
 			$result['message'] = __( 'The stored price is already correct.', 'usd-to-toman-price-sync-for-woocommerce' );
 
 			if ( ! $args['dry_run'] && $args['refresh_rate_meta'] ) {
-				$this->refresh_meta( $snapshot, $source, $target, $args, false );
+				$this->refresh_meta( $snapshot, $target, $args, false );
 			}
 
 			return $result;
@@ -226,7 +226,7 @@ final class Recorder {
 			return $result;
 		}
 
-		$this->refresh_meta( $snapshot, $source, $target, $args, true );
+		$this->refresh_meta( $snapshot, $target, $args, true );
 
 		if ( $args['sync_parent'] && 'variation' === $snapshot['object_type'] && (int) $snapshot['parent_id'] > 0 ) {
 			$this->sync_parent( (int) $snapshot['parent_id'] );
@@ -274,21 +274,23 @@ final class Recorder {
 	 * saving the product, which is what the "no unnecessary writes" rule is
 	 * about: no lookup table writes, no cache churn, no other plugin hooks.
 	 *
+	 * The canonical Toman source meta is deliberately NOT written here. It is
+	 * read only during a synchronization: rewriting it from the worker's
+	 * snapshot would overwrite an edit that landed between the revision check
+	 * and this refresh. Only derived, rate and sync markers are updated.
+	 *
 	 * @param array $snapshot Product snapshot.
-	 * @param array $source   Source prices.
 	 * @param array $target   Derived prices.
 	 * @param array $args     Apply arguments.
 	 * @param bool  $prices_written Whether the product itself was saved.
 	 * @return void
 	 */
-	private function refresh_meta( array $snapshot, array $source, array $target, array $args, $prices_written ) {
+	private function refresh_meta( array $snapshot, array $target, array $args, $prices_written ) {
 		$product_id = (int) $snapshot['id'];
 		$decimals   = (int) $this->settings->get( 'decimals' );
 
 		Product_Pricing::without_hooks(
-			function () use ( $product_id, $source, $target, $snapshot, $args, $decimals, $prices_written ) {
-				update_post_meta( $product_id, Product_Pricing::META_SOURCE_REGULAR, Calculator::to_price_string( $source['regular'], 0 ) );
-				update_post_meta( $product_id, Product_Pricing::META_SOURCE_SALE, Calculator::to_price_string( $source['sale'], 0 ) );
+			function () use ( $product_id, $target, $snapshot, $args, $decimals, $prices_written ) {
 				update_post_meta( $product_id, Product_Pricing::META_DERIVED_REGULAR, Calculator::to_price_string( $target['regular'], $decimals ) );
 				update_post_meta( $product_id, Product_Pricing::META_DERIVED_SALE, Calculator::to_price_string( $target['sale'], $decimals ) );
 				update_post_meta( $product_id, Product_Pricing::META_RATE, (string) (float) $args['rate'] );

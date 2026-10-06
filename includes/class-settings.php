@@ -77,6 +77,7 @@ final class Settings {
 			'persian_digits'           => true,
 			'toman_suffix'             => 'تومان',
 			'loopback_fallback'        => true,
+			'require_preview'          => true,
 			'required_capability'      => Capabilities::DEFAULT_CAPABILITY,
 			'credit_author'            => true,
 			'delete_data_on_uninstall' => false,
@@ -209,15 +210,17 @@ final class Settings {
 		$retention               = (int) $settings['retention_days'];
 		$clean['retention_days'] = ( $retention >= 0 && $retention <= 3650 ) ? $retention : $defaults['retention_days'];
 
-		foreach ( array( 'auto_manage_new_products', 'display_toman', 'display_toman_cart', 'persian_digits', 'loopback_fallback', 'credit_author', 'delete_data_on_uninstall' ) as $flag ) {
+		foreach ( array( 'auto_manage_new_products', 'display_toman', 'display_toman_cart', 'persian_digits', 'loopback_fallback', 'require_preview', 'credit_author', 'delete_data_on_uninstall' ) as $flag ) {
 			$clean[ $flag ] = ! empty( $settings[ $flag ] );
 		}
 
 		$suffix                = isset( $settings['toman_suffix'] ) ? sanitize_text_field( (string) $settings['toman_suffix'] ) : $defaults['toman_suffix'];
 		$clean['toman_suffix'] = '' === $suffix ? $defaults['toman_suffix'] : $suffix;
 
+		// Only the documented allowlist is storable. Weaker capabilities stay
+		// available to developers through the usdtf_required_capability filter.
 		$capability                   = isset( $settings['required_capability'] ) ? sanitize_key( (string) $settings['required_capability'] ) : '';
-		$clean['required_capability'] = '' === $capability ? $defaults['required_capability'] : $capability;
+		$clean['required_capability'] = in_array( $capability, Capabilities::allowed(), true ) ? $capability : $defaults['required_capability'];
 
 		return $clean;
 	}

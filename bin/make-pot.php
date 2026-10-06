@@ -17,12 +17,14 @@
 
 // phpcs:disable WordPress.Security.EscapeOutput.OutputNotEscaped -- CLI tool.
 
-$usdtf_root    = dirname( __DIR__ );
-$usdtf_check   = in_array( '--check', array_slice( $argv, 1 ), true );
-$usdtf_quiet   = in_array( '--quiet', array_slice( $argv, 1 ), true );
-$usdtf_domain  = 'usd-to-toman-price-sync-for-woocommerce';
-$usdtf_entries = array();
-$usdtf_version = '0.0.0';
+$usdtf_root     = dirname( __DIR__ );
+$usdtf_check    = in_array( '--check', array_slice( $argv, 1 ), true );
+$usdtf_quiet    = in_array( '--quiet', array_slice( $argv, 1 ), true );
+$usdtf_domain   = 'usd-to-toman-price-sync-for-woocommerce';
+$usdtf_entries  = array();
+$usdtf_version  = '0.0.0';
+$usdtf_files    = array();
+$usdtf_js_files = array();
 
 $usdtf_main = $usdtf_root . '/' . $usdtf_domain . '.php';
 
@@ -192,6 +194,76 @@ function usdtf_pot_scan( $path, $domain, array &$entries ) {
 }
 
 /**
+ * Collect translatable strings of one JavaScript file.
+ *
+ * The admin script uses wp.i18n with the same text domain as PHP. JavaScript
+ * has no tokenizer here, so the scanner matches the plain call shapes the
+ * code style uses: __( 'literal', 'domain' ) and _n( 'single', 'plural', n,
+ * 'domain' ), each optionally preceded by a /* translators: * / comment.
+ *
+ * @param string $path    Absolute file path.
+ * @param string $domain  Text domain.
+ * @param array  $entries Entries, keyed by the msgid signature.
+ * @return void
+ */
+function usdtf_pot_scan_js( $path, $domain, array &$entries ) {
+	$source         = (string) file_get_contents( $path ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- CLI tool.
+	$domain_pattern = preg_quote( $domain, '/' );
+
+	$patterns = array(
+		// Matches a __() call carrying the text domain.
+		'/__\(\s*([\'"])((?:\\\\.|(?!\1).)*)\1\s*,\s*([\'"])' . $domain_pattern . '\3\s*\)/s',
+		// Matches an _n() call carrying the text domain.
+		'/_n\(\s*([\'"])((?:\\\\.|(?!\1).)*)\1\s*,\s*([\'"])((?:\\\\.|(?!\3).)*)\3\s*,\s*[^,]+?\s*,\s*([\'"])' . $domain_pattern . '\5\s*\)/s',
+	);
+
+	foreach ( $patterns as $pattern_index => $pattern ) {
+		if ( ! preg_match_all( $pattern, $source, $matches, PREG_SET_ORDER | PREG_OFFSET_CAPTURE ) ) {
+			continue;
+		}
+
+		foreach ( $matches as $match ) {
+			$singular = usdtf_pot_unescape( $match[2][0] );
+			$plural   = 1 === $pattern_index ? usdtf_pot_unescape( $match[4][0] ) : null;
+
+			if ( '' === $singular ) {
+				continue;
+			}
+
+			$key = $singular . "\0" . ( null === $plural ? '' : $plural );
+
+			if ( ! isset( $entries[ $key ] ) ) {
+				$entries[ $key ] = array(
+					'msgid'        => $singular,
+					'msgid_plural' => null === $plural ? '' : $plural,
+					'context'      => '',
+					'references'   => array(),
+					'comment'      => '',
+				);
+			}
+
+			// Line number of the match.
+			$line = 1 + substr_count( substr( $source, 0, (int) $match[0][1] ), "\n" );
+
+			$entries[ $key ]['references'][] = usdtf_pot_relative( $path ) . ':' . $line;
+
+			if ( '' === $entries[ $key ]['comment'] ) {
+				// A /* translators: ... */ comment on the lines above the call.
+				$before = substr( $source, 0, (int) $match[0][1] );
+
+				if ( preg_match_all( '#/\*\s*translators:([^*]*)\*/\s*$#is', $before, $comments ) ) {
+					$text = trim( preg_replace( '/\s+/', ' ', end( $comments[1] ) ) );
+
+					if ( '' !== $text ) {
+						$entries[ $key ]['comment'] = $text;
+					}
+				}
+			}
+		}
+	}
+}
+
+/**
  * Extract a "translators:" comment that documents a call.
  *
  * @param array $tokens Token stream.
@@ -282,7 +354,7 @@ $iterator = new RecursiveIteratorIterator(
 foreach ( $iterator as $item ) {
 	$relative = usdtf_pot_relative( $item->getPathname() );
 
-	if ( ! $item->isFile() || 'php' !== strtolower( $item->getExtension() ) ) {
+	if ( ! $item->isFile() ) {
 		continue;
 	}
 
@@ -290,13 +362,24 @@ foreach ( $iterator as $item ) {
 		continue;
 	}
 
-	$usdtf_files[] = $item->getPathname();
+	$extension = strtolower( $item->getExtension() );
+
+	if ( 'php' === $extension ) {
+		$usdtf_files[] = $item->getPathname();
+	} elseif ( 'js' === $extension && 0 === strpos( $relative, 'assets/' ) ) {
+		$usdtf_js_files[] = $item->getPathname();
+	}
 }
 
 sort( $usdtf_files );
+sort( $usdtf_js_files );
 
 foreach ( $usdtf_files as $usdtf_file ) {
 	usdtf_pot_scan( $usdtf_file, $usdtf_domain, $usdtf_entries );
+}
+
+foreach ( $usdtf_js_files as $usdtf_file ) {
+	usdtf_pot_scan_js( $usdtf_file, $usdtf_domain, $usdtf_entries );
 }
 
 ksort( $usdtf_entries );

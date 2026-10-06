@@ -325,7 +325,9 @@ final class Plugin {
 				break;
 
 			case 'lock':
-				$service = new Lock( wp_generate_password( 20, false, false ) );
+				// The lease belongs to the job ID, not to a per-request token:
+				// the worker that continues a job runs in another PHP request.
+				$service = new Lock();
 				break;
 
 			case 'jobs':

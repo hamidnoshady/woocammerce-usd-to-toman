@@ -181,11 +181,11 @@ final class Display {
 		}
 
 		$quantity   = max( 1, (int) $quantity );
-		$is_on_sale = null !== $source['sale'] && $product->is_on_sale();
+		$is_on_sale = null !== $source['sale'] && $product->is_on_sale() && $this->sale_window_open( $product );
 
 		if ( $is_on_sale ) {
-			$regular = $this->money( (float) $source['regular'] * $quantity, true, true );
-			$sale    = $this->money( (float) $source['sale'] * $quantity, false, true );
+			$regular = $this->money( $this->display_price( $product, (float) $source['regular'] ) * $quantity, true, true );
+			$sale    = $this->money( $this->display_price( $product, (float) $source['sale'] ) * $quantity, false, true );
 
 			return sprintf(
 				'<del aria-hidden="true">%1$s</del> <ins>%2$s</ins>',
@@ -196,11 +196,15 @@ final class Display {
 
 		$value = null !== $source['regular'] ? $source['regular'] : $source['sale'];
 
-		return $this->money( (float) $value * $quantity );
+		return $this->money( $this->display_price( $product, (float) $value ) * $quantity );
 	}
 
 	/**
 	 * Toman price range of a variable product, taken from its variations.
+	 *
+	 * The sale source is only used while WooCommerce considers the variation
+	 * on sale (its sale dates), so a scheduled sale that ended does not keep a
+	 * misleading sale price in the range.
 	 *
 	 * @param \WC_Product $product Variable product.
 	 * @return string
@@ -226,10 +230,10 @@ final class Display {
 
 			$value = null;
 
-			if ( null !== $source['sale'] ) {
-				$value = (float) $source['sale'];
+			if ( null !== $source['sale'] && $child->is_on_sale() && $this->sale_window_open( $child ) ) {
+				$value = $this->display_price( $child, (float) $source['sale'] );
 			} elseif ( null !== $source['regular'] ) {
-				$value = (float) $source['regular'];
+				$value = $this->display_price( $child, (float) $source['regular'] );
 			}
 
 			if ( null === $value ) {
@@ -253,6 +257,53 @@ final class Display {
 			$this->money( $min ),
 			$this->money( $max )
 		);
+	}
+
+	/**
+	 * Apply the store's tax display rules to a Toman amount.
+	 *
+	 * The Toman reference is a displayed price, so it follows the same
+	 * including/excluding tax treatment WooCommerce applies to every other
+	 * displayed price. With no tax rates configured (the common case for a
+	 * single currency Toman store) the value passes through unchanged.
+	 *
+	 * @param \WC_Product $product Product the price belongs to.
+	 * @param float       $toman   Toman amount.
+	 * @return float
+	 */
+	private function display_price( $product, $toman ) {
+		if ( function_exists( 'wc_get_price_to_display' ) ) {
+			return (float) wc_get_price_to_display( $product, array( 'price' => (float) $toman ) );
+		}
+
+		return (float) $toman;
+	}
+
+	/**
+	 * Whether the scheduled sale window of a product is open right now.
+	 *
+	 * WooCommerce honours sale dates in its own price display. The Toman
+	 * reference does the same instead of trusting the stored sale price
+	 * outside its window: a sale that ended must not keep discounting the
+	 * Toman range, and a sale that has not started must not either.
+	 *
+	 * @param \WC_Product $product Product.
+	 * @return bool
+	 */
+	private function sale_window_open( $product ) {
+		$from = method_exists( $product, 'get_date_on_sale_from' ) ? $product->get_date_on_sale_from( 'edit' ) : null;
+		$to   = method_exists( $product, 'get_date_on_sale_to' ) ? $product->get_date_on_sale_to( 'edit' ) : null;
+		$now  = time();
+
+		if ( $from && $from->getTimestamp() > $now ) {
+			return false;
+		}
+
+		if ( $to && $to->getTimestamp() < $now ) {
+			return false;
+		}
+
+		return true;
 	}
 
 	/**

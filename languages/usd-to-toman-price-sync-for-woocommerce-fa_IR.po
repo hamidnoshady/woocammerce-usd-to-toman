@@ -2,7 +2,7 @@
 # This file is distributed under the GPL-2.0-or-later license.
 msgid ""
 msgstr ""
-"Project-Id-Version: USD to Toman Price Sync for WooCommerce 1.0.3\n"
+"Project-Id-Version: USD to Toman Price Sync for WooCommerce 1.1.0\n"
 "Report-Msgid-Bugs-To: https://github.com/hamidnoshady/woocammerce-usd-to-toman/issues\n"
 "Last-Translator: Hamid Noshady\n"
 "Language-Team: Persian\n"
@@ -280,8 +280,8 @@ msgid "Database schema"
 msgstr "ساختار پایگاه‌داده"
 
 #: includes/admin/views/settings.php:158
-msgid "Default: manage_woocommerce. Everything this plugin does — changing the rate, running updates, editing Toman prices — requires this capability plus, for products, the normal WordPress edit permission."
-msgstr "پیش‌فرض: manage_woocommerce. همهٔ کارهای این افزونه — تغییر نرخ، اجرای به‌روزرسانی‌ها و ویرایش قیمت‌های تومانی — به این دسترسی و برای محصولات به مجوز ویرایش معمول وردپرس نیاز دارد."
+msgid "Default: manage_woocommerce. Everything this plugin does — changing the rate, running updates, editing Toman prices — requires this capability plus, for products, the normal WordPress edit permission. Only these two capabilities are offered; weaker setups are possible for developers through the usdtf_required_capability filter."
+msgstr "پیش‌فرض: manage_woocommerce. هر کاری این افزونه انجام می‌دهد — تغییر نرخ، اجرای به‌روزرسانی، ویرایش قیمت‌های تومانی — به این دسترسی و برای محصولات به مجوز ویرایش عادی وردپرس نیاز دارد. فقط این دو دسترسی پیشنهاد می‌شود؛ تنظیم ضعیف‌تر برای توسعه‌دهندگان از طریق فیلتر usdtf_required_capability ممکن است."
 
 #: includes/admin/views/settings.php:113
 msgid "Deliberately capped at 25 products per run. Larger batches are the fastest way to hit PHP time or memory limits on shared hosting."
@@ -1522,3 +1522,72 @@ msgstr "کارگر از دست رفته"
 #: includes/admin/views/dashboard.php:190
 msgid "“May need an update” counts managed products whose stored rate is not the current rate. The exact number of price changes is calculated by the dry run."
 msgstr "«شاید نیاز به به‌روزرسانی داشته باشد» محصولات مدیریت‌شده‌ای را می‌شمارد که نرخ ذخیره‌شده‌شان نرخ کنونی نیست. شمار دقیق تغییرهای قیمت با اجرای آزمایشی محاسبه می‌شود."
+
+msgid "A dry run with the same rate, transaction currency, rounding settings and scope is required first."
+msgstr "پیش از این کار، یک اجرای آزمایشی با همان نرخ، ارز تراکنش، تنظیمات گرد کردن و محدوده لازم است."
+
+msgid "Cancel this job? Prices that were already written are kept."
+msgstr "این کار لغو شود؟ قیمت‌هایی که نوشته شده‌اند نگه داشته می‌شوند."
+
+msgid "Dry run first"
+msgstr "اول اجرای آزمایشی"
+
+msgid "Dry run first: this store only starts a price update after a completed dry run that used the same exchange rate, transaction currency, rounding settings and scope."
+msgstr "اول اجرای آزمایشی: این فروشگاه به‌روزرسانی قیمت را فقط پس از یک اجرای آزمایشی کامل با همان نرخ ارز، ارز تراکنش، تنظیمات گرد کردن و محدوده آغاز می‌کند."
+
+msgid "Enter a rate first."
+msgstr "اول یک نرخ وارد کنید."
+
+msgid "Enter a rate to preview."
+msgstr "برای پیش‌نمایش یک نرخ وارد کنید."
+
+msgid "Every admin route is registered under %s."
+msgstr "همهٔ مسیرهای مدیریت زیر %s ثبت شده‌اند."
+
+msgid "Job #%1$d finished: %2$s"
+msgstr "کار شمارهٔ %1$d تمام شد: %2$s"
+
+msgid "OK"
+msgstr "درست"
+
+msgid "Only start a price update after a completed dry run with the same exchange rate, transaction currency, rounding settings and scope"
+msgstr "به‌روزرسانی قیمت فقط پس از یک اجرای آزمایشی کامل با همان نرخ ارز، ارز تراکنش، تنظیمات گرد کردن و محدوده آغاز شود"
+
+msgid "REST API routes"
+msgstr "مسیرهای REST API"
+
+msgid "Rate %1$s → %2$s (%3$s%%). Managed products that would be affected: about %4$s."
+msgstr "نرخ %1$s → %2$s (%3$s%%). محصول‌های مدیریت‌شده‌ای که تحت تأثیر قرار می‌گیرند: حدود %4$s."
+
+msgid "Recommended. When enabled, the update button refuses to run until the dry run on the dashboard has previewed exactly the same change, so nothing can rewrite the catalog unseen."
+msgstr "پیشنهاد می‌شود. وقتی فعال باشد، دکمهٔ به‌روزرسانی تا زمانی که اجرای آزمایشی داشبورد دقیقاً همان تغییر را پیش‌نمایش کرده باشد اجرا نمی‌شود، تا هیچ چیز فهرست محصولات را نادیده بازنویسی نکند."
+
+msgid "Remove"
+msgstr "حذف"
+
+msgid "Restore the previous exchange rate and recalculate all managed products?"
+msgstr "نرخ ارز قبلی بازگردانده شود و همهٔ محصول‌های مدیریت‌شده دوباره محاسبه شوند؟"
+
+msgid "Run a dry run first: an update may only start after a completed dry run that used the same exchange rate, transaction currency, rounding settings and scope."
+msgstr "اول اجرای آزمایشی انجام دهید: به‌روزرسانی فقط پس از یک اجرای آزمایشی کامل با همان نرخ ارز، ارز تراکنش، تنظیمات گرد کردن و محدوده می‌تواند آغاز شود."
+
+msgid "Select at least one product first."
+msgstr "اول دست‌کم یک محصول را انتخاب کنید."
+
+msgid "Start the background price update now?"
+msgstr "به‌روزرسانی قیمت در پس‌زمینه الان آغاز شود؟"
+
+msgid "The REST route %s was not found on this site. Open the Diagnostics tab to see which routes are missing, then resave the permalink settings or reinstall the plugin."
+msgstr "مسیر REST %s در این سایت پیدا نشد. برای دیدن مسیرهای غایب به زبانهٔ عیب‌یابی بروید، سپس تنظیمات پیوندهای یکتا را دوباره ذخیره کنید یا افزونه را از نو نصب کنید."
+
+msgid "The admin screen cannot reach these routes: %s. Every admin action would fail with \"no route found\". Reinstall the plugin or resave the permalink settings, then reload this screen."
+msgstr "صفحهٔ مدیریت به این مسیرها دسترسی ندارد: %s. هر اقدامی در مدیریت با خطای «مسیری پیدا نشد» شکست می‌خورد. افزونه را از نو نصب کنید یا تنظیمات پیوندهای یکتا را دوباره ذخیره کنید و این صفحه را تازه‌سازی کنید."
+
+msgid "The background queue could not be reached, so the job was paused. Open the jobs screen and resume it once the queue works again."
+msgstr "به صف پس‌زمینه دسترسی نشد، بنابراین کار متوقف موقت شد. وقتی صف دوباره کار کند، از صفحهٔ کارها آن را ادامه دهید."
+
+msgid "The referenced dry run could not be found. Run the dry run again and start the update from its result."
+msgstr "اجرای آزمایشی ارجاع‌شده پیدا نشد. اجرای آزمایشی را دوباره انجام دهید و به‌روزرسانی را از نتیجهٔ آن آغاز کنید."
+
+msgid "Variations are excluded from this update, so this variable product was skipped. Select its variations directly to update them anyway."
+msgstr "گونه‌ها از این به‌روزرسانی کنار گذاشته شده‌اند، پس این محصول متغیر رد شد. برای به‌روزرسانی در هر حال، گونه‌های آن را مستقیم انتخاب کنید."

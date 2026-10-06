@@ -153,11 +153,15 @@ function usdtf_it_assert_same( $expected, $actual, $message ) {
 
 	usdtf_it_assert(
 		false,
-		sprintf(
-			'%s (expected %s, got %s)',
-			$message,
-			var_export( $expected, true ),
-			var_export( $actual, true )
+		str_replace(
+			array( "\r", "\n" ),
+			' ',
+			sprintf(
+				'%s (expected %s, got %s)',
+				$message,
+				var_export( $expected, true ),
+				var_export( $actual, true )
+			)
 		)
 	);
 }
@@ -385,6 +389,33 @@ function usdtf_it_term( $name ) {
  * @param int $max_iterations Safety limit.
  * @return int Number of worker steps performed.
  */
+/**
+ * Create a job and stop with a readable failure when it is refused.
+ *
+ * @param array $args Job arguments.
+ * @return array Job payload.
+ */
+function usdtf_it_create_job( array $args = array() ) {
+	global $runner;
+
+	$job = $runner->create_job( $args );
+
+	usdtf_it_assert(
+		! is_wp_error( $job ) && isset( $job['id'] ),
+		'the job must be created'
+			. ( is_wp_error( $job ) ? ' (' . $job->get_error_code() . ': ' . $job->get_error_message() . ')' : '' )
+	);
+
+	return $job;
+}
+
+/**
+ * Run a job to its end by stepping through every phase in this process.
+ *
+ * @param int $job_id        Job ID.
+ * @param int $max_iterations Safety valve against a job that never finishes.
+ * @return int Number of worker steps the job needed.
+ */
 function usdtf_it_run_job( $job_id, $max_iterations = 500 ) {
 	$runner = usdtf_plugin()->runner();
 	$steps  = 0;
@@ -398,6 +429,7 @@ function usdtf_it_run_job( $job_id, $max_iterations = 500 ) {
 
 		switch ( $job->phase() ) {
 			case \USDTF\Job::PHASE_DISCOVER:
+			case \USDTF\Job::PHASE_DISCOVER_VARIATIONS:
 				$runner->handle_discovery( $job_id );
 				break;
 			case \USDTF\Job::PHASE_FINALIZE:
@@ -443,6 +475,11 @@ function usdtf_it_reset_plugin_state() {
 	// pinned here instead of being inherited from the default.
 	usdtf_plugin()->settings()->update( array( 'currency_mode' => \USDTF\Settings::MODE_USD ) );
 	usdtf_plugin()->settings()->set_synced_currency_mode( \USDTF\Settings::MODE_USD );
+
+	// The shipped default requires a dry run before every update; the mechanics
+	// scenarios create jobs directly, so they opt out. The enforcement itself
+	// has its own dedicated scenario.
+	usdtf_plugin()->settings()->update( array( 'require_preview' => false ) );
 
 	foreach ( array( \USDTF\Database::jobs_table(), \USDTF\Database::items_table(), \USDTF\Database::rates_table(), \USDTF\Database::logs_table() ) as $table ) {
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
