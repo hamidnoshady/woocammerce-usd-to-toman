@@ -121,7 +121,7 @@ final class Product_Panel {
 		$variations = array();
 
 		if ( $product->is_type( 'variable' ) ) {
-			foreach ( $this->products->variation_ids( $product->get_id() ) as $variation_id ) {
+			foreach ( $this->products->all_variation_ids( $product->get_id() ) as $variation_id ) {
 				$variation = wc_get_product( $variation_id );
 
 				if ( $variation ) {
@@ -313,33 +313,31 @@ final class Product_Panel {
 				continue;
 			}
 
-			if ( Product_Pricing::MODE_MANAGED !== $map[ $action ] ) {
-				$this->pricing->set_mode( $post_id, $map[ $action ] );
-				++$count;
-
-				continue;
-			}
-
 			$product = wc_get_product( $post_id );
 
 			if ( ! $product ) {
 				continue;
 			}
 
-			$this->pricing->set_mode( $post_id, Product_Pricing::MODE_MANAGED );
+			$mode = $map[ $action ];
+
+			$this->pricing->set_mode( $post_id, $mode );
 
 			if ( $product->is_type( 'variable' ) ) {
-				foreach ( $this->products->variation_ids( $post_id ) as $variation_id ) {
+				foreach ( $this->products->all_variation_ids( $post_id ) as $variation_id ) {
 					$variation = wc_get_product( $variation_id );
 
 					if ( ! $variation ) {
 						continue;
 					}
 
-					$this->pricing->set_mode( $variation_id, Product_Pricing::MODE_MANAGED );
-					$this->pricing->import_current_price_as_source( $variation );
+					$this->pricing->set_mode( $variation_id, $mode );
+
+					if ( Product_Pricing::MODE_MANAGED === $mode ) {
+						$this->pricing->import_current_price_as_source( $variation );
+					}
 				}
-			} else {
+			} elseif ( Product_Pricing::MODE_MANAGED === $mode ) {
 				$this->pricing->import_current_price_as_source( $product );
 			}
 
