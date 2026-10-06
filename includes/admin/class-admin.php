@@ -274,41 +274,7 @@ final class Admin {
 				// installed with a custom plugin. Ship every dynamic admin string
 				// through PHP as well, so the bundled MO catalogue translates the
 				// live progress UI in Persian immediately.
-				'strings'       => array(
-					'A dry run with the same rate, transaction currency, rounding settings and scope is required first.' => __( 'A dry run with the same rate, transaction currency, rounding settings and scope is required first.', 'usd-to-toman-price-sync-for-woocommerce' ),
-					'Another price update is already running. Showing it instead.' => __( 'Another price update is already running. Showing it instead.', 'usd-to-toman-price-sync-for-woocommerce' ),
-					'Cancel' => __( 'Cancel', 'usd-to-toman-price-sync-for-woocommerce' ),
-					'Cancel this job? Prices that were already written are kept.' => __( 'Cancel this job? Prices that were already written are kept.', 'usd-to-toman-price-sync-for-woocommerce' ),
-					'Changed' => __( 'Changed', 'usd-to-toman-price-sync-for-woocommerce' ),
-					'Conflicts' => __( 'Conflicts', 'usd-to-toman-price-sync-for-woocommerce' ),
-					'Currently processing' => __( 'Currently processing', 'usd-to-toman-price-sync-for-woocommerce' ),
-					'Done.' => __( 'Done.', 'usd-to-toman-price-sync-for-woocommerce' ),
-					'Dry run finished. Nothing was changed.' => __( 'Dry run finished. Nothing was changed.', 'usd-to-toman-price-sync-for-woocommerce' ),
-					'Enter a rate first.' => __( 'Enter a rate first.', 'usd-to-toman-price-sync-for-woocommerce' ),
-					'Enter a rate to preview.' => __( 'Enter a rate to preview.', 'usd-to-toman-price-sync-for-woocommerce' ),
-					'Exchange rate saved.' => __( 'Exchange rate saved.', 'usd-to-toman-price-sync-for-woocommerce' ),
-					'Failed' => __( 'Failed', 'usd-to-toman-price-sync-for-woocommerce' ),
-					'Job #%1$d finished: %2$s' => __( 'Job #%1$d finished: %2$s', 'usd-to-toman-price-sync-for-woocommerce' ),
-					'Last product' => __( 'Last product', 'usd-to-toman-price-sync-for-woocommerce' ),
-					'OK' => __( 'OK', 'usd-to-toman-price-sync-for-woocommerce' ),
-					'Pause' => __( 'Pause', 'usd-to-toman-price-sync-for-woocommerce' ),
-					'Rate %1$s → %2$s (%3$s%%). Managed products that would be affected: about %4$s.' => __( 'Rate %1$s → %2$s (%3$s%%). Managed products that would be affected: about %4$s.', 'usd-to-toman-price-sync-for-woocommerce' ),
-					'Remove' => __( 'Remove', 'usd-to-toman-price-sync-for-woocommerce' ),
-					'Restore the previous exchange rate and recalculate all managed products?' => __( 'Restore the previous exchange rate and recalculate all managed products?', 'usd-to-toman-price-sync-for-woocommerce' ),
-					'Resume' => __( 'Resume', 'usd-to-toman-price-sync-for-woocommerce' ),
-					'Select at least one product first.' => __( 'Select at least one product first.', 'usd-to-toman-price-sync-for-woocommerce' ),
-					'Skipped' => __( 'Skipped', 'usd-to-toman-price-sync-for-woocommerce' ),
-					'Something went wrong. Please check the log for details.' => __( 'Something went wrong. Please check the log for details.', 'usd-to-toman-price-sync-for-woocommerce' ),
-					'Start the background price update now?' => __( 'Start the background price update now?', 'usd-to-toman-price-sync-for-woocommerce' ),
-					'The background job was queued.' => __( 'The background job was queued.', 'usd-to-toman-price-sync-for-woocommerce' ),
-					'The REST route %s was not found on this site. Open the Diagnostics tab to see which routes are missing, then resave the permalink settings or reinstall the plugin.' => __( 'The REST route %s was not found on this site. Open the Diagnostics tab to see which routes are missing, then resave the permalink settings or reinstall the plugin.', 'usd-to-toman-price-sync-for-woocommerce' ),
-					'Toman / USD' => __( 'Toman / USD', 'usd-to-toman-price-sync-for-woocommerce' ),
-					'Unchanged' => __( 'Unchanged', 'usd-to-toman-price-sync-for-woocommerce' ),
-					'Unknown product' => __( 'Unknown product', 'usd-to-toman-price-sync-for-woocommerce' ),
-					'Variations' => __( 'Variations', 'usd-to-toman-price-sync-for-woocommerce' ),
-					'View details' => __( 'View details', 'usd-to-toman-price-sync-for-woocommerce' ),
-					'Working…' => __( 'Working…', 'usd-to-toman-price-sync-for-woocommerce' ),
-				),
+				'strings'       => $this->javascript_strings(),
 				'labels'        => array(
 					'confirmPhrase'   => \USDTF\Rate_Guard::confirmation_phrase(),
 					'savedRate'       => __( 'Exchange rate saved.', 'usd-to-toman-price-sync-for-woocommerce' ),
@@ -325,6 +291,61 @@ final class Admin {
 				),
 			)
 		);
+	}
+
+	/**
+	 * Dynamic strings used by the admin JavaScript.
+	 *
+	 * WordPress' JavaScript i18n normally needs generated Jed JSON files.
+	 * This plugin ships PO/MO catalogues, so translate the same msgids through
+	 * PHP and expose them to the script as a lookup table. The literal msgids
+	 * remain in admin.js, where the POT generator also discovers them.
+	 *
+	 * @return array<string,string> English msgid => translated text.
+	 */
+	private function javascript_strings() {
+		$messages = array(
+			'A dry run with the same rate, transaction currency, rounding settings and scope is required first.',
+			'Another price update is already running. Showing it instead.',
+			'Cancel',
+			'Cancel this job? Prices that were already written are kept.',
+			'Changed',
+			'Conflicts',
+			'Currently processing',
+			'Done.',
+			'Dry run finished. Nothing was changed.',
+			'Enter a rate first.',
+			'Enter a rate to preview.',
+			'Exchange rate saved.',
+			'Failed',
+			'Job #%1$d finished: %2$s',
+			'Last product',
+			'OK',
+			'Pause',
+			'Rate %1$s → %2$s (%3$s%%). Managed products that would be affected: about %4$s.',
+			'Remove',
+			'Restore the previous exchange rate and recalculate all managed products?',
+			'Resume',
+			'Select at least one product first.',
+			'Skipped',
+			'Something went wrong. Please check the log for details.',
+			'Start the background price update now?',
+			'The background job was queued.',
+			'The REST route %s was not found on this site. Open the Diagnostics tab to see which routes are missing, then resave the permalink settings or reinstall the plugin.',
+			'Toman / USD',
+			'Unchanged',
+			'Unknown product',
+			'Variations',
+			'View details',
+			'Working…',
+		);
+		$strings  = array();
+
+		foreach ( $messages as $message ) {
+			$strings[ $message ] = translate( $message, 'usd-to-toman-price-sync-for-woocommerce' );
+		}
+
+		return $strings;
 	}
 
 	/**
