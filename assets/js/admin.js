@@ -14,6 +14,7 @@
 
 	var data = window.usdtfData || {};
 	var labels = data.labels || {};
+	var strings = data.strings || {};
 	var state = data.state || {};
 	var pollTimer = null;
 
@@ -26,6 +27,10 @@
 	}
 
 	function __( text ) {
+		if ( Object.prototype.hasOwnProperty.call( strings, text ) ) {
+			return strings[ text ];
+		}
+
 		var api18n = i18n();
 
 		if ( api18n && api18n.__ ) {
