@@ -364,9 +364,10 @@ final class Product_Repository {
 				break;
 			}
 
-			$all    = array_merge( $all, $page );
-			$offset += count( $page );
-		} while ( count( $page ) === $limit );
+			$found   = count( $page );
+			$all     = array_merge( $all, $page );
+			$offset += $found;
+		} while ( $found === $limit );
 
 		return array_values( array_unique( array_map( 'intval', $all ) ) );
 	}

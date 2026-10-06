@@ -186,6 +186,12 @@ try {
 
 	usdtf_it_assert_same( 200, $update['code'], 'POST /update over real HTTP must answer 200, got ' . $update['code'] . ': ' . $update['body'] );
 
+	$status = usdtf_it_http( 'GET', '/jobs/' . (int) $update['json']['id'] . '/status', null, $usdtf_http_header, array( '_usdtf' => time() ) );
+
+	usdtf_it_assert_same( 200, $status['code'], 'GET /jobs/<id>/status over real HTTP must answer 200, got ' . $status['code'] . ': ' . $status['body'] );
+	usdtf_it_assert_same( (int) $update['json']['id'], (int) $status['json']['id'], 'the live status endpoint must return the requested job' );
+	usdtf_it_assert( isset( $status['json']['progress'] ) && isset( $status['json']['phase'] ), 'the live status endpoint must carry progress and phase without loading item rows' );
+
 	$update_finished = usdtf_it_http_wait_job( (int) $update['json']['id'], $usdtf_http_header );
 	usdtf_it_assert_same( Job::STATUS_COMPLETED, isset( $update_finished['status'] ) ? $update_finished['status'] : '', 'the update started over HTTP must complete without another admin page request' );
 	usdtf_it_assert( isset( $update_finished['counters']['processed'] ) && (int) $update_finished['counters']['processed'] > 0, 'live job polling must observe processed products before/at completion' );

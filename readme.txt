@@ -132,10 +132,16 @@ Yes. Every string uses the `usd-to-toman-price-sync-for-woocommerce` text domain
 == Changelog ==
 
 = 1.1.1 =
-Reliability follow-up for live synchronization and large catalogs.
-* Fixed: REST-started Action Scheduler jobs are explicitly dispatched instead of waiting for another wp-admin request, so a running job no longer sits at 0/0 until the page is refreshed.
-* Fixed: live job polling is cache-busted and the job endpoint is marked no-store; discovery now shows an indeterminate working bar instead of a misleading empty 0/0 bar.
-* Fixed: scheduler enqueue failures are detected from the real Action Scheduler / WP-Cron return values, and loopback retry delays are no longer shortened to ten seconds.
+* Fixed: live jobs no longer appear frozen at 0/0 until the next page refresh on hosts where Action Scheduler waits for another WordPress request. Immediate worker steps receive a token-protected loopback wake-up while the native queue remains the fallback.
+* Fixed: the progress card polls a lightweight, explicitly uncached job-status endpoint instead of rebuilding product/item details every 2.5 seconds. A cache-busting request token protects sites behind aggressive admin/proxy caching.
+* Changed: the discovery phase now uses an animated indeterminate progress bar instead of presenting 0/0 as if no work were happening, and worker messages are shown directly in the live card.
+* Fixed: Persian live progress labels/buttons no longer fall back to English when JavaScript translation JSON is unavailable; dynamic strings are also localized through the bundled PHP MO catalogue.
+* Fixed: delayed retry actions are never executed early by the loopback fallback; the configured retry backoff is left to the scheduler.
+* Fixed: Action Scheduler and WP-Cron enqueue failures are checked instead of being reported as successfully queued.
+* Fixed: a job that loses the exclusive-start race is closed as failed before processing instead of becoming an orphan that can occupy the update slot.
+* Hardened: job-item updates accept only known table columns.
+* Added: integration coverage for the lightweight live-status route, cache-safe polling wiring and discovery progress state.
+* Fixed: when the loopback fallback is disabled, REST-started Action Scheduler jobs explicitly wake Action Scheduler's own async runner instead of waiting for another wp-admin request.
 * Fixed: the custom five-minute recovery recurrence is registered before activation/upgrade attempts to schedule it.
 * Fixed: bulk mode changes now cover every variation, complete variation IDs are paginated for admin/bulk work, all categories are available to scope selection, and job CSV export no longer truncates at 20,000 rows.
 * Tests: the real HTTP suite now starts jobs over REST and waits for the background queue to finish them without manually stepping the worker or refreshing an admin page.
@@ -185,6 +191,9 @@ Production audit release: every finding of the production audit is fixed and cov
 * Diagnostics for the queue, the lock and the configured batch size.
 
 == Upgrade Notice ==
+
+= 1.1.1 =
+Fixes live progress that could remain at 0/0 until a refresh, hardens background worker wake-ups and queue failure handling, and makes progress polling lightweight and cache-safe.
 
 = 1.1.0 =
 Fixes the admin REST errors (rest_no_route), makes background updates survive request boundaries, protects the canonical Toman price from being overwritten during a sync, and enforces a dry run before every update. Update as usual; no action is needed after upgrading.

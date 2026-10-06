@@ -150,16 +150,17 @@
 
 .usdtf-progress__bar.is-indeterminate span {
 	animation: usdtf-progress-indeterminate 1.2s ease-in-out infinite;
-	transform: translateX(-130%);
+	transform: translateX(-140%);
+	width: 35% !important;
 }
 
 @keyframes usdtf-progress-indeterminate {
 	0% {
-		transform: translateX(-130%);
+		transform: translateX(-140%);
 	}
 
 	100% {
-		transform: translateX(380%);
+		transform: translateX(390%);
 	}
 }
 
