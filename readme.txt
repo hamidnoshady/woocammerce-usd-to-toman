@@ -6,7 +6,7 @@ Tested up to: 6.6
 Requires PHP: 7.4
 WC requires at least: 7.0
 WC tested up to: 9.9
-Stable tag: 1.1.0
+Stable tag: 1.1.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -130,6 +130,15 @@ Yes. Every string uses the `usd-to-toman-price-sync-for-woocommerce` text domain
 5. The product panel: the pricing mode, the canonical Toman regular and sale price, the derived dollar price, the rate used and the bulk actions.
 
 == Changelog ==
+
+= 1.1.1 =
+Reliability follow-up for live synchronization and large catalogs.
+* Fixed: REST-started Action Scheduler jobs are explicitly dispatched instead of waiting for another wp-admin request, so a running job no longer sits at 0/0 until the page is refreshed.
+* Fixed: live job polling is cache-busted and the job endpoint is marked no-store; discovery now shows an indeterminate working bar instead of a misleading empty 0/0 bar.
+* Fixed: scheduler enqueue failures are detected from the real Action Scheduler / WP-Cron return values, and loopback retry delays are no longer shortened to ten seconds.
+* Fixed: the custom five-minute recovery recurrence is registered before activation/upgrade attempts to schedule it.
+* Fixed: bulk mode changes now cover every variation, complete variation IDs are paginated for admin/bulk work, all categories are available to scope selection, and job CSV export no longer truncates at 20,000 rows.
+* Tests: the real HTTP suite now starts jobs over REST and waits for the background queue to finish them without manually stepping the worker or refreshing an admin page.
 
 = 1.1.0 =
 Production audit release: every finding of the production audit is fixed and covered by the integration suite, which now runs the worker phases in separate PHP processes and the admin REST API over real HTTP.
