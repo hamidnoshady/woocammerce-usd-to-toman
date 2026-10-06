@@ -129,12 +129,12 @@ final class Scheduler {
 		$backend = $this->backend();
 
 		if ( $unique && $this->has_pending( $hook, $args ) ) {
-			// A pending WP-Cron action may be waiting only because the original
-			// non-blocking loopback request was dropped by the host. Re-poke the
-			// existing cron twin for immediate work instead of waiting for another
-			// page load. handle_loopback() atomically claims the cron event, so
-			// multiple pokes cannot run the same step twice.
-			if ( 0 === $delay && in_array( $backend, array( self::BACKEND_WP_CRON, self::BACKEND_LOOPBACK ), true ) && $this->settings->get( 'loopback_fallback' ) ) {
+			// A due-now action may be waiting only because the original async
+			// dispatch/loopback was dropped by the host. Re-poke the exact queued
+			// action instead of waiting for another page load. handle_loopback()
+			// claims the Action Scheduler/WP-Cron action before executing it, so
+			// multiple pokes cannot run the same queued step twice.
+			if ( 0 === $delay && self::BACKEND_NONE !== $backend && $this->settings->get( 'loopback_fallback' ) ) {
 				$this->fire_loopback( $hook, $args );
 			}
 
