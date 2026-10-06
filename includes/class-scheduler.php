@@ -149,7 +149,7 @@ final class Scheduler {
 			// wp-admin shutdown dispatcher is not guaranteed to run. Explicitly
 			// wake Action Scheduler's own async queue runner so the first worker
 			// request starts without waiting for another admin page load.
-			if ( 0 === $delay ) {
+			if ( 0 === $delay && defined( 'REST_REQUEST' ) && REST_REQUEST ) {
 				$this->dispatch_action_scheduler();
 			}
 
