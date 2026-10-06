@@ -155,7 +155,20 @@ final class Scheduler {
 			// Action Scheduler returns 0 when it could not create the action.
 			// A concurrent unique enqueue may have won the race, so accept an
 			// already-pending twin before declaring queue failure.
-			return (int) $action_id > 0 || $this->has_pending( $hook, $args );
+			$queued = (int) $action_id > 0 || $this->has_pending( $hook, $args );
+
+			// Some hosts do not dispatch Action Scheduler's async runner until the
+			// next normal WordPress request. That made the live panel sit at 0/0
+			// until the administrator refreshed the page. For work that is due now,
+			// use the plugin's token-protected loopback as an immediate wake-up.
+			// handle_loopback() claims (unschedules) the Action Scheduler action
+			// before running it, so the native queue remains a fallback rather than
+			// a duplicate execution path.
+			if ( $queued && 0 === $delay && $this->settings->get( 'loopback_fallback' ) ) {
+				$this->fire_loopback( $hook, $args );
+			}
+
+			return $queued;
 		}
 
 		if ( self::BACKEND_WP_CRON === $backend || self::BACKEND_LOOPBACK === $backend ) {
@@ -499,19 +512,30 @@ final class Scheduler {
 		// so the same step cannot be triggered twice (once here, once by cron).
 		// When the loopback never arrives, the cron event survives as the
 		// safety net, because only a request that got this far removes it.
-		$timestamp = wp_next_scheduled( $hook, $args );
+		$claimed = false;
 
-		// The cron twin is the claim token for fallback work. If another loopback
-		// or WP-Cron request already claimed it, this request must not run the
-		// same worker step again.
-		if ( false === $timestamp ) {
-			wp_die( 'already claimed', '', array( 'response' => 200 ) );
+		// Action Scheduler is the preferred backend. Claiming means removing the
+		// exact queued action before executing it ourselves; if its native runner
+		// already claimed it, there is nothing left for this loopback to do.
+		if ( self::is_action_scheduler_available() && function_exists( 'as_unschedule_action' ) ) {
+			$action_id = as_unschedule_action( $hook, $args, self::GROUP );
+			$claimed   = is_numeric( $action_id ) && (int) $action_id > 0;
 		}
 
-		$claimed = wp_unschedule_event( $timestamp, $hook, $args, true );
+		// WP-Cron is the fallback backend. Its scheduled event is likewise used
+		// as the claim token, so two concurrent loopbacks cannot both execute the
+		// worker step.
+		if ( ! $claimed ) {
+			$timestamp = wp_next_scheduled( $hook, $args );
 
-		if ( is_wp_error( $claimed ) || false === $claimed ) {
-			wp_die( 'claim failed', '', array( 'response' => 409 ) );
+			if ( false !== $timestamp ) {
+				$result  = wp_unschedule_event( $timestamp, $hook, $args, true );
+				$claimed = ! is_wp_error( $result ) && false !== $result;
+			}
+		}
+
+		if ( ! $claimed ) {
+			wp_die( 'already claimed', '', array( 'response' => 200 ) );
 		}
 
 		// Only the hooks returned by allowed_worker_hooks() can reach this line.
