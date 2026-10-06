@@ -180,7 +180,9 @@ $failing_hook = function ( $saved_product ) use ( $failing_broken ) {
 	}
 };
 
+// Products and variations fire different hooks when they are saved.
 add_action( 'woocommerce_update_product', $failing_hook );
+add_action( 'woocommerce_update_product_variation', $failing_hook );
 
 add_filter( 'usdtf_variation_slice', function () {
 	return 5;
@@ -191,6 +193,7 @@ usdtf_it_run_job( (int) $failing_job['id'] );
 
 remove_all_filters( 'usdtf_variation_slice' );
 remove_action( 'woocommerce_update_product', $failing_hook );
+remove_action( 'woocommerce_update_product_variation', $failing_hook );
 
 $failing_item = $wpdb->get_row( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 	$wpdb->prepare( 'SELECT * FROM ' . Database::items_table() . ' WHERE job_id = %d AND object_id = %d', (int) $failing_job['id'], $failing_product->get_id() ),
