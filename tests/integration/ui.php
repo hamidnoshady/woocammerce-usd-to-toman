@@ -291,7 +291,7 @@ usdtf_it_assert( false !== strpos( $localized, '"rate"' ), 'the script must rece
 $admin_script = (string) file_get_contents( USDTF_DIR . 'assets/js/admin.js' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Integration fixture.
 $admin_style  = (string) file_get_contents( USDTF_DIR . 'assets/css/admin.css' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Integration fixture.
 
-usdtf_it_assert( false !== strpos( $admin_script, "/status?_usdtf=" ), 'live progress must poll the lightweight cache-busted status endpoint' );
+usdtf_it_assert( false !== strpos( $admin_script, '/status?_usdtf=' ), 'live progress must poll the lightweight cache-busted status endpoint' );
 usdtf_it_assert( false !== strpos( $admin_script, "'Cache-Control' ] = 'no-cache'" ), 'live GET requests must explicitly bypass intermediary caches' );
 usdtf_it_assert( false !== strpos( $admin_script, 'is-indeterminate' ), 'discovery must render as indeterminate progress instead of a misleading 0/0 bar' );
 usdtf_it_assert( false !== strpos( $admin_style, '@keyframes usdtf-progress-indeterminate' ), 'the indeterminate discovery bar must be animated' );
