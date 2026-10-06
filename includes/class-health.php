@@ -435,8 +435,15 @@ final class Health {
 			$methods = array();
 
 			foreach ( (array) $routes[ $route ] as $handler ) {
-				if ( ! empty( $handler['methods'] ) ) {
-					$methods = array_merge( $methods, array_map( 'strval', (array) $handler['methods'] ) );
+				if ( empty( $handler['methods'] ) ) {
+					continue;
+				}
+
+				// The REST server normalizes the methods into
+				// array( 'GET' => true ); older shapes keep them as a plain
+				// list of names or a bare string.
+				foreach ( (array) $handler['methods'] as $name => $enabled ) {
+					$methods[] = is_int( $name ) ? strval( $enabled ) : strval( $name );
 				}
 			}
 
