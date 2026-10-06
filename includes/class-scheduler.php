@@ -126,11 +126,20 @@ final class Scheduler {
 			return false;
 		}
 
+		$backend = $this->backend();
+
 		if ( $unique && $this->has_pending( $hook, $args ) ) {
+			// A pending WP-Cron action may be waiting only because the original
+			// non-blocking loopback request was dropped by the host. Re-poke the
+			// existing cron twin for immediate work instead of waiting for another
+			// page load. handle_loopback() atomically claims the cron event, so
+			// multiple pokes cannot run the same step twice.
+			if ( 0 === $delay && in_array( $backend, array( self::BACKEND_WP_CRON, self::BACKEND_LOOPBACK ), true ) && $this->settings->get( 'loopback_fallback' ) ) {
+				$this->fire_loopback( $hook, $args );
+			}
+
 			return true;
 		}
-
-		$backend = $this->backend();
 
 		if ( self::BACKEND_ACTION_SCHEDULER === $backend ) {
 			if ( function_exists( 'as_has_scheduled_action' ) && $unique && as_has_scheduled_action( $hook, $args, self::GROUP ) ) {
@@ -138,22 +147,32 @@ final class Scheduler {
 			}
 
 			if ( $delay > 0 ) {
-				as_schedule_single_action( time() + $delay, $hook, $args, self::GROUP, $unique );
+				$action_id = as_schedule_single_action( time() + $delay, $hook, $args, self::GROUP, $unique );
 			} else {
-				as_enqueue_async_action( $hook, $args, self::GROUP, $unique );
+				$action_id = as_enqueue_async_action( $hook, $args, self::GROUP, $unique );
 			}
 
-			return true;
+			// Action Scheduler returns 0 when it could not create the action.
+			// A concurrent unique enqueue may have won the race, so accept an
+			// already-pending twin before declaring queue failure.
+			return (int) $action_id > 0 || $this->has_pending( $hook, $args );
 		}
 
 		if ( self::BACKEND_WP_CRON === $backend || self::BACKEND_LOOPBACK === $backend ) {
 			if ( ! wp_next_scheduled( $hook, $args ) ) {
-				wp_schedule_single_event( time() + $delay, $hook, $args );
+				$scheduled = wp_schedule_single_event( time() + $delay, $hook, $args, true );
+
+				if ( is_wp_error( $scheduled ) || false === $scheduled ) {
+					return false;
+				}
 			}
 
-			// WP-Cron only runs on page loads. Kick a non blocking request as well.
-			if ( $this->settings->get( 'loopback_fallback' ) ) {
-				$this->fire_loopback( $hook, $args, $delay );
+			// WP-Cron only runs on requests. For work that is due now, also kick a
+			// non-blocking token-protected loopback. Delayed work must never be
+			// executed early: the previous implementation slept for at most ten
+			// seconds and could violate a 30–300 second retry backoff.
+			if ( 0 === $delay && $this->settings->get( 'loopback_fallback' ) ) {
+				$this->fire_loopback( $hook, $args );
 			}
 
 			return true;
@@ -406,18 +425,15 @@ final class Scheduler {
 	 *
 	 * @param string $hook  Worker hook.
 	 * @param array  $args  Arguments.
-	 * @param int    $delay Delay in seconds.
-	 * @return void
+	 * @return bool Whether WordPress accepted the non-blocking HTTP request.
 	 */
-	private function fire_loopback( $hook, array $args, $delay = 0 ) {
+	private function fire_loopback( $hook, array $args ) {
 		if ( ! in_array( $hook, self::allowed_worker_hooks(), true ) ) {
-			return;
+			return false;
 		}
 
-		$url = add_query_arg( 'usdtf_delay', max( 0, (int) $delay ), admin_url( 'admin-ajax.php' ) );
-
-		wp_remote_post(
-			$url,
+		$result = wp_remote_post(
+			admin_url( 'admin-ajax.php' ),
 			array(
 				'timeout'  => 0.5,
 				'blocking' => false,
@@ -429,6 +445,8 @@ final class Scheduler {
 				),
 			)
 		);
+
+		return ! is_wp_error( $result );
 	}
 
 	/**
@@ -483,14 +501,17 @@ final class Scheduler {
 		// safety net, because only a request that got this far removes it.
 		$timestamp = wp_next_scheduled( $hook, $args );
 
-		if ( false !== $timestamp ) {
-			wp_unschedule_event( $timestamp, $hook, $args );
+		// The cron twin is the claim token for fallback work. If another loopback
+		// or WP-Cron request already claimed it, this request must not run the
+		// same worker step again.
+		if ( false === $timestamp ) {
+			wp_die( 'already claimed', '', array( 'response' => 200 ) );
 		}
 
-		$delay = isset( $_GET['usdtf_delay'] ) ? (int) $_GET['usdtf_delay'] : 0; // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Token verified above.
+		$claimed = wp_unschedule_event( $timestamp, $hook, $args, true );
 
-		if ( $delay > 0 ) {
-			sleep( min( 10, $delay ) );
+		if ( is_wp_error( $claimed ) || false === $claimed ) {
+			wp_die( 'claim failed', '', array( 'response' => 409 ) );
 		}
 
 		// Only the hooks returned by allowed_worker_hooks() can reach this line.
