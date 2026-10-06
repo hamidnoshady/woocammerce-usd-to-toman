@@ -153,7 +153,7 @@ try {
 	// The product search endpoint answers over HTTP too.
 	$search = usdtf_it_http( 'GET', '/products?search=HTTP', null, $usdtf_http_header );
 
-	usdtf_it_assert_same( 200, $search['code'], 'GET /products over real HTTP must answer 200, got ' . $search['code'] );
+	usdtf_it_assert_same( 200, $search['code'], 'GET /products over real HTTP must answer 200, got ' . $search['code'] . ' [' . substr( $search['body'], 0, 200 ) . ']' );
 	usdtf_it_assert( false !== strpos( $search['body'], 'HTTP product' ), 'the product search must find the product' );
 } finally {
 	if ( $usdtf_http_item ) {
