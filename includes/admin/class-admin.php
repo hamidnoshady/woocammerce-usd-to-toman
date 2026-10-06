@@ -342,7 +342,10 @@ final class Admin {
 		$strings  = array();
 
 		foreach ( $messages as $message ) {
-			$strings[ $message ] = translate( $message, 'usd-to-toman-price-sync-for-woocommerce' );
+			// The literal msgids live in admin.js and are extracted into the POT.
+			// Translating the same runtime key here lets the bundled MO catalogue
+			// drive JavaScript without requiring separately generated Jed JSON.
+			$strings[ $message ] = __( $message, 'usd-to-toman-price-sync-for-woocommerce' ); // phpcs:ignore WordPress.WP.I18n.NonSingularStringLiteralText
 		}
 
 		return $strings;
