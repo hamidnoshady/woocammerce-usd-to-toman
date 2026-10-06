@@ -25,7 +25,7 @@ $usdtf_categories = get_terms(
 	array(
 		'taxonomy'   => 'product_cat',
 		'hide_empty' => false,
-		'number'     => 200,
+		'number'     => 0,
 	)
 );
 
