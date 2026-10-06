@@ -124,7 +124,7 @@ msgstr ""
 msgid "Another currency plugin is active"
 msgstr ""
 
-#: includes/class-sync-runner.php:212 includes/class-sync-runner.php:510
+#: includes/class-sync-runner.php:212 includes/class-sync-runner.php:503
 msgid "Another price update is already running. Only one update can run at a time."
 msgstr ""
 
