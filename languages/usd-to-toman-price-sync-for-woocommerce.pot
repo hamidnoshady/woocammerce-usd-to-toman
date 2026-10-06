@@ -9,16 +9,16 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-10-06 08:01+0000\n"
+"POT-Creation-Date: 2026-10-06 10:54+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: bin/make-pot.php\n"
 "X-Domain: usd-to-toman-price-sync-for-woocommerce\n"
 
-#: includes/class-sync-runner.php:1303
+#: includes/class-sync-runner.php:1357
 msgid "#%1$d %2$s"
 msgstr ""
 
-#: includes/class-sync-runner.php:1292
+#: includes/class-sync-runner.php:1346
 msgid "#%d (deleted)"
 msgstr ""
 
@@ -100,7 +100,7 @@ msgstr ""
 msgid "Action Scheduler available"
 msgstr ""
 
-#: includes/class-health.php:479
+#: includes/class-health.php:486
 msgid "Action Scheduler is missing, so WP-Cron is used. WP-Cron needs site traffic or a real cron job on wp-cron.php."
 msgstr ""
 
@@ -173,11 +173,11 @@ msgstr ""
 msgid "Cancelled"
 msgstr ""
 
-#: includes/class-sync-runner.php:1569
+#: includes/class-sync-runner.php:1623
 msgid "Cancelled by an administrator."
 msgstr ""
 
-#: includes/class-sync-runner.php:1558
+#: includes/class-sync-runner.php:1612
 msgid "Cancelled by an administrator. Prices that were already written are kept."
 msgstr ""
 
@@ -394,7 +394,7 @@ msgstr ""
 msgid "Every managed product (currency mode change)"
 msgstr ""
 
-#: includes/class-sync-runner.php:1725
+#: includes/class-sync-runner.php:1779
 msgid "Every managed product (rate rollback)"
 msgstr ""
 
@@ -642,7 +642,7 @@ msgstr ""
 msgid "No Toman price yet"
 msgstr ""
 
-#: includes/class-health.php:484
+#: includes/class-health.php:491
 msgid "No background runner is available. Enable the loopback fallback or restore Action Scheduler / WP-Cron."
 msgstr ""
 
@@ -686,7 +686,7 @@ msgstr ""
 msgid "No price update is running right now."
 msgstr ""
 
-#: includes/class-sync-runner.php:1755
+#: includes/class-sync-runner.php:1809
 msgid "No products were selected."
 msgstr ""
 
@@ -758,7 +758,7 @@ msgstr ""
 msgid "Paused"
 msgstr ""
 
-#: includes/class-sync-runner.php:1474
+#: includes/class-sync-runner.php:1528
 msgid "Paused by an administrator. The job can be resumed and continues from the saved cursor."
 msgstr ""
 
@@ -786,7 +786,7 @@ msgstr ""
 msgid "Previous"
 msgstr ""
 
-#: includes/class-sync-runner.php:1718
+#: includes/class-sync-runner.php:1772
 msgid "Previous rate restored."
 msgstr ""
 
@@ -845,7 +845,7 @@ msgstr ""
 msgid "Queued"
 msgstr ""
 
-#: includes/class-sync-runner.php:1675
+#: includes/class-sync-runner.php:1729
 msgid "Queued again after a conflict review."
 msgstr ""
 
@@ -874,7 +874,7 @@ msgstr ""
 msgid "Rate moves above this percentage need explicit confirmation before they are stored."
 msgstr ""
 
-#: includes/class-sync-runner.php:1728
+#: includes/class-sync-runner.php:1782
 msgid "Rate rollback."
 msgstr ""
 
@@ -886,7 +886,7 @@ msgstr ""
 msgid "Rate waiting for confirmation"
 msgstr ""
 
-#: includes/class-sync-runner.php:1765
+#: includes/class-sync-runner.php:1819
 #. %d: number of products.
 msgid "Recalculate %d product"
 msgid_plural "Recalculate %d products"
@@ -1134,7 +1134,7 @@ msgstr ""
 msgid "The REST route %s was not found on this site. Open the Diagnostics tab to see which routes are missing, then resave the permalink settings or reinstall the plugin."
 msgstr ""
 
-#: includes/class-sync-runner.php:1142
+#: includes/class-sync-runner.php:1194
 msgid "The Toman price of this variation was edited while it was being synchronized. It is reported for recalculation."
 msgstr ""
 
@@ -1160,7 +1160,7 @@ msgstr ""
 msgid "The background queue could not be reached, so the job was paused. Open the jobs screen and resume it once the queue works again."
 msgstr ""
 
-#: includes/class-sync-runner.php:1860
+#: includes/class-sync-runner.php:1914
 msgid "The background worker stopped several times. The job is paused and can be resumed from the saved progress."
 msgstr ""
 
@@ -1217,7 +1217,7 @@ msgstr ""
 msgid "The product could not be loaded."
 msgstr ""
 
-#: includes/class-sync-runner.php:1012
+#: includes/class-sync-runner.php:1057
 msgid "The product no longer exists."
 msgstr ""
 
@@ -1254,7 +1254,7 @@ msgstr ""
 msgid "The same checks are reported in Tools → Site Health. Rate history is kept forever; detailed product logs follow the retention setting."
 msgstr ""
 
-#: includes/class-health.php:549
+#: includes/class-health.php:556
 msgid "The site answered its own request. Background workers can be triggered."
 msgstr ""
 
@@ -1278,7 +1278,7 @@ msgstr ""
 msgid "The worker stops before the PHP execution limit and lets the next queued run continue where it stopped."
 msgstr ""
 
-#: includes/class-sync-runner.php:1707
+#: includes/class-sync-runner.php:1761
 msgid "There is no previous exchange rate to restore."
 msgstr ""
 
@@ -1302,7 +1302,7 @@ msgstr ""
 msgid "This rate is a very large move. Confirm it explicitly before it is stored."
 msgstr ""
 
-#: includes/class-sync-runner.php:1069 includes/class-sync-runner.php:1093
+#: includes/class-sync-runner.php:1114 includes/class-sync-runner.php:1138
 msgid "This variable product has no variations, so there is nothing to synchronize."
 msgstr ""
 
@@ -1474,12 +1474,12 @@ msgstr ""
 msgid "Variations"
 msgstr ""
 
-#: includes/class-sync-runner.php:1162
+#: includes/class-sync-runner.php:1214
 #. 1: processed variations, 2: total variations, 3: changed, 4: unchanged, 5: skipped, 6: failed.
 msgid "Variations %1$d/%2$d — changed: %3$d, unchanged: %4$d, skipped: %5$d, failed: %6$d."
 msgstr ""
 
-#: includes/class-sync-runner.php:1028
+#: includes/class-sync-runner.php:1073
 msgid "Variations are excluded from this update, so this variable product was skipped. Select its variations directly to update them anyway."
 msgstr ""
 
@@ -1512,7 +1512,7 @@ msgstr ""
 msgid "WP-Cron is disabled"
 msgstr ""
 
-#: includes/class-health.php:481
+#: includes/class-health.php:488
 msgid "WP-Cron is disabled and Action Scheduler is missing, so worker runs are triggered by non blocking loopback requests. A real cron job is strongly recommended."
 msgstr ""
 
@@ -1532,7 +1532,7 @@ msgstr ""
 msgid "WooCommerce"
 msgstr ""
 
-#: includes/class-health.php:477
+#: includes/class-health.php:484
 msgid "WooCommerce Action Scheduler is available. Big updates run in the background queue and do not need an open browser tab."
 msgstr ""
 
@@ -1612,7 +1612,7 @@ msgstr ""
 msgid "variation"
 msgstr ""
 
-#: includes/class-sync-runner.php:1299
+#: includes/class-sync-runner.php:1353
 msgid "variation #%1$d %2$s"
 msgstr ""
 

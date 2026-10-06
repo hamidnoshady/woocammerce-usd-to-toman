@@ -409,6 +409,13 @@ function usdtf_it_create_job( array $args = array() ) {
 	return $job;
 }
 
+/**
+ * Run a job to its end by stepping through every phase in this process.
+ *
+ * @param int $job_id        Job ID.
+ * @param int $max_iterations Safety valve against a job that never finishes.
+ * @return void
+ */
 function usdtf_it_run_job( $job_id, $max_iterations = 500 ) {
 	$runner = usdtf_plugin()->runner();
 	$steps  = 0;

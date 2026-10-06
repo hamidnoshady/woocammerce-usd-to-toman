@@ -85,7 +85,7 @@ $cross_id = (int) $cross_job['id'];
 
 // The parent process acquired the lease when it started the job. From here on
 // every step runs in a fresh PHP process, exactly like the queue does.
-$steps = 0;
+$steps          = 0;
 $failed_process = '';
 
 while ( $steps < 100 ) {

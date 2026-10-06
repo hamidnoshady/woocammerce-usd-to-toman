@@ -25,7 +25,7 @@ global $wpdb, $runner, $pricing, $rates, $settings;
 
 // ---------------------------------------------------------------------------
 // 32. Every admin REST route is registered on the live server, and the
-//     shipped version markers agree (upgrade / stale files guard).
+// shipped version markers agree (upgrade / stale files guard).
 // ---------------------------------------------------------------------------
 usdtf_it_reset_plugin_state();
 
@@ -133,9 +133,12 @@ $broken_variation  = (int) $usdtf_it_children[2];
 update_post_meta( $broken_variation, Product_Pricing::META_SOURCE_REGULAR, '-5' );
 
 // Ten variations per slice: the job needs three slices for 25 variations.
-add_filter( 'usdtf_variation_slice', function () {
-	return 10;
-} );
+add_filter(
+	'usdtf_variation_slice',
+	function () {
+		return 10;
+	}
+);
 
 $sliced_job = usdtf_it_create_job( array( 'type' => Job::TYPE_SYNC ) );
 usdtf_it_run_job( (int) $sliced_job['id'] );
@@ -184,9 +187,12 @@ $failing_hook = function ( $saved_product ) use ( $failing_broken ) {
 add_action( 'woocommerce_update_product', $failing_hook );
 add_action( 'woocommerce_update_product_variation', $failing_hook );
 
-add_filter( 'usdtf_variation_slice', function () {
-	return 5;
-} );
+add_filter(
+	'usdtf_variation_slice',
+	function () {
+		return 5;
+	}
+);
 
 $failing_job = usdtf_it_create_job( array( 'type' => Job::TYPE_SYNC ) );
 usdtf_it_run_job( (int) $failing_job['id'] );
@@ -220,8 +226,8 @@ $panel_variable = usdtf_it_make_variable_product( 'Panel mode variable', array( 
 $panel_child_id = (int) $panel_variable->get_children()[0];
 
 // The panel instance is created by the admin screen; build one the same way.
-$panel_class   = \USDTF\Admin\Product_Panel::class;
-$panel_object  = new $panel_class( $settings, $pricing, usdtf_plugin()->products() );
+$panel_class  = \USDTF\Admin\Product_Panel::class;
+$panel_object = new $panel_class( $settings, $pricing, usdtf_plugin()->products() );
 
 $_POST = array(
 	'usdtf_panel_nonce' => wp_create_nonce( $panel_class::NONCE ),
@@ -499,7 +505,7 @@ usdtf_it_pass( 'managed variations under an unmanaged parent are discovered' );
 
 // ---------------------------------------------------------------------------
 // 41. Variation IDs are paginated: a product with more variations than one
-//     slice is synchronized completely.
+// slice is synchronized completely.
 // ---------------------------------------------------------------------------
 usdtf_it_reset_plugin_state();
 usdtf_it_delete_products();
@@ -526,9 +532,12 @@ usdtf_it_assert_same( 2, count( $third_page ), 'the last variation page must hol
 
 usdtf_it_assert_same( array(), array_intersect( $first_page, $second_page ), 'variation pages must not overlap' );
 
-add_filter( 'usdtf_variation_slice', function () {
-	return 5;
-} );
+add_filter(
+	'usdtf_variation_slice',
+	function () {
+		return 5;
+	}
+);
 
 $paged_job = usdtf_it_create_job( array( 'type' => Job::TYPE_SYNC ) );
 usdtf_it_run_job( (int) $paged_job['id'] );

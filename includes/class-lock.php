@@ -247,21 +247,21 @@ final class Lock {
 	/**
 	 * Replace the lease only when it still holds the expected value.
 	 *
-	 * update_option() has no compare-and-swap, so the swap is done on the
-	 * options table with the serialized previous value in the WHERE clause.
+	 * The update_option() function has no compare-and-swap, so the swap is
+	 * done on the options table with the serialized previous value in the WHERE clause.
 	 * A lost race changes zero rows, which is exactly what the caller needs
 	 * to know. The object cache entry is dropped afterwards so the next read
 	 * in this request sees the winner's value.
 	 *
-	 * @param array $old Expected current value.
-	 * @param array $new New value.
+	 * @param array $old        Expected current value.
+	 * @param array $replacement New value.
 	 * @return bool True when this call replaced the value.
 	 */
-	private function compare_and_swap( array $old, array $new ) {
+	private function compare_and_swap( array $old, array $replacement ) {
 		global $wpdb;
 
 		$old_serialized = maybe_serialize( $old );
-		$new_serialized = maybe_serialize( $new );
+		$new_serialized = maybe_serialize( $replacement );
 
 		$rows = $wpdb->query(
 			$wpdb->prepare(

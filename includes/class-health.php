@@ -409,15 +409,15 @@ final class Health {
 		}
 
 		$expected = array(
-			'/state'      => 'GET',
-			'/rate'       => 'POST',
-			'/preview'    => 'POST',
-			'/update'     => 'POST',
-			'/rollback'   => 'POST',
+			'/state'       => 'GET',
+			'/rate'        => 'POST',
+			'/preview'     => 'POST',
+			'/update'      => 'POST',
+			'/rollback'    => 'POST',
 			'/recalculate' => 'POST',
-			'/jobs'       => 'GET',
-			'/health'     => 'GET',
-			'/products'   => 'GET',
+			'/jobs'        => 'GET',
+			'/health'      => 'GET',
+			'/products'    => 'GET',
 		);
 
 		$routes = rest_get_server()->get_routes();

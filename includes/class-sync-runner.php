@@ -446,7 +446,7 @@ final class Sync_Runner {
 			'usdtf_preview_required',
 			__( 'Run a dry run first: an update may only start after a completed dry run that used the same exchange rate, transaction currency, rounding settings and scope.', 'usd-to-toman-price-sync-for-woocommerce' ),
 			array(
-				'status'     => 428,
+				'status'      => 428,
 				'fingerprint' => $fingerprint,
 			)
 		);

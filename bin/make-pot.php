@@ -17,13 +17,13 @@
 
 // phpcs:disable WordPress.Security.EscapeOutput.OutputNotEscaped -- CLI tool.
 
-$usdtf_root    = dirname( __DIR__ );
-$usdtf_check   = in_array( '--check', array_slice( $argv, 1 ), true );
-$usdtf_quiet   = in_array( '--quiet', array_slice( $argv, 1 ), true );
-$usdtf_domain  = 'usd-to-toman-price-sync-for-woocommerce';
-$usdtf_entries = array();
-$usdtf_version = '0.0.0';
-$usdtf_files   = array();
+$usdtf_root     = dirname( __DIR__ );
+$usdtf_check    = in_array( '--check', array_slice( $argv, 1 ), true );
+$usdtf_quiet    = in_array( '--quiet', array_slice( $argv, 1 ), true );
+$usdtf_domain   = 'usd-to-toman-price-sync-for-woocommerce';
+$usdtf_entries  = array();
+$usdtf_version  = '0.0.0';
+$usdtf_files    = array();
 $usdtf_js_files = array();
 
 $usdtf_main = $usdtf_root . '/' . $usdtf_domain . '.php';
@@ -207,13 +207,13 @@ function usdtf_pot_scan( $path, $domain, array &$entries ) {
  * @return void
  */
 function usdtf_pot_scan_js( $path, $domain, array &$entries ) {
-	$source = (string) file_get_contents( $path ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- CLI tool.
+	$source         = (string) file_get_contents( $path ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- CLI tool.
 	$domain_pattern = preg_quote( $domain, '/' );
 
 	$patterns = array(
-		// __( 'singular', 'domain' )
+		// Matches a __() call carrying the text domain.
 		'/__\(\s*([\'"])((?:\\\\.|(?!\1).)*)\1\s*,\s*([\'"])' . $domain_pattern . '\3\s*\)/s',
-		// _n( 'single', 'plural', <anything>, 'domain' )
+		// Matches an _n() call carrying the text domain.
 		'/_n\(\s*([\'"])((?:\\\\.|(?!\1).)*)\1\s*,\s*([\'"])((?:\\\\.|(?!\3).)*)\3\s*,\s*[^,]+?\s*,\s*([\'"])' . $domain_pattern . '\5\s*\)/s',
 	);
 
