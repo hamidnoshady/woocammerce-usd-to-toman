@@ -84,6 +84,37 @@ function usdtf_it_http( $method, $path, $body = null, $authorization = null, arr
 	);
 }
 
+/**
+ * Wait for a real HTTP-started background job to finish without manually
+ * stepping its worker. This is the regression test for jobs that used to sit
+ * at 0/0 until another admin page request woke Action Scheduler.
+ *
+ * @param int    $job_id        Job ID.
+ * @param string $authorization Authorization header.
+ * @param int    $timeout       Timeout in seconds.
+ * @return array Last job payload.
+ */
+function usdtf_it_http_wait_job( $job_id, $authorization, $timeout = 30 ) {
+	$deadline = microtime( true ) + max( 1, (int) $timeout );
+	$last     = array();
+
+	do {
+		$response = usdtf_it_http( 'GET', '/jobs/' . (int) $job_id, null, $authorization, array( '_usdtf' => (string) microtime( true ) ) );
+
+		if ( 200 === $response['code'] && is_array( $response['json'] ) ) {
+			$last = $response['json'];
+
+			if ( empty( $last['is_active'] ) ) {
+				return $last;
+			}
+		}
+
+		usleep( 250000 );
+	} while ( microtime( true ) < $deadline );
+
+	return $last;
+}
+
 // ---------------------------------------------------------------------------
 // 47. The admin REST namespace answers real HTTP requests.
 // ---------------------------------------------------------------------------
@@ -148,16 +179,19 @@ try {
 	usdtf_it_assert_same( 200, $preview['code'], 'POST /preview over real HTTP must answer 200, got ' . $preview['code'] . ': ' . $preview['body'] );
 	usdtf_it_assert( ! empty( $preview['json']['id'] ), 'the preview response must carry the job' );
 
-	usdtf_it_run_job( (int) $preview['json']['id'] );
+	$preview_finished = usdtf_it_http_wait_job( (int) $preview['json']['id'], $usdtf_http_header );
+	usdtf_it_assert_same( Job::STATUS_COMPLETED, isset( $preview_finished['status'] ) ? $preview_finished['status'] : '', 'the preview started over REST must finish through the background queue without an admin refresh' );
 
 	$update = usdtf_it_http( 'POST', '/update', array( 'scope' => array() ), $usdtf_http_header );
 
 	usdtf_it_assert_same( 200, $update['code'], 'POST /update over real HTTP must answer 200, got ' . $update['code'] . ': ' . $update['body'] );
 
-	usdtf_it_run_job( (int) $update['json']['id'] );
+	$update_finished = usdtf_it_http_wait_job( (int) $update['json']['id'], $usdtf_http_header );
+	usdtf_it_assert_same( Job::STATUS_COMPLETED, isset( $update_finished['status'] ) ? $update_finished['status'] : '', 'the update started over HTTP must complete without another admin page request' );
+	usdtf_it_assert( isset( $update_finished['counters']['processed'] ) && (int) $update_finished['counters']['processed'] > 0, 'live job polling must observe processed products before/at completion' );
 
-	$finished = usdtf_plugin()->jobs()->get( (int) $update['json']['id'] );
-	usdtf_it_assert_same( Job::STATUS_COMPLETED, $finished->status(), 'the job started over HTTP must complete' );
+	$job_state = usdtf_it_http( 'GET', '/jobs/' . (int) $update['json']['id'], null, $usdtf_http_header, array( '_usdtf' => (string) microtime( true ) ) );
+	usdtf_it_assert_same( 200, $job_state['code'], 'the cache-busted live job route must remain reachable' );
 
 	// The product search endpoint answers over HTTP too.
 	$search = usdtf_it_http( 'GET', '/products', null, $usdtf_http_header, array( 'search' => 'HTTP' ) );
