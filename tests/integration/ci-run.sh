@@ -44,7 +44,7 @@ if [ "$status" -ne 0 ]; then
 	# per step, so the first failures are the ones that matter.
 	reported=0
 
-	for pattern in '^FAIL:' 'Fatal error' 'PHP Fatal' '^PHP Warning' '^not ok'; do
+	for pattern in 'FAIL:' 'Fatal error' 'PHP Fatal' 'Uncaught' '^PHP Warning' '^not ok'; do
 		while IFS= read -r line; do
 			[ -n "$line" ] || continue
 			[ "$reported" -lt 10 ] || break
@@ -57,7 +57,30 @@ if [ "$status" -ne 0 ]; then
 	done
 
 	if [ "$reported" -eq 0 ]; then
-		echo "::error title=Integration suite ($label)::The suite failed without a FAIL line; see the job summary."
+		# Nothing recognizable: the process probably died without printing an
+		# assertion, so the exit code, the tail of the output and the debug log
+		# are the only evidence. Annotate them; they fit the cap.
+		echo "::error title=Integration suite ($label)::the suite exited with code $status without a FAIL line"
+		reported=1
+
+		while IFS= read -r line; do
+			[ -n "$line" ] || continue
+			[ "$reported" -lt 10 ] || break
+
+			echo "::error title=Integration suite ($label) tail::$line"
+			reported=$((reported + 1))
+		done < <(tail -n 10 "$log")
+
+		debug_log="${wp_path%/}/../debug.log"
+		if [ "$reported" -lt 10 ] && [ -f "$debug_log" ]; then
+			while IFS= read -r line; do
+				[ -n "$line" ] || continue
+				[ "$reported" -lt 10 ] || break
+
+				echo "::error title=Integration suite ($label) debug.log::$line"
+				reported=$((reported + 1))
+			done < <(tail -n 10 "$debug_log")
+		fi
 	fi
 
 	echo "---- tail of the suite output ----"
