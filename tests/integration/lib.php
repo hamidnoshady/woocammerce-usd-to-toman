@@ -153,11 +153,15 @@ function usdtf_it_assert_same( $expected, $actual, $message ) {
 
 	usdtf_it_assert(
 		false,
-		sprintf(
-			'%s (expected %s, got %s)',
-			$message,
-			var_export( $expected, true ),
-			var_export( $actual, true )
+		str_replace(
+			array( "\r", "\n" ),
+			' ',
+			sprintf(
+				'%s (expected %s, got %s)',
+				$message,
+				var_export( $expected, true ),
+				var_export( $actual, true )
+			)
 		)
 	);
 }
