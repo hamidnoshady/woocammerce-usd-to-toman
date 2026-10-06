@@ -18,6 +18,9 @@ All notable changes to this plugin are documented here. The format follows
 - Catalog discovery no longer looks like a dead `0 / 0 (0%)` job. The live card displays an
   animated indeterminate bar until discovery determines the product count, then switches to exact
   processed/total progress.
+- Dynamic progress labels and buttons now use a PHP-localized lookup table before falling back to
+  WordPress JavaScript i18n. This fixes Persian screens showing English labels such as Changed,
+  Failed, Pause and View details when no generated Jed JSON catalogue is installed.
 - Delayed retries are no longer shortened to at most ten seconds by the loopback fallback. Delayed
   work stays in the scheduler until its real due time.
 - Action Scheduler and WP-Cron scheduling return values are checked; a failed enqueue is no longer
