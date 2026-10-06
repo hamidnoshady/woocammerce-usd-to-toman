@@ -154,6 +154,12 @@ try {
 
 	usdtf_it_assert_same( 200, $update['code'], 'POST /update over real HTTP must answer 200, got ' . $update['code'] . ': ' . $update['body'] );
 
+	$status = usdtf_it_http( 'GET', '/jobs/' . (int) $update['json']['id'] . '/status', null, $usdtf_http_header, array( '_usdtf' => time() ) );
+
+	usdtf_it_assert_same( 200, $status['code'], 'GET /jobs/<id>/status over real HTTP must answer 200, got ' . $status['code'] . ': ' . $status['body'] );
+	usdtf_it_assert_same( (int) $update['json']['id'], (int) $status['json']['id'], 'the live status endpoint must return the requested job' );
+	usdtf_it_assert( isset( $status['json']['progress'] ) && isset( $status['json']['phase'] ), 'the live status endpoint must carry progress and phase without loading item rows' );
+
 	usdtf_it_run_job( (int) $update['json']['id'] );
 
 	$finished = usdtf_plugin()->jobs()->get( (int) $update['json']['id'] );
