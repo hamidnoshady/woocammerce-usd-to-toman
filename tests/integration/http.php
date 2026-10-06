@@ -38,17 +38,26 @@ if ( ! class_exists( 'WP_Application_Passwords' ) ) {
  * @param string      $path    Path inside the plugin namespace.
  * @param array|null  $body    JSON body, null for none.
  * @param string|null $authorization Authorization header value, null for anonymous.
+ * @param array       $query   Query parameters, added the way the site URL is built.
  * @return array Response pieces: code, body, json.
  */
-function usdtf_it_http( $method, $path, $body = null, $authorization = null ) {
+function usdtf_it_http( $method, $path, $body = null, $authorization = null, array $query = array() ) {
 	$headers = array( 'Content-Type' => 'application/json' );
 
 	if ( null !== $authorization ) {
 		$headers['Authorization'] = $authorization;
 	}
 
+	$url = rest_url( 'usdtf/v1' . $path );
+
+	if ( $query ) {
+		// The site may use plain permalinks, in which case rest_url() already
+		// carries ?rest_route=… and a glued-on query string would break the route.
+		$url = add_query_arg( $query, $url );
+	}
+
 	$response = wp_remote_request(
-		rest_url( 'usdtf/v1' . $path ),
+		$url,
 		array(
 			'method'  => $method,
 			'timeout' => 15,
@@ -151,7 +160,7 @@ try {
 	usdtf_it_assert_same( Job::STATUS_COMPLETED, $finished->status(), 'the job started over HTTP must complete' );
 
 	// The product search endpoint answers over HTTP too.
-	$search = usdtf_it_http( 'GET', '/products?search=HTTP', null, $usdtf_http_header );
+	$search = usdtf_it_http( 'GET', '/products', null, $usdtf_http_header, array( 'search' => 'HTTP' ) );
 
 	usdtf_it_assert_same( 200, $search['code'], 'GET /products over real HTTP must answer 200, got ' . $search['code'] . ' [' . substr( $search['body'], 0, 200 ) . ']' );
 	usdtf_it_assert( false !== strpos( $search['body'], 'HTTP product' ), 'the product search must find the product' );
