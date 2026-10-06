@@ -414,7 +414,7 @@ function usdtf_it_create_job( array $args = array() ) {
  *
  * @param int $job_id        Job ID.
  * @param int $max_iterations Safety valve against a job that never finishes.
- * @return void
+ * @return int Number of worker steps the job needed.
  */
 function usdtf_it_run_job( $job_id, $max_iterations = 500 ) {
 	$runner = usdtf_plugin()->runner();
