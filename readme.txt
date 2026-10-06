@@ -135,6 +135,7 @@ Yes. Every string uses the `usd-to-toman-price-sync-for-woocommerce` text domain
 * Fixed: live jobs no longer appear frozen at 0/0 until the next page refresh on hosts where Action Scheduler waits for another WordPress request. Immediate worker steps receive a token-protected loopback wake-up while the native queue remains the fallback.
 * Fixed: the progress card polls a lightweight, explicitly uncached job-status endpoint instead of rebuilding product/item details every 2.5 seconds. A cache-busting request token protects sites behind aggressive admin/proxy caching.
 * Changed: the discovery phase now uses an animated indeterminate progress bar instead of presenting 0/0 as if no work were happening, and worker messages are shown directly in the live card.
+* Fixed: Persian live progress labels/buttons no longer fall back to English when JavaScript translation JSON is unavailable; dynamic strings are also localized through the bundled PHP MO catalogue.
 * Fixed: delayed retry actions are never executed early by the loopback fallback; the configured retry backoff is left to the scheduler.
 * Fixed: Action Scheduler and WP-Cron enqueue failures are checked instead of being reported as successfully queued.
 * Fixed: a job that loses the exclusive-start race is closed as failed before processing instead of becoming an orphan that can occupy the update slot.
