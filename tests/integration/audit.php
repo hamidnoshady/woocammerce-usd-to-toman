@@ -633,6 +633,10 @@ $active_child = wc_get_product( (int) $expired_sale_product->get_children()[1] )
 $expired_job = usdtf_it_create_job( array( 'type' => Job::TYPE_SYNC ) );
 usdtf_it_run_job( (int) $expired_job['id'] );
 
+// The worker wrote through its own product instances, so read the children
+// back from the database before judging them.
+$expired_child = wc_get_product( (int) $expired_child->get_id() );
+
 usdtf_it_assert( ! $expired_child->is_on_sale(), 'the expired sale variation must not be on sale' );
 
 $usdtf_it_usd_html = wc_price( 10 );
@@ -651,6 +655,8 @@ $active_sale_child->save();
 
 $active_sale_job = usdtf_it_create_job( array( 'type' => Job::TYPE_SYNC ) );
 usdtf_it_run_job( (int) $active_sale_job['id'] );
+
+$active_sale_child = wc_get_product( (int) $active_sale_child->get_id() );
 
 usdtf_it_assert( $active_sale_child->is_on_sale(), 'the active sale variation must be on sale' );
 
