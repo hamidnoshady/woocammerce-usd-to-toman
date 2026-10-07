@@ -3,10 +3,12 @@
  * Integration scenario: the admin REST API over real HTTP.
  *
  * These scenarios need a running web server for the test site
- * (php -S 127.0.0.1:8888 <wp>/index.php in CI). Without one they skip, so the
- * suite still runs everywhere; with one they prove that the routes are
- * reachable through a real HTTP round trip, including the exact rest_no_route
- * error an admin would see after a broken upgrade.
+ * (php -S 127.0.0.1:8888 -t <wp> tests/integration/router.php in CI). Without
+ * one they skip locally, so the suite still runs everywhere; CI sets
+ * USDTF_REQUIRE_HTTP_TESTS to make a missing server a hard failure. With one,
+ * they prove the routes are reachable through a real HTTP round trip,
+ * including the exact rest_no_route error an admin would see after a broken
+ * upgrade.
  *
  * @package USDTF
  */
@@ -20,7 +22,16 @@ global $runner, $rates, $settings;
 $usdtf_http_probe = wp_remote_get( site_url( '/' ), array( 'timeout' => 5 ) );
 
 if ( is_wp_error( $usdtf_http_probe ) || 200 !== (int) wp_remote_retrieve_response_code( $usdtf_http_probe ) ) {
-	echo "skip - the HTTP scenarios need a running web server (php -S 127.0.0.1:8888 <wp>/index.php)\n";
+	if ( '1' === getenv( 'USDTF_REQUIRE_HTTP_TESTS' ) ) {
+		$probe_error = is_wp_error( $usdtf_http_probe )
+			? $usdtf_http_probe->get_error_message()
+			: 'HTTP ' . (int) wp_remote_retrieve_response_code( $usdtf_http_probe );
+
+		fwrite( STDERR, 'FAIL: the required HTTP integration server is not reachable: ' . $probe_error . "\n" );
+		exit( 1 );
+	}
+
+	echo "skip - the HTTP scenarios need a running web server (php -S 127.0.0.1:8888 -t <wp> tests/integration/router.php)\n";
 
 	return;
 }

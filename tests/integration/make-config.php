@@ -7,7 +7,7 @@
  * settings that make a failing test readable.
  *
  * Usage:
- *   php tests/integration/make-config.php /path/to/wordpress [--url=http://localhost:8888] [--force]
+ *   php tests/integration/make-config.php /path/to/wordpress [--url=http://127.0.0.1:8888] [--force]
  *
  * @package USDTF
  */
@@ -15,7 +15,7 @@
 // phpcs:disable WordPress.Security.EscapeOutput.OutputNotEscaped -- CLI script.
 
 $usdtf_wp_path = isset( $argv[1] ) ? rtrim( $argv[1], '/' ) : '';
-$usdtf_url     = 'http://localhost:8888';
+$usdtf_url     = 'http://127.0.0.1:8888';
 $usdtf_force   = false;
 
 foreach ( array_slice( (array) $argv, 2 ) as $usdtf_argument ) {

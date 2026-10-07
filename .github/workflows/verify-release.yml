@@ -120,7 +120,7 @@ jobs:
 
       - name: Configure WordPress
         run: |
-          php tests/integration/make-config.php "$WP_PATH" --url=http://localhost:8888
+          php tests/integration/make-config.php "$WP_PATH" --url=http://127.0.0.1:8888
 
       - name: Install the released archive
         run: |
