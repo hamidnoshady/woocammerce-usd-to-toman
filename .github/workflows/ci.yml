@@ -183,6 +183,7 @@ jobs:
     needs: dist
     env:
       WP_PATH: ${{ github.workspace }}/wp
+      USDTF_REQUIRE_HTTP_TESTS: '1'
     steps:
       - name: Check out the repository
         uses: actions/checkout@v4
@@ -227,7 +228,7 @@ jobs:
 
       - name: Configure WordPress
         run: |
-          php tests/integration/make-config.php "$WP_PATH" --url=http://localhost:8888
+          php tests/integration/make-config.php "$WP_PATH" --url=http://127.0.0.1:8888
 
       - name: Install WordPress, WooCommerce and the plugin from source
         run: |
@@ -242,7 +243,7 @@ jobs:
         run: |
           nohup php -S 127.0.0.1:8888 -t "$WP_PATH" tests/integration/router.php > /tmp/usdtf-server.log 2>&1 &
           sleep 2
-          curl -fsS -o /dev/null http://localhost:8888/ || (cat /tmp/usdtf-server.log && exit 1)
+          curl -fsS -o /dev/null http://127.0.0.1:8888/ || (cat /tmp/usdtf-server.log && exit 1)
 
       - name: Run the suite against the working copy
         run: bash tests/integration/ci-run.sh "$WP_PATH" working-copy
