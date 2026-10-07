@@ -35,7 +35,7 @@ jobs:
           - '8.4'
     steps:
       - name: Check out the repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up PHP ${{ matrix.php }}
         uses: shivammathur/setup-php@v2
@@ -60,7 +60,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out the repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up PHP
         uses: shivammathur/setup-php@v2
@@ -80,7 +80,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out the repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up PHP
         uses: shivammathur/setup-php@v2
@@ -102,7 +102,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out the repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up PHP
         uses: shivammathur/setup-php@v2
@@ -123,8 +123,18 @@ jobs:
           set -euo pipefail
           listing="$(unzip -Z1 dist/*.zip)"
           echo "$listing"
-          if echo "$listing" | grep -Eq '^(tests|bin|\.github|wordpress-org)/|phpcs\.xml|composer\.(json|lock)|\.distignore|\.git'; then
-            echo "::error::The distribution archive contains development files."
+
+          # Every path in the listing starts with the plugin directory, so the
+          # guard has to look at what is inside it: a bare `^tests/` would never
+          # match and this check would quietly pass on a developer archive.
+          forbidden="$(echo "$listing" \
+            | sed -n "s|^${PLUGIN_SLUG}/||p" \
+            | grep -E '^(tests|bin|\.github|wordpress-org|node_modules)/|^(phpcs\.xml(\.dist)?|composer\.(json|lock)|package(-lock)?\.json|\.distignore|\.gitignore|\.gitattributes|\.editorconfig)$' \
+            || true)"
+
+          if [ -n "${forbidden}" ]; then
+            echo "::error::The distribution archive contains development files:"
+            echo "${forbidden}"
             exit 1
           fi
           top_level="$(echo "$listing" | cut -d/ -f1 | sort -u)"
@@ -169,7 +179,7 @@ jobs:
           fi
 
       - name: Upload the release zip
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: ${{ env.PLUGIN_SLUG }}
           path: |
@@ -186,7 +196,7 @@ jobs:
       USDTF_REQUIRE_HTTP_TESTS: '1'
     steps:
       - name: Check out the repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up PHP
         uses: shivammathur/setup-php@v2
@@ -197,7 +207,7 @@ jobs:
           tools: none
 
       - name: Download the release zip built by the dist job
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: ${{ env.PLUGIN_SLUG }}
           path: dist

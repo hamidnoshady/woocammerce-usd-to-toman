@@ -3,17 +3,38 @@ name: Verify release
 # Proves that the archive people download from GitHub Releases is the archive
 # that works: it is fetched back, its checksum checked against the published
 # one, its contents inspected and the integration suite run against it in a
-# fresh WordPress + WooCommerce install.
+# fresh WordPress + WooCommerce install. The suite comes from the tag of the
+# release under test, so a release is judged by the expectations that shipped
+# with it and re-verifying an older release stays meaningful.
+#
+# The three ways a release appears are all covered here:
+#
+#   * the Release workflow calls this workflow (workflow_call) after it has
+#     attached the archive. This is the normal path, and it has to be a call:
+#     GitHub does not start workflow runs from events caused by the repository's
+#     own GITHUB_TOKEN, so `release: published` never fires for a release that
+#     the Release workflow created;
+#   * a release published by hand fires `release: published`. Such a release is
+#     often published before its archive is uploaded, so the download step waits
+#     for the asset instead of failing on the spot;
+#   * any published release can be re-verified with a manual dispatch.
 
 on:
   release:
     types:
       - published
+  workflow_call:
+    inputs:
+      tag:
+        description: 'Release tag to verify (for example 1.1.0).'
+        required: true
+        type: string
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Release tag to verify (for example 1.0.0).'
-        required: true
+        description: 'Release tag to verify (for example 1.1.0). Empty verifies the latest release.'
+        required: false
+        default: ''
         type: string
 
 permissions:
@@ -25,6 +46,11 @@ concurrency:
 
 env:
   PLUGIN_SLUG: usd-to-toman-price-sync-for-woocommerce
+  # A release can be published before its archive is uploaded, so the download
+  # waits for the asset. 30 attempts x 10s = five minutes, which is longer than
+  # the Release workflow needs to build and attach the zip.
+  ASSET_ATTEMPTS: '30'
+  ASSET_DELAY: '10'
 
 jobs:
   verify:
@@ -32,10 +58,57 @@ jobs:
     runs-on: ubuntu-latest
     env:
       WP_PATH: ${{ github.workspace }}/wp
-      TAG: ${{ github.event_name == 'release' && github.event.release.tag_name || inputs.tag }}
+      # The release is only trustworthy if the REST routes answer over real
+      # HTTP, which is the failure mode a broken upgrade shows an admin.
+      USDTF_REQUIRE_HTTP_TESTS: '1'
     steps:
-      - name: Check out the repository
-        uses: actions/checkout@v4
+      - name: Resolve the published release
+        id: release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          REQUESTED_TAG: ${{ github.event_name == 'release' && github.event.release.tag_name || inputs.tag }}
+        run: |
+          set -euo pipefail
+
+          # gh resolves its argument against the tag first and the release name
+          # second, so 1.1.0 finds the release tagged v1.1.0 as well. A release
+          # that is not there yet is not the same thing as an empty release:
+          # report it instead of half running the suite.
+          tag=""
+
+          if [ -z "${REQUESTED_TAG}" ]; then
+            echo "No tag requested, verifying the latest published release."
+            tag="$(gh release view --json tagName --jq '.tagName' || true)"
+          else
+            for candidate in "${REQUESTED_TAG}" "${REQUESTED_TAG#v}" "v${REQUESTED_TAG#v}"; do
+              if found="$(gh release view "${candidate}" --json tagName --jq '.tagName' 2>/dev/null)"; then
+                tag="${found}"
+                break
+              fi
+            done
+          fi
+
+          if [ -z "${tag}" ]; then
+            if [ -z "${REQUESTED_TAG}" ]; then
+              echo "::error::There is no published release to verify yet."
+            else
+              echo "::error::No published release found for ${REQUESTED_TAG}. Publish it first: the Release workflow builds the archive and attaches it."
+            fi
+
+            exit 1
+          fi
+
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+          echo "Verifying the archive of ${tag}."
+
+      - name: Check out the suite that shipped with the release
+        # A release is verified with the suite of its own tag. Running today's
+        # suite against an older archive would fail over changes made after the
+        # release, which says nothing about whether the archive works.
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ steps.release.outputs.tag }}
 
       - name: Set up PHP
         uses: shivammathur/setup-php@v2
@@ -48,14 +121,49 @@ jobs:
       - name: Download the published assets
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
-          mkdir -p dist
-          gh release download "${TAG}" \
-            --pattern '*.zip' \
-            --pattern '*.zip.sha256' \
-            --dir dist \
-            --clobber
+          tag="${{ steps.release.outputs.tag }}"
+          attempt=1
+
+          while :; do
+            rm -rf dist
+            mkdir -p dist
+
+            # A release published by hand, or created by the Release workflow a
+            # moment ago, can still be missing its archive. Assets do not appear
+            # atomically either, hence the pair check below.
+            gh release download "${tag}" \
+              --pattern '*.zip' \
+              --pattern '*.zip.sha256' \
+              --dir dist \
+              --clobber \
+              || true
+
+            if compgen -G 'dist/*.zip' > /dev/null && compgen -G 'dist/*.zip.sha256' > /dev/null; then
+              break
+            fi
+
+            if [ "${attempt}" -ge "${ASSET_ATTEMPTS}" ]; then
+              echo "::error::The release ${tag} has no *.zip and *.zip.sha256 pair after ${ASSET_ATTEMPTS} attempts ($((ASSET_ATTEMPTS * ASSET_DELAY))s). Assets found: $(gh release view "${tag}" --json assets --jq '[.assets[].name] | join(", ") | if . == "" then "none" else . end')"
+              exit 1
+            fi
+
+            echo "Attempt ${attempt}/${ASSET_ATTEMPTS}: ${tag} has no archive to verify yet, waiting ${ASSET_DELAY}s."
+            attempt=$((attempt + 1))
+            sleep "${ASSET_DELAY}"
+          done
+
+          # Verifying one archive out of several would not prove anything, so an
+          # ambiguous release is an error rather than a coin toss.
+          zip_count="$(compgen -G 'dist/*.zip' | wc -l)"
+
+          if [ "${zip_count}" -ne 1 ]; then
+            echo "::error::The release ${tag} carries ${zip_count} *.zip archives, expected exactly one: $(compgen -G 'dist/*.zip' | tr '\n' ' ')"
+            exit 1
+          fi
+
           ls -l dist
 
       - name: Verify the checksum that was published with the release
@@ -67,7 +175,8 @@ jobs:
       - name: Inspect the archive
         run: |
           set -euo pipefail
-          version="${TAG#v}"
+          version="${{ steps.release.outputs.tag }}"
+          version="${version#v}"
           zip_file="$(ls dist/*.zip | head -n1)"
           listing="$(unzip -Z1 "${zip_file}")"
 
@@ -80,8 +189,33 @@ jobs:
             exit 1
           fi
 
-          if echo "${listing}" | grep -Eq '^(tests|bin|\.github|node_modules)/|phpcs\.xml|composer\.(json|lock)|\.distignore|\.git'; then
-            echo "::error::The published archive contains development files."
+          # Every path in the listing starts with the plugin directory, so the
+          # guard has to look at what is inside it: a bare `^tests/` would never
+          # match and the check would quietly pass on a developer archive.
+          forbidden="$(echo "${listing}" \
+            | sed -n "s|^${PLUGIN_SLUG}/||p" \
+            | grep -E '^(tests|bin|\.github|wordpress-org|node_modules)/|^(phpcs\.xml(\.dist)?|composer\.(json|lock)|package(-lock)?\.json|\.distignore|\.gitignore|\.gitattributes|\.editorconfig)$' \
+            || true)"
+
+          if [ -n "${forbidden}" ]; then
+            echo "::error::The published archive contains development files:"
+            echo "${forbidden}"
+            exit 1
+          fi
+
+          for shipped_file in \
+            "includes/admin/class-rest-controller.php" \
+            "includes/class-plugin.php" \
+            "includes/class-sync-runner.php" \
+            "assets/js/admin.js"; do
+            if ! echo "${listing}" | grep -qx "${PLUGIN_SLUG}/${shipped_file}"; then
+              echo "::error::The published archive is missing ${shipped_file}."
+              exit 1
+            fi
+          done
+
+          if ! unzip -p "${zip_file}" "${PLUGIN_SLUG}/assets/js/admin.js" | grep -q 'usdtf/v1'; then
+            echo "::error::The shipped admin script does not address the usdtf/v1 REST namespace."
             exit 1
           fi
 
@@ -127,10 +261,57 @@ jobs:
           set -euo pipefail
           php tests/integration/prepare.php "$WP_PATH" --from-zip="$(ls dist/*.zip | head -n1)"
 
+      - name: Start a web server for the real HTTP scenarios
+        # Existing PHP files are served directly (admin-ajax.php, wp-cron.php)
+        # and everything else, /wp-json/ included, goes through index.php. The
+        # suite of an older release may predate the router script, so a tag
+        # without it is served the way its own CI served it.
+        run: |
+          set -euo pipefail
+          router="tests/integration/router.php"
+
+          if [ ! -f "${router}" ]; then
+            router="${WP_PATH}/index.php"
+          fi
+
+          echo "Serving the test site with ${router}."
+          nohup php -S 127.0.0.1:8888 -t "$WP_PATH" "${router}" > /tmp/usdtf-server.log 2>&1 &
+
+          # The built-in server needs a moment, and the first request loads
+          # WordPress, so wait for an answer instead of guessing.
+          for attempt in $(seq 1 15); do
+            if curl -fsS -o /dev/null http://127.0.0.1:8888/; then
+              echo "The test site answers on http://127.0.0.1:8888/."
+              exit 0
+            fi
+
+            sleep 2
+          done
+
+          echo "::error::The test web server did not answer on http://127.0.0.1:8888/ after 30s."
+          tail -n 20 /tmp/usdtf-server.log || true
+          exit 1
+
       - name: Run the integration suite against the release
-        run: bash tests/integration/ci-run.sh "$WP_PATH" published-release
+        run: |
+          set -euo pipefail
+          log="$(mktemp)"
+
+          bash tests/integration/ci-run.sh "$WP_PATH" published-release 2>&1 | tee "${log}"
+
+          # A skipped scenario says nothing about the release, and a green check
+          # that proved less than it claims is worse than a red one. The suite
+          # only skips when it cannot reach the web server (or when the
+          # WordPress version has no application passwords), and reaching the
+          # server is the point of verifying a release, so refuse to be green.
+          if grep -q '^skip - ' "${log}"; then
+            echo "::error::The suite skipped scenarios, so the release is not verified:"
+            grep '^skip - ' "${log}" || true
+            exit 1
+          fi
 
       - name: Show the debug log when something failed
         if: failure()
         run: |
           [ -f "$WP_PATH/../debug.log" ] && tail -n 200 "$WP_PATH/../debug.log" || true
+          [ -f /tmp/usdtf-server.log ] && tail -n 50 /tmp/usdtf-server.log || true
