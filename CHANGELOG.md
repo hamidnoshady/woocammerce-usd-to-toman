@@ -42,6 +42,23 @@ All notable changes to this plugin are documented here. The format follows
 - Integration coverage for the live status route over HTTP, cache-safe polling wiring and
   indeterminate discovery progress.
 
+### CI
+
+- The **Verify release** workflow now runs for every release. It is called by the **Release**
+  workflow, because a release created with the repository's own `GITHUB_TOKEN` never triggers
+  `release: published`; the event, a manual dispatch and the call all end in the same verification.
+- Publishing a release no longer fails when the tag carries a `v` prefix: the version marker still
+  has to match the tag, and the release is published under the tag that was pushed, so `1.1.1` and
+  `v1.1.1` both work.
+- Verification waits for the archive to appear on the release (up to five minutes) instead of
+  failing the moment a release is published before its assets, and it reports the assets it found
+  when the wait ends. It also verifies the archive of a release with the integration suite of that
+  release's tag, starts the web server so the real HTTP scenarios run, and rejects a release that
+  carries more than one zip.
+- The archive guards of `ci.yml` and the release verification strip the plugin directory prefix
+  before matching, so a shipped `tests/` or `bin/` directory (or a stray `composer.json`) is now
+  caught instead of matching a path that never occurs.
+
 ## [1.1.0] - 2026-10-06
 
 Production audit release: every finding of the production audit (issue #4) is fixed and covered by

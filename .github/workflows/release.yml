@@ -1,5 +1,15 @@
 name: Release
 
+# Builds the clean distribution zip from a tagged source and publishes it as a
+# GitHub release. The release is then verified by the "Verify release" workflow,
+# which downloads the attached archive back and runs the integration suite
+# against it: a release is only green when the archive people download works.
+#
+# Note that a release created here cannot trigger `release: published` on its
+# own, because GitHub does not start workflow runs from events caused by this
+# repository's GITHUB_TOKEN. That is why the verification is called from this
+# workflow instead of waiting for the event.
+
 on:
   push:
     tags:
@@ -38,10 +48,11 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.release_tag }}
       zip: ${{ steps.version.outputs.zip }}
     steps:
       - name: Check out the tagged source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
 
@@ -60,14 +71,22 @@ jobs:
           version="$(php -r 'preg_match("/Version:\s*([\d.]+)/", file_get_contents("usd-to-toman-price-sync-for-woocommerce.php"), $m); echo $m[1];')"
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
+          # The version marker and the tag have to agree, but the tag may carry
+          # the usual v prefix: the release is published under the tag that was
+          # pushed, so 1.1.0 and v1.1.0 both work and the release is never left
+          # empty because the archive was named after the other spelling.
           if [ "${{ github.event_name }}" = 'push' ]; then
-            tag="${GITHUB_REF_NAME#v}"
-            if [ "$tag" != "$version" ]; then
-              echo "::error::The tag $GITHUB_REF_NAME does not match the plugin version $version."
-              exit 1
-            fi
+            release_tag="${GITHUB_REF_NAME}"
+          else
+            release_tag="${{ inputs.tag }}"
           fi
 
+          if [ "${release_tag#v}" != "$version" ]; then
+            echo "::error::The tag ${release_tag} does not match the plugin version ${version}."
+            exit 1
+          fi
+
+          echo "release_tag=${release_tag}" >> "$GITHUB_OUTPUT"
           echo "zip=dist/${PLUGIN_SLUG}.${version}.zip" >> "$GITHUB_OUTPUT"
 
       - name: Check the source before packaging
@@ -101,7 +120,7 @@ jobs:
           echo "Packaged $(echo "$listing" | wc -l) files."
 
       - name: Upload the archive as a workflow artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: ${{ env.PLUGIN_SLUG }}-${{ steps.version.outputs.version }}
           path: |
@@ -116,6 +135,7 @@ jobs:
         run: |
           set -euo pipefail
           version="${{ steps.version.outputs.version }}"
+          release_tag="${{ steps.version.outputs.release_tag }}"
           notes_file="dist/release-notes.md"
 
           {
@@ -149,17 +169,30 @@ jobs:
             echo '```'
           } > "$notes_file"
 
-          if gh release view "$version" >/dev/null 2>&1; then
-            gh release upload "$version" "dist/${PLUGIN_SLUG}.${version}.zip" "dist/${PLUGIN_SLUG}.${version}.zip.sha256" --clobber
-            gh release edit "$version" --title "$version" --notes-file "$notes_file"
+          if gh release view "$release_tag" >/dev/null 2>&1; then
+            gh release upload "$release_tag" "dist/${PLUGIN_SLUG}.${version}.zip" "dist/${PLUGIN_SLUG}.${version}.zip.sha256" --clobber
+            gh release edit "$release_tag" --title "$version" --notes-file "$notes_file"
           else
-            gh release create "$version" \
+            gh release create "$release_tag" \
               "dist/${PLUGIN_SLUG}.${version}.zip" \
               "dist/${PLUGIN_SLUG}.${version}.zip.sha256" \
               --title "$version" \
               --notes-file "$notes_file" \
               --verify-tag
           fi
+
+  verify:
+    name: Verify the published release
+    needs: release
+    # The verification runs the suite against the archive that was just
+    # attached, so it only applies when a release was published or refreshed in
+    # this run.
+    if: ${{ github.event_name == 'push' || inputs.publish }}
+    permissions:
+      contents: read
+    uses: ./.github/workflows/verify-release.yml
+    with:
+      tag: ${{ needs.release.outputs.tag }}
 
   wordpress-org:
     name: Deploy to the WordPress.org plugin directory
@@ -174,7 +207,7 @@ jobs:
     environment: wordpress-org
     steps:
       - name: Check out the tagged source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           ref: ${{ inputs.tag }}
 

@@ -151,14 +151,25 @@ Publishing a release:
 1. Update the `Version:` header, the `Stable tag:` in `readme.txt` and `CHANGELOG.md`.
 2. `php bin/make-pot.php` and `php bin/make-mo.php`, then commit the regenerated template and the
    compiled catalogues.
-3. Tag the commit with the version, for example `1.0.1`, and push the tag.
+3. Tag the commit with the version, for example `1.1.1`, and push the tag. A `v` prefix works too:
+   the version marker still has to match the tag, and the release is published under the tag that
+   was pushed.
 4. The **Release** workflow verifies the tag against the plugin version, lints, checks the
    translation template, builds the zip, validates it and attaches the zip plus its SHA-256
    checksum to a GitHub release.
-5. The **Verify release** workflow then downloads that published archive back, checks it against
-   the published checksum, inspects its contents and runs the whole integration suite against it
-   in a fresh WordPress + WooCommerce install. It also runs on demand (`Verify release` →
-   *Run workflow*) for any existing tag, so a published artifact can always be re-proven.
+5. The **Verify release** workflow is called by it right afterwards: it downloads the published
+   archive back, checks it against the published checksum, inspects its contents (a single plugin
+   directory, no development files, the REST controller, an admin script that addresses
+   `usdtf/v1`, the version header) and runs the integration suite of that tag against it in a fresh
+   WordPress + WooCommerce install, including the real HTTP scenarios. A release that a person
+   publishes by hand reaches the same workflow through `release: published`, and the archive is
+   waited for, so a release whose zip is attached a moment later is still verified. Any published
+   release can also be re-proven from the Actions tab (`Verify release` → *Run workflow*; leave the
+   tag empty to verify the latest release).
+
+That last step has to be a call from the Release workflow rather than a reaction to
+`release: published`: GitHub does not start workflow runs from events caused by the repository's
+own `GITHUB_TOKEN`, so a release that the workflow creates would otherwise never be verified.
 
 A WordPress.org directory deployment is available as a **manual** workflow run (`Release` →
 *Run workflow*, with `publish` enabled). It needs `SVN_USERNAME` and `SVN_PASSWORD` secrets in a
@@ -182,6 +193,11 @@ plugin zip: WordPress.org reads it from the `assets/` folder of its own SVN repo
 
 The integration job pins nothing: it downloads the latest WordPress and the latest stable
 WooCommerce, so a new upstream release is noticed early.
+
+The **Verify release** workflow is the equivalent guard for what is *published* rather than for what
+is committed: it fetches the archive back out of a GitHub release and runs the suite against that
+very file (see [Releases](#releases)). The `Release` workflow calls it, and it can be dispatched
+for any published tag.
 
 ## License
 
