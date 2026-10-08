@@ -110,6 +110,484 @@ function usdtf_it_boot() {
 		fwrite( STDERR, "The plugin under test is not active.\n" );
 		exit( 1 );
 	}
+
+	usdtf_it_guard_store();
+}
+
+/**
+ * Option listing the products this suite created.
+ */
+const USDTF_IT_FIXTURE_OPTION = 'usdtf_it_fixture_ids';
+
+/**
+ * Option listing the product categories this suite created.
+ */
+const USDTF_IT_FIXTURE_TERM_OPTION = 'usdtf_it_fixture_terms';
+
+/**
+ * Option holding the product modes the store guard switched away from.
+ */
+const USDTF_IT_GUARD_OPTION = 'usdtf_it_store_guard_modes';
+
+/**
+ * Every product and variation on the site, whatever its status.
+ *
+ * @return int[]
+ */
+function usdtf_it_all_product_ids() {
+	return array_map(
+		'intval',
+		get_posts(
+			array(
+				'post_type'      => array( 'product', 'product_variation' ),
+				'post_status'    => array( 'publish', 'draft', 'private', 'pending', 'future', 'trash', 'auto-draft' ),
+				'posts_per_page' => -1,
+				'fields'         => 'ids',
+			)
+		)
+	);
+}
+
+/**
+ * Products this suite created, and therefore may delete.
+ *
+ * @return int[]
+ */
+function usdtf_it_fixtures() {
+	$ids = get_option( USDTF_IT_FIXTURE_OPTION, array() );
+
+	return is_array( $ids ) ? array_values( array_unique( array_map( 'intval', $ids ) ) ) : array();
+}
+
+/**
+ * Record a product as a fixture of this suite.
+ *
+ * @param int|\WC_Product $product Product or product ID.
+ * @return void
+ */
+function usdtf_it_track_product( $product ) {
+	$product_id = $product instanceof \WC_Product ? (int) $product->get_id() : (int) $product;
+
+	if ( $product_id <= 0 ) {
+		return;
+	}
+
+	$ids = usdtf_it_fixtures();
+
+	if ( in_array( $product_id, $ids, true ) ) {
+		return;
+	}
+
+	$ids[] = $product_id;
+
+	update_option( USDTF_IT_FIXTURE_OPTION, $ids, false );
+}
+
+/**
+ * Record a product category as a fixture of this suite.
+ *
+ * @param int $term_id Term ID.
+ * @return void
+ */
+function usdtf_it_track_term( $term_id ) {
+	$term_id = (int) $term_id;
+	$terms   = get_option( USDTF_IT_FIXTURE_TERM_OPTION, array() );
+	$terms   = is_array( $terms ) ? array_map( 'intval', $terms ) : array();
+
+	if ( $term_id <= 0 || in_array( $term_id, $terms, true ) ) {
+		return;
+	}
+
+	$terms[] = $term_id;
+
+	update_option( USDTF_IT_FIXTURE_TERM_OPTION, $terms, false );
+}
+
+/**
+ * Identity of a queued action, used to tell the store's own queue from the
+ * suite's leftovers.
+ *
+ * @param string $hook Action hook.
+ * @param array  $args Action arguments.
+ * @return string
+ */
+function usdtf_it_action_key( $hook, $args ) {
+	$encoded = wp_json_encode( is_array( $args ) ? array_values( $args ) : array() );
+
+	return (string) $hook . '|' . ( false === $encoded ? '' : $encoded );
+}
+
+/**
+ * Pending worker actions in the plugin's Action Scheduler group.
+ *
+ * Action Scheduler returns the action objects themselves unless ids are asked
+ * for. Reading the accessors is the portable way to do it: the array form is
+ * built from the object's public properties, which change between versions
+ * (for example there is no scheduled_date_gmt on every one of them).
+ *
+ * @return array[] Each entry has hook, args and timestamp.
+ */
+function usdtf_it_pending_actions() {
+	if ( ! function_exists( 'as_get_scheduled_actions' ) ) {
+		return array();
+	}
+
+	$actions = as_get_scheduled_actions(
+		array(
+			'group'    => \USDTF\Scheduler::GROUP,
+			'status'   => 'pending',
+			'per_page' => 500,
+		),
+		'OBJECT'
+	);
+
+	$found = array();
+
+	foreach ( (array) $actions as $action ) {
+		if ( ! is_object( $action ) || ! method_exists( $action, 'get_hook' ) ) {
+			continue;
+		}
+
+		$timestamp = time();
+		$schedule  = method_exists( $action, 'get_schedule' ) ? $action->get_schedule() : null;
+
+		if ( $schedule && method_exists( $schedule, 'get_date' ) && $schedule->get_date() instanceof \DateTimeInterface ) {
+			$timestamp = (int) $schedule->get_date()->getTimestamp();
+		}
+
+		$found[] = array(
+			'hook'      => (string) $action->get_hook(),
+			'args'      => method_exists( $action, 'get_args' ) ? (array) $action->get_args() : array(),
+			'timestamp' => $timestamp,
+		);
+	}
+
+	return $found;
+}
+
+/**
+ * Take the store's own state out of the suite's reach.
+ *
+ * The suite drives the plugin through its public services, so a run resets the
+ * plugin options, empties its tables and starts catalog wide jobs. Pointing
+ * that at a live store must not damage it, so before the first scenario this:
+ *
+ * - remembers the plugin options, the job, item, rate and log rows, the
+ *   products the store already tracks for this plugin and the worker actions
+ *   that are currently queued,
+ * - holds those products out of the suite's price updates by switching them to
+ *   the excluded mode for the duration of the run,
+ * - and puts all of it back when the run ends, including after a failed
+ *   assertion, because the restore is a shutdown handler. A run that is killed
+ *   outright never reaches that handler, so the modes it replaced are written
+ *   to an option as well and repaired by the next run that starts.
+ *
+ * Together with usdtf_it_delete_products(), which only ever removes products
+ * this suite created, that is what keeps a run from deleting or repricing the
+ * shop's catalog.
+ *
+ * Set USDTF_IT_SKIP_STORE_GUARD=1 on a dedicated test installation where the
+ * suit's own reset is wanted.
+ *
+ * @return void
+ */
+/**
+ * Put back the product modes of a run that never reached its shutdown handler.
+ *
+ * The guard holds the store's own products out of every catalog wide job by
+ * switching them to the excluded mode. That write is undone when the run ends,
+ * but a run killed outright never gets there, so the modes it replaced are also
+ * written to an option and repaired by the next run that starts.
+ *
+ * @return void
+ */
+function usdtf_it_recover_interrupted_guard() {
+	$modes = get_option( USDTF_IT_GUARD_OPTION, null );
+
+	if ( ! is_array( $modes ) || ! $modes ) {
+		return;
+	}
+
+	$repaired = 0;
+
+	foreach ( $modes as $product_id => $mode ) {
+		$product_id = (int) $product_id;
+
+		if ( ! in_array( get_post_type( $product_id ), array( 'product', 'product_variation' ), true ) ) {
+			continue;
+		}
+
+		update_post_meta( $product_id, \USDTF\Product_Pricing::META_MODE, (string) $mode );
+
+		++$repaired;
+	}
+
+	delete_option( USDTF_IT_GUARD_OPTION );
+
+	printf( 'store guard: repaired %d product mode(s) an interrupted run left behind' . PHP_EOL, $repaired );
+}
+
+/**
+ * Run the store guard.
+ *
+ * @return void
+ */
+function usdtf_it_guard_store() {
+	global $wpdb;
+
+	if ( getenv( 'USDTF_IT_SKIP_STORE_GUARD' ) ) {
+		return;
+	}
+
+	if ( isset( $GLOBALS['usdtf_it_store_snapshot'] ) && null !== $GLOBALS['usdtf_it_store_snapshot'] ) {
+		return;
+	}
+
+	usdtf_it_recover_interrupted_guard();
+
+	$snapshot = array(
+		'options' => array(),
+		'tables'  => array(),
+		'modes'   => array(),
+		'metas'   => array(),
+		'prices'  => array(),
+		'actions' => array(),
+	);
+
+	foreach ( array(
+		\USDTF\Settings::OPTION,
+		\USDTF\Settings::OPTION_RATE,
+		\USDTF\Settings::OPTION_PENDING_RATE,
+		\USDTF\Settings::OPTION_SYNCED_CURRENCY_MODE,
+		\USDTF\Lock::OPTION,
+		'usdtf_last_error',
+		'usdtf_stale_resumes',
+	) as $option ) {
+		$snapshot['options'][ $option ] = get_option( $option, null );
+	}
+
+	foreach ( array(
+		\USDTF\Database::jobs_table(),
+		\USDTF\Database::items_table(),
+		\USDTF\Database::rates_table(),
+		\USDTF\Database::logs_table(),
+	) as $table ) {
+		$safe = preg_replace( '/[^A-Za-z0-9_]/', '', $table );
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared
+		$snapshot['tables'][ $table ] = (array) $wpdb->get_results( 'SELECT * FROM `' . $safe . '`', ARRAY_A );
+	}
+
+	// Every piece of plugin data the store already has on its products. The
+	// uninstall scenario in this suite deletes these keys site wide, so they are
+	// the most valuable thing to put back afterwards.
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared
+	$meta_rows = $wpdb->get_results(
+		$wpdb->prepare(
+			'SELECT post_id, meta_key, meta_value FROM ' . $wpdb->postmeta . ' WHERE meta_key LIKE %s',
+			$wpdb->esc_like( '_usdtf' ) . '%'
+		),
+		ARRAY_A
+	);
+
+	foreach ( (array) $meta_rows as $row ) {
+		$snapshot['metas'][] = array(
+			'post_id'    => (int) $row['post_id'],
+			'meta_key'   => (string) $row['meta_key'],
+			'meta_value' => (string) $row['meta_value'],
+		);
+
+		if ( \USDTF\Product_Pricing::META_MODE === $row['meta_key'] ) {
+			$snapshot['modes'][ (int) $row['post_id'] ] = (string) $row['meta_value'];
+		}
+	}
+
+	// Products the store already tracks stay in the catalog but out of every
+	// catalog wide job this suite starts, so their prices cannot move.
+	foreach ( array_keys( $snapshot['modes'] ) as $product_id ) {
+		update_post_meta( (int) $product_id, \USDTF\Product_Pricing::META_MODE, \USDTF\Product_Pricing::MODE_EXCLUDED );
+	}
+
+	if ( $snapshot['modes'] ) {
+		update_option( USDTF_IT_GUARD_OPTION, $snapshot['modes'], false );
+	}
+
+	// The price a managed product carries is not plugin meta of its own, yet a
+	// catalog wide job can move it, and so can the uninstall scenario by taking
+	// the plugin's mode meta away. The prices of every product the plugin
+	// already tracks are remembered as well, so the catalog is put back even if
+	// a run repriced something.
+	foreach ( array_keys( $snapshot['modes'] ) as $product_id ) {
+		foreach ( array( '_regular_price', '_sale_price', '_price' ) as $price_key ) {
+			$value = get_post_meta( (int) $product_id, $price_key, true );
+
+			if ( '' !== $value ) {
+				$snapshot['prices'][ (int) $product_id ][ $price_key ] = (string) $value;
+			}
+		}
+	}
+
+	$snapshot['actions'] = usdtf_it_pending_actions();
+
+	$GLOBALS['usdtf_it_store_snapshot'] = $snapshot;
+
+	register_shutdown_function( 'usdtf_it_restore_store' );
+
+	printf(
+		'store guard: %d product(s) on the site, %d tracked by this plugin held out of the run, %d product meta row(s), %d queued worker action(s) and %d plugin row(s) remembered' . PHP_EOL,
+		count( usdtf_it_all_product_ids() ),
+		count( $snapshot['modes'] ),
+		count( $snapshot['metas'] ),
+		count( $snapshot['actions'] ),
+		array_sum( array_map( 'count', $snapshot['tables'] ) )
+	);
+}
+
+/**
+ * Put the store back exactly as it was found before the run.
+ *
+ * @return void
+ */
+function usdtf_it_restore_store() {
+	global $wpdb;
+
+	$snapshot = isset( $GLOBALS['usdtf_it_store_snapshot'] ) ? $GLOBALS['usdtf_it_store_snapshot'] : null;
+
+	if ( ! is_array( $snapshot ) ) {
+		return;
+	}
+
+	$GLOBALS['usdtf_it_store_snapshot'] = null;
+
+	$restored = array(
+		'metas'    => 0,
+		'prices'   => 0,
+		'rows'     => 0,
+		'options'  => 0,
+		'actions'  => 0,
+		'leftover' => 0,
+	);
+
+	try {
+		// Restoring the meta goes through the plugin's own writers, so the
+		// revision guard has to be off: it would bump _usdtf_revision on every
+		// source price this puts back and the store would end up with a higher
+		// revision than it started with.
+		\USDTF\Product_Pricing::without_hooks(
+			function () use ( $snapshot, &$restored ) {
+				foreach ( $snapshot['metas'] as $row ) {
+					update_post_meta( $row['post_id'], $row['meta_key'], $row['meta_value'] );
+
+					++$restored['metas'];
+				}
+
+				foreach ( $snapshot['prices'] as $product_id => $prices ) {
+					foreach ( $prices as $price_key => $value ) {
+						update_post_meta( (int) $product_id, $price_key, (string) $value );
+
+						++$restored['prices'];
+					}
+				}
+			}
+		);
+
+		foreach ( $snapshot['tables'] as $table => $rows ) {
+			if ( ! \USDTF\Database::table_exists( $table ) ) {
+				continue;
+			}
+
+			$safe = preg_replace( '/[^A-Za-z0-9_]/', '', $table );
+
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared
+			$wpdb->query( 'DELETE FROM `' . $safe . '`' );
+
+			foreach ( $rows as $row ) {
+				$wpdb->insert( $table, $row );
+
+				++$restored['rows'];
+			}
+		}
+
+		foreach ( $snapshot['options'] as $option => $value ) {
+			if ( null === $value ) {
+				delete_option( $option );
+			} else {
+				update_option( $option, $value );
+			}
+
+			++$restored['options'];
+		}
+
+		// The modes are back where they were, so the note an interrupted run
+		// would need is no longer required.
+		delete_option( USDTF_IT_GUARD_OPTION );
+
+		// Worker steps the suite queued while it ran are not part of the store's
+		// state, so they are dropped before the store's own queue is put back.
+		// Leaving them behind would let a cron tick run a step for a job row
+		// this restore is about to remove.
+		$wanted = array();
+
+		foreach ( $snapshot['actions'] as $action ) {
+			$wanted[ usdtf_it_action_key( $action['hook'], $action['args'] ) ] = true;
+		}
+
+		foreach ( usdtf_it_pending_actions() as $action ) {
+			if ( isset( $wanted[ usdtf_it_action_key( $action['hook'], $action['args'] ) ] ) ) {
+				continue;
+			}
+
+			if ( function_exists( 'as_unschedule_all_actions' ) ) {
+				as_unschedule_all_actions( $action['hook'], $action['args'], \USDTF\Scheduler::GROUP );
+			}
+
+			wp_clear_scheduled_hook( $action['hook'], $action['args'] );
+
+			++$restored['leftover'];
+		}
+
+		foreach ( $snapshot['actions'] as $action ) {
+			usdtf_plugin()->scheduler()->enqueue( $action['hook'], $action['args'], max( 0, (int) $action['timestamp'] - time() ) );
+
+			++$restored['actions'];
+		}
+
+		usdtf_plugin()->settings()->all( true );
+		usdtf_plugin()->products()->flush_counts_cache();
+
+		// The restored prices have to leave the product caches too, or the
+		// storefront would keep serving what the run wrote.
+		foreach ( array_keys( $snapshot['prices'] ) as $product_id ) {
+			if ( function_exists( 'wc_delete_product_transients' ) ) {
+				wc_delete_product_transients( (int) $product_id );
+			}
+
+			clean_post_cache( (int) $product_id );
+		}
+
+		// Products the suite created along the way go as well. Its scenarios
+		// clean up after themselves, but the last one has nothing following it,
+		// so a run would otherwise leave its fixtures in the catalog.
+		$fixtures = usdtf_it_fixtures();
+
+		usdtf_it_delete_products();
+
+		$restored['leftover'] += count( $fixtures );
+	} catch ( \Throwable $error ) {
+		printf( PHP_EOL . 'store guard: restoring the store failed (%s). Check the plugin options, tables and product modes by hand.' . PHP_EOL, $error->getMessage() );
+
+		return;
+	}
+
+	printf(
+		PHP_EOL . 'store guard: restored %d product meta row(s), %d store price(s), %d plugin row(s), %d option(s) and %d queued worker action(s), and removed %d leftover fixture product(s)/action(s).' . PHP_EOL,
+		$restored['metas'],
+		$restored['prices'],
+		$restored['rows'],
+		$restored['options'],
+		$restored['actions'],
+		$restored['leftover']
+	);
 }
 
 /**
@@ -310,6 +788,8 @@ function usdtf_it_make_simple_product( $name, $regular, $sale = '', $mode = 'man
 	// canonical value lives in the Toman source meta only.
 	$product->save();
 
+	usdtf_it_track_product( $product );
+
 	$pricing = usdtf_plugin()->pricing();
 	$pricing->set_mode( $product->get_id(), $mode );
 	$pricing->set_source( $product->get_id(), $regular, $sale );
@@ -339,6 +819,8 @@ function usdtf_it_make_variable_product( $name, array $variations, $mode = 'mana
 
 	$product->save();
 
+	usdtf_it_track_product( $product );
+
 	$pricing = usdtf_plugin()->pricing();
 	$pricing->set_mode( $product->get_id(), $mode );
 
@@ -347,6 +829,8 @@ function usdtf_it_make_variable_product( $name, array $variations, $mode = 'mana
 		$variation->set_parent_id( $product->get_id() );
 		$variation->set_attributes( array( 'size' => (string) ( $index + 1 ) ) );
 		$variation->save();
+
+		usdtf_it_track_product( $variation );
 
 		$pricing->set_mode( $variation->get_id(), $mode );
 		$pricing->set_source( $variation->get_id(), $prices[0], isset( $prices[1] ) ? $prices[1] : '' );
@@ -375,6 +859,10 @@ function usdtf_it_term( $name ) {
 
 		return $term instanceof WP_Term ? (int) $term->term_id : 0;
 	}
+
+	// Only the categories this suite created are recorded: a category the store
+	// already had is never a candidate for cleanup.
+	usdtf_it_track_term( (int) $created['term_id'] );
 
 	return (int) $created['term_id'];
 }
@@ -503,23 +991,95 @@ function usdtf_it_reset_plugin_state() {
 }
 
 /**
- * Delete every product created by the suite.
+ * Delete the products this suite created.
+ *
+ * Only ids registered through usdtf_it_track_product() are removed, so the
+ * store's own catalog is never a candidate. The registry lives in an option
+ * and is only cleared by a run that gets this far, which means a run that was
+ * killed halfway can still clean up its leftovers on the next start.
  *
  * @return void
  */
 function usdtf_it_delete_products() {
-	$ids = get_posts(
-		array(
-			'post_type'      => array( 'product', 'product_variation' ),
-			// Trash is not included in "any", and the status scenario leaves
-			// trashed products behind.
-			'post_status'    => array( 'publish', 'draft', 'private', 'pending', 'future', 'trash', 'auto-draft' ),
-			'posts_per_page' => -1,
-			'fields'         => 'ids',
-		)
-	);
+	global $wpdb;
 
-	foreach ( $ids as $id ) {
-		wp_delete_post( $id, true );
+	$ids = usdtf_it_fixtures();
+
+	foreach ( $ids as $product_id ) {
+		// Belt and braces: an id that no longer belongs to a product is left
+		// alone rather than handed to wp_delete_post().
+		if ( ! in_array( get_post_type( $product_id ), array( 'product', 'product_variation' ), true ) ) {
+			continue;
+		}
+
+		wp_delete_post( $product_id, true );
+	}
+
+	// A product that is deleted while a job is repricing it can have plugin
+	// meta written back onto its id after the meta rows were removed. Those
+	// rows outlive the product and would only be junk in the store's postmeta
+	// table, so they are cleared here, for this suite's own ids only.
+	foreach ( $ids as $product_id ) {
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+		$wpdb->query(
+			$wpdb->prepare(
+				'DELETE FROM ' . $wpdb->postmeta . ' WHERE post_id = %d AND meta_key LIKE %s',
+				(int) $product_id,
+				$wpdb->esc_like( '_usdtf' ) . '%'
+			)
+		);
+	}
+
+	if ( $ids ) {
+		$placeholders = implode( ', ', array_fill( 0, count( $ids ), '%d' ) );
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared
+		$orphans = (int) $wpdb->get_var(
+			$wpdb->prepare(
+				'SELECT COUNT(*) FROM ' . $wpdb->postmeta . ' WHERE post_id IN ( ' . $placeholders . ' ) AND meta_key LIKE %s',
+				array_merge( array_map( 'intval', $ids ), array( $wpdb->esc_like( '_usdtf' ) . '%' ) )
+			)
+		);
+
+		usdtf_it_assert_same( 0, $orphans, 'deleting this suite\'s products must leave no plugin meta behind' );
+	}
+
+	// The registry only exists while it has entries to clean up, so a finished
+	// run leaves no extra option behind on the store.
+	delete_option( USDTF_IT_FIXTURE_OPTION );
+
+	usdtf_it_delete_fixture_terms();
+}
+
+/**
+ * Delete the product categories this suite created once nothing uses them.
+ *
+ * @return void
+ */
+function usdtf_it_delete_fixture_terms() {
+	$terms     = get_option( USDTF_IT_FIXTURE_TERM_OPTION, array() );
+	$remaining = array();
+
+	foreach ( is_array( $terms ) ? array_map( 'intval', $terms ) : array() as $term_id ) {
+		$term = get_term( $term_id, 'product_cat' );
+
+		if ( ! $term instanceof WP_Term ) {
+			continue;
+		}
+
+		// A category the store still uses, or one that was already there when
+		// the suite started, stays exactly where it is.
+		if ( (int) $term->count > 0 ) {
+			$remaining[] = $term_id;
+			continue;
+		}
+
+		wp_delete_term( $term_id, 'product_cat' );
+	}
+
+	if ( $remaining ) {
+		update_option( USDTF_IT_FIXTURE_TERM_OPTION, $remaining, false );
+	} else {
+		delete_option( USDTF_IT_FIXTURE_TERM_OPTION );
 	}
 }
