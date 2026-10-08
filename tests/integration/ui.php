@@ -268,6 +268,39 @@ foreach ( $tabs as $tab ) {
 	usdtf_it_assert( false === strpos( $html, 'Fatal error' ), 'the ' . $tab . ' tab must not fail' );
 }
 
+// The settings form must post an explicit 0 for a cleared boolean. Without
+// that hidden fallback WordPress drops the key entirely, and switching an
+// option off would silently fall back to its default instead of storing false.
+$settings_html = $render( 'settings' );
+
+$boolean_fields = array(
+	'auto_manage_new_products',
+	'loopback_fallback',
+	'require_preview',
+	'display_toman',
+	'display_toman_cart',
+	'persian_digits',
+	'delete_data_on_uninstall',
+);
+
+foreach ( $boolean_fields as $field ) {
+	$name = preg_quote( \USDTF\Settings::OPTION . '[' . $field . ']', '#' );
+
+	usdtf_it_assert(
+		1 === preg_match(
+			'#<input type="hidden" name="' . $name . '" value="0" />\s*<input type="checkbox" name="' . $name . '"#',
+			$settings_html
+		),
+		'the ' . $field . ' checkbox must post 0 when it is cleared'
+	);
+}
+
+usdtf_it_assert_same(
+	count( $boolean_fields ),
+	substr_count( $settings_html, 'type="checkbox"' ),
+	'every boolean on the settings screen must be covered by the check above'
+);
+
 $dashboard = $render( 'dashboard' );
 
 usdtf_it_assert( false !== strpos( $dashboard, 'usdtf-rate-value' ), 'the dashboard must show the current rate' );

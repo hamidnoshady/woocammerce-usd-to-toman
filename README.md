@@ -121,6 +121,17 @@ exercised over **real HTTP** (`tests/integration/http.php`). The HTTP scenarios 
 server answers; start one with `php -S 127.0.0.1:8888 -t "$USDTF_WP_PATH" tests/integration/router.php`
 to include them. CI always does.
 
+A throw away installation is the quickest way to run all of this, but the suite is also safe to point
+at a **live** store. Before the first scenario it remembers the plugin options, the job, item, rate
+and log rows, the plugin meta and the prices of every product the plugin already tracks, and the
+worker actions that are queued at that moment; it holds those products out of every catalog wide job
+the run starts, and it puts all of it back when the run ends. The restore is a shutdown handler, so
+it also runs after a failed assertion, and a run that is killed outright is repaired by the next one.
+Products are only ever deleted when the suite created them itself: its fixtures are recorded as they
+are made and removed at the end, so the shop's own catalog is never a candidate. Set
+`USDTF_IT_SKIP_STORE_GUARD=1` on a dedicated test installation to have the scenarios run against, and
+reset, the raw state instead.
+
 ## Releases
 
 The zip that is published is the **clean** distribution: source files, assets, the store

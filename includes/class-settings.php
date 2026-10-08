@@ -180,7 +180,18 @@ final class Settings {
 	 */
 	public static function sanitize( array $settings ) {
 		$defaults = self::defaults();
-		$clean    = array();
+
+		// This method is the registered sanitize_callback of the option, and
+		// WordPress hands that callback only the fields that were actually
+		// submitted. Callers may also sanitize a partial update on purpose.
+		// Anything not supplied therefore falls back to the stored value, so a
+		// partial array can neither raise "undefined array key" notices nor
+		// silently reset the rest of the configuration.
+		$stored   = get_option( self::OPTION, array() );
+		$stored   = is_array( $stored ) ? $stored : array();
+		$settings = wp_parse_args( $settings, wp_parse_args( $stored, $defaults ) );
+
+		$clean = array();
 
 		$clean['currency_mode'] = in_array( $settings['currency_mode'], array( self::MODE_USD, self::MODE_TOMAN ), true )
 			? $settings['currency_mode']

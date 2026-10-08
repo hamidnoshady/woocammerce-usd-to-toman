@@ -570,6 +570,8 @@ $zero_import = new WC_Product_Simple();
 $zero_import->set_regular_price( '0' );
 $zero_import->save();
 
+usdtf_it_track_product( $zero_import );
+
 $pricing->set_mode( $zero_import->get_id(), Product_Pricing::MODE_MANAGED );
 usdtf_it_assert( is_wp_error( $pricing->import_current_price_as_source( $zero_import->get_id() ) ), 'importing a zero price must be refused too' );
 
@@ -587,6 +589,39 @@ usdtf_it_assert_same( \USDTF\Capabilities::DEFAULT_CAPABILITY, $weak['required_c
 
 $strong = \USDTF\Settings::sanitize( array( 'required_capability' => 'manage_options' ) );
 usdtf_it_assert_same( 'manage_options', $strong['required_capability'], 'the allowlist capabilities must be storable' );
+
+// sanitize() is the registered sanitize_callback of the option, and options.php
+// hands that callback only the fields the screen submitted. A partial update
+// must keep the stored values instead of raising notices and resetting
+// everything the form did not send.
+usdtf_plugin()->settings()->update(
+	array(
+		'batch_size'     => 25,
+		'persian_digits' => false,
+		'credit_author'  => true,
+	)
+);
+
+$notices = array();
+
+set_error_handler(
+	static function ( $severity, $message ) use ( &$notices ) {
+		$notices[] = $message;
+
+		return true;
+	},
+	E_WARNING | E_NOTICE
+);
+
+$partial = \USDTF\Settings::sanitize( array( 'required_capability' => 'manage_options' ) );
+
+restore_error_handler();
+
+usdtf_it_assert_same( array(), $notices, 'a partial update must not raise undefined array key warnings' );
+usdtf_it_assert_same( 25, $partial['batch_size'], 'a partial update must keep the stored batch size' );
+usdtf_it_assert_same( false, $partial['persian_digits'], 'a partial update must keep the stored booleans' );
+usdtf_it_assert_same( true, $partial['credit_author'], 'a setting without a form field must survive a partial update' );
+usdtf_it_assert_same( 'manage_options', $partial['required_capability'], 'the submitted capability must still be validated' );
 
 // Even a value smuggled into the option directly is not honoured.
 update_option( \USDTF\Settings::OPTION, array_merge( \USDTF\Settings::defaults(), array( 'required_capability' => 'read' ) ) );
@@ -613,6 +648,35 @@ usdtf_it_assert_same(
 	apply_filters( 'option_page_capability_' . \USDTF\Admin\Admin::OPTION_GROUP, 'manage_options' ),
 	'options.php must demand the plugin capability, aligned with the settings screen'
 );
+
+// The whole option path as a browser drives it: the settings screen posts only
+// the fields it rendered, with the hidden 0 of a cleared checkbox standing in
+// for the missing box. Everything the submit does not mention must stay put.
+usdtf_plugin()->settings()->update(
+	array(
+		'batch_size'     => 25,
+		'persian_digits' => true,
+		'credit_author'  => true,
+	)
+);
+
+usdtf_it_assert(
+	false !== has_filter( 'sanitize_option_' . \USDTF\Settings::OPTION ),
+	'the settings screen must register the option sanitizer'
+);
+
+$mode_before = get_option( \USDTF\Settings::OPTION )['currency_mode'];
+
+update_option( \USDTF\Settings::OPTION, array( 'persian_digits' => '0' ) );
+
+$saved = get_option( \USDTF\Settings::OPTION );
+
+usdtf_it_assert_same( false, $saved['persian_digits'], 'clearing a boolean checkbox must store false' );
+usdtf_it_assert_same( 25, $saved['batch_size'], 'a partial submit must keep the untouched numbers' );
+usdtf_it_assert_same( true, $saved['credit_author'], 'a partial submit must keep the settings it did not send' );
+usdtf_it_assert_same( $mode_before, $saved['currency_mode'], 'a partial submit must keep the currency mode' );
+
+usdtf_plugin()->settings()->reset();
 
 usdtf_it_pass( 'only the capability allowlist is storable' );
 
@@ -715,7 +779,34 @@ foreach ( usdtf_plugin()->products()->all_variation_ids( $bulk_variable->get_id(
 usdtf_it_pass( 'bulk mode changes propagate to every variation' );
 
 // ---------------------------------------------------------------------------
-// 47. Cross-request workers and real HTTP REST (separate files).
+// 47. Deleting a managed product takes its plugin meta with it.
+// ---------------------------------------------------------------------------
+usdtf_it_reset_plugin_state();
+usdtf_it_delete_products();
+$rates->save_rate( 270000 );
+
+// The revision guard answers to WooCommerce price writes, so the product is
+// synced first: that is the state a product is in when a store owner deletes
+// it. Deleting a product removes its meta row by row, and anything written
+// during that loop outlives the product as junk in wp_postmeta.
+$doomed     = usdtf_it_make_simple_product( 'Doomed product', '5400000' );
+$doomed_id  = $doomed->get_id();
+$doomed_job = usdtf_it_create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
+
+usdtf_it_run_job( (int) $doomed_job['id'] );
+
+usdtf_it_assert( '' !== usdtf_it_price( $doomed_id ), 'the product must carry a WooCommerce price before it is deleted' );
+
+wp_delete_post( $doomed_id, true );
+
+// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+$doomed_meta = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$wpdb->postmeta} WHERE post_id = %d", $doomed_id ) );
+
+usdtf_it_assert_same( 0, $doomed_meta, 'deleting a managed product must leave no meta rows behind for its id' );
+usdtf_it_pass( 'deleting a managed product leaves no orphaned plugin meta' );
+
+// ---------------------------------------------------------------------------
+// 48. Cross-request workers and real HTTP REST (separate files).
 // ---------------------------------------------------------------------------
 require __DIR__ . '/crossrequest.php';
 require __DIR__ . '/http.php';
