@@ -9,7 +9,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-10-06 16:07+0000\n"
+"POT-Creation-Date: 2026-10-08 07:02+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: bin/make-pot.php\n"
 "X-Domain: usd-to-toman-price-sync-for-woocommerce\n"
@@ -84,7 +84,7 @@ msgstr ""
 msgid "A dry run with the same rate, transaction currency, rounding settings and scope is required first."
 msgstr ""
 
-#: includes/class-product-pricing.php:580
+#: includes/class-product-pricing.php:617
 msgid "A price of zero cannot be converted into a USD price."
 msgstr ""
 
@@ -137,7 +137,7 @@ msgstr ""
 msgid "Attempts: %d"
 msgstr ""
 
-#: includes/admin/views/settings.php:142
+#: includes/admin/views/settings.php:143
 msgid "Automatically manage new products and import their first price as the Toman source"
 msgstr ""
 
@@ -145,7 +145,7 @@ msgstr ""
 msgid "Back to all jobs"
 msgstr ""
 
-#: includes/admin/views/settings.php:147
+#: includes/admin/views/settings.php:148
 msgid "Background fallback"
 msgstr ""
 
@@ -245,7 +245,7 @@ msgstr ""
 msgid "Conversion"
 msgstr ""
 
-#: includes/admin/views/settings.php:204
+#: includes/admin/views/settings.php:210
 msgid "Currency label"
 msgstr ""
 
@@ -281,7 +281,7 @@ msgstr ""
 msgid "Dashboard"
 msgstr ""
 
-#: includes/admin/views/settings.php:215
+#: includes/admin/views/settings.php:221
 msgid "Data removal"
 msgstr ""
 
@@ -289,7 +289,7 @@ msgstr ""
 msgid "Database schema"
 msgstr ""
 
-#: includes/admin/views/settings.php:165
+#: includes/admin/views/settings.php:167
 msgid "Default: manage_woocommerce. Everything this plugin does — changing the rate, running updates, editing Toman prices — requires this capability plus, for products, the normal WordPress edit permission. Only these two capabilities are offered; weaker setups are possible for developers through the usdtf_required_capability filter."
 msgstr ""
 
@@ -341,7 +341,7 @@ msgstr ""
 msgid "Dry run finished. Nothing was changed."
 msgstr ""
 
-#: includes/admin/views/settings.php:169
+#: includes/admin/views/settings.php:171
 msgid "Dry run first"
 msgstr ""
 
@@ -538,7 +538,7 @@ msgstr ""
 msgid "Leave empty if the product has no sale price."
 msgstr ""
 
-#: includes/admin/views/settings.php:221
+#: includes/admin/views/settings.php:228
 msgid "Left unchecked, uninstalling keeps your Toman prices so a reinstall can pick them up again. Settings and job tables are always removed."
 msgstr ""
 
@@ -634,7 +634,7 @@ msgstr ""
 msgid "No"
 msgstr ""
 
-#: includes/class-product-pricing.php:585
+#: includes/class-product-pricing.php:622
 msgid "No Toman price is stored for this product yet."
 msgstr ""
 
@@ -734,7 +734,7 @@ msgstr ""
 msgid "Only products whose price may be outdated"
 msgstr ""
 
-#: includes/admin/views/settings.php:173
+#: includes/admin/views/settings.php:176
 msgid "Only start a price update after a completed dry run with the same exchange rate, transaction currency, rounding settings and scope"
 msgstr ""
 
@@ -804,7 +804,7 @@ msgstr ""
 msgid "Price updated to %1$s USD (%2$s rounding)."
 msgstr ""
 
-#: includes/class-product-pricing.php:578
+#: includes/class-product-pricing.php:615
 msgid "Prices cannot be negative."
 msgstr ""
 
@@ -913,7 +913,7 @@ msgstr ""
 msgid "Recent log entries"
 msgstr ""
 
-#: includes/admin/views/settings.php:175
+#: includes/admin/views/settings.php:178
 msgid "Recommended. When enabled, the update button refuses to run until the dry run on the dashboard has previewed exactly the same change, so nothing can rewrite the catalog unseen."
 msgstr ""
 
@@ -921,11 +921,11 @@ msgstr ""
 msgid "Remove"
 msgstr ""
 
-#: includes/admin/views/settings.php:219
+#: includes/admin/views/settings.php:226
 msgid "Remove all plugin data on uninstall, including the Toman source prices stored on products"
 msgstr ""
 
-#: includes/admin/views/settings.php:156
+#: includes/admin/views/settings.php:158
 msgid "Required capability"
 msgstr ""
 
@@ -1004,7 +1004,7 @@ msgstr ""
 msgid "Save rate"
 msgstr ""
 
-#: includes/admin/views/settings.php:226
+#: includes/admin/views/settings.php:233
 msgid "Save settings"
 msgstr ""
 
@@ -1044,11 +1044,11 @@ msgstr ""
 msgid "Settings"
 msgstr ""
 
-#: includes/admin/views/settings.php:193
+#: includes/admin/views/settings.php:198
 msgid "Show Toman prices for cart, checkout and mini-cart line items (mode A only, totals stay in the transaction currency)"
 msgstr ""
 
-#: includes/admin/views/settings.php:188
+#: includes/admin/views/settings.php:192
 msgid "Show the canonical Toman price on shop, category, single product, related and cross-sell prices"
 msgstr ""
 
@@ -1113,7 +1113,7 @@ msgstr ""
 msgid "Stored decimals"
 msgstr ""
 
-#: includes/admin/views/settings.php:180
+#: includes/admin/views/settings.php:183
 msgid "Storefront display"
 msgstr ""
 
@@ -1168,7 +1168,7 @@ msgstr ""
 msgid "The canonical Toman price was written to the price fields (Toman transaction mode)."
 msgstr ""
 
-#: includes/admin/views/settings.php:200
+#: includes/admin/views/settings.php:206
 msgid "The displayed value is always the stored Toman source price, never a value reconstructed from the rounded USD price."
 msgstr ""
 
@@ -1205,11 +1205,11 @@ msgstr ""
 msgid "The manual rate is %s Toman per 1 USD."
 msgstr ""
 
-#: includes/class-product-pricing.php:582
+#: includes/class-product-pricing.php:619
 msgid "The price is outside of the supported range."
 msgstr ""
 
-#: includes/class-product-pricing.php:516 includes/class-product-pricing.php:694
+#: includes/class-product-pricing.php:553 includes/class-product-pricing.php:739
 msgid "The product could not be found."
 msgstr ""
 
@@ -1242,7 +1242,7 @@ msgstr ""
 msgid "The safe default is 0: whole USD prices. Keep in mind that the WooCommerce currency still controls its own decimal setting."
 msgstr ""
 
-#: includes/class-product-pricing.php:576
+#: includes/class-product-pricing.php:613
 msgid "The sale price cannot be higher than the regular price."
 msgstr ""
 
@@ -1290,7 +1290,7 @@ msgstr ""
 msgid "This product has a scheduled sale; the schedule itself is kept."
 msgstr ""
 
-#: includes/class-product-pricing.php:708
+#: includes/class-product-pricing.php:753
 msgid "This product has no price to import."
 msgstr ""
 
@@ -1330,7 +1330,7 @@ msgstr ""
 msgid "Toman price"
 msgstr ""
 
-#: includes/admin/views/settings.php:184
+#: includes/admin/views/settings.php:187
 msgid "Toman prices"
 msgstr ""
 
@@ -1363,7 +1363,7 @@ msgstr ""
 msgid "Transaction currency mode: %1$s. Products in the catalog: %2$s."
 msgstr ""
 
-#: includes/admin/views/settings.php:151
+#: includes/admin/views/settings.php:153
 msgid "Trigger queued worker runs with a non blocking loopback request"
 msgstr ""
 
@@ -1433,7 +1433,7 @@ msgstr ""
 msgid "Unchanged"
 msgstr ""
 
-#: includes/admin/views/settings.php:211
+#: includes/admin/views/settings.php:217
 msgid "Uninstall"
 msgstr ""
 
@@ -1449,7 +1449,7 @@ msgstr ""
 msgid "Update prices now"
 msgstr ""
 
-#: includes/admin/views/settings.php:198
+#: includes/admin/views/settings.php:204
 msgid "Use Persian digits"
 msgstr ""
 
