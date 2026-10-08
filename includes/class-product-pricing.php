@@ -116,6 +116,13 @@ final class Product_Pricing {
 	private static $writing = false;
 
 	/**
+	 * Posts that are being deleted in this request, by post ID.
+	 *
+	 * @var array<int, bool>
+	 */
+	private static $deleting = array();
+
+	/**
 	 * Constructor.
 	 *
 	 * @param Settings $settings Settings.
@@ -191,11 +198,41 @@ final class Product_Pricing {
 		add_action( 'updated_post_meta', array( $this, 'on_meta_written' ), 10, 4 );
 		add_action( 'deleted_post_meta', array( $this, 'on_meta_deleted' ), 10, 4 );
 
+		add_action( 'before_delete_post', array( $this, 'on_before_delete' ), 10, 2 );
+
 		add_action( 'woocommerce_new_product', array( $this, 'on_new_product' ), 20, 1 );
 		add_action( 'woocommerce_new_product_variation', array( $this, 'on_new_product' ), 20, 1 );
 
 		add_action( 'woocommerce_admin_process_product_object', array( $this, 'on_admin_process_product' ), 20, 1 );
 		add_action( 'woocommerce_admin_process_variation_object', array( $this, 'on_admin_process_variation' ), 20, 2 );
+	}
+
+	/**
+	 * Remember that a post is on its way out.
+	 *
+	 * WordPress collects the meta rows of a deleted post first and removes them
+	 * one by one afterwards, so a write that lands in the middle of that loop
+	 * adds a row the list does not know about and the row outlives the post. The
+	 * hooks below use this to stay quiet for a post that is being deleted.
+	 *
+	 * @param int           $post_id Post ID.
+	 * @param \WP_Post|null $post    Post object.
+	 * @return void
+	 */
+	public function on_before_delete( $post_id, $post = null ) {
+		unset( $post );
+
+		self::$deleting[ (int) $post_id ] = true;
+	}
+
+	/**
+	 * Whether a post is being deleted in this request.
+	 *
+	 * @param int $post_id Post ID.
+	 * @return bool
+	 */
+	private function is_being_deleted( $post_id ) {
+		return isset( self::$deleting[ (int) $post_id ] );
 	}
 
 	/**
@@ -614,6 +651,14 @@ final class Product_Pricing {
 
 		if ( $product_id <= 0 ) {
 			return 0;
+		}
+
+		// Deleting a product deletes its meta too, which fires the hooks below
+		// with the keys this method watches. Writing the counter back then would
+		// leave the row behind, because WordPress already took the list of meta
+		// rows it is going to remove.
+		if ( $this->is_being_deleted( $product_id ) ) {
+			return (int) get_post_meta( $product_id, self::META_REVISION, true );
 		}
 
 		$revision = (int) get_post_meta( $product_id, self::META_REVISION, true );

@@ -138,6 +138,7 @@ $usdtf_options = $settings->all();
 			<th scope="row"><?php esc_html_e( 'New products', 'usd-to-toman-price-sync-for-woocommerce' ); ?></th>
 			<td>
 				<label class="usdtf-checkbox">
+					<input type="hidden" name="<?php echo esc_attr( Settings::OPTION ); ?>[auto_manage_new_products]" value="0" />
 					<input type="checkbox" name="<?php echo esc_attr( Settings::OPTION ); ?>[auto_manage_new_products]" value="1" <?php checked( ! empty( $usdtf_options['auto_manage_new_products'] ) ); ?> />
 					<?php esc_html_e( 'Automatically manage new products and import their first price as the Toman source', 'usd-to-toman-price-sync-for-woocommerce' ); ?>
 				</label>
@@ -147,6 +148,7 @@ $usdtf_options = $settings->all();
 			<th scope="row"><?php esc_html_e( 'Background fallback', 'usd-to-toman-price-sync-for-woocommerce' ); ?></th>
 			<td>
 				<label class="usdtf-checkbox">
+					<input type="hidden" name="<?php echo esc_attr( Settings::OPTION ); ?>[loopback_fallback]" value="0" />
 					<input type="checkbox" name="<?php echo esc_attr( Settings::OPTION ); ?>[loopback_fallback]" value="1" <?php checked( ! empty( $usdtf_options['loopback_fallback'] ) ); ?> />
 					<?php esc_html_e( 'Trigger queued worker runs with a non blocking loopback request', 'usd-to-toman-price-sync-for-woocommerce' ); ?>
 				</label>
@@ -169,6 +171,7 @@ $usdtf_options = $settings->all();
 			<th scope="row"><?php esc_html_e( 'Dry run first', 'usd-to-toman-price-sync-for-woocommerce' ); ?></th>
 			<td>
 				<label class="usdtf-checkbox">
+					<input type="hidden" name="<?php echo esc_attr( Settings::OPTION ); ?>[require_preview]" value="0" />
 					<input type="checkbox" name="<?php echo esc_attr( Settings::OPTION ); ?>[require_preview]" value="1" <?php checked( ! empty( $usdtf_options['require_preview'] ) ); ?> />
 					<?php esc_html_e( 'Only start a price update after a completed dry run with the same exchange rate, transaction currency, rounding settings and scope', 'usd-to-toman-price-sync-for-woocommerce' ); ?>
 				</label>
@@ -184,16 +187,19 @@ $usdtf_options = $settings->all();
 			<th scope="row"><?php esc_html_e( 'Toman prices', 'usd-to-toman-price-sync-for-woocommerce' ); ?></th>
 			<td>
 				<label class="usdtf-checkbox">
+					<input type="hidden" name="<?php echo esc_attr( Settings::OPTION ); ?>[display_toman]" value="0" />
 					<input type="checkbox" name="<?php echo esc_attr( Settings::OPTION ); ?>[display_toman]" value="1" <?php checked( ! empty( $usdtf_options['display_toman'] ) ); ?> />
 					<?php esc_html_e( 'Show the canonical Toman price on shop, category, single product, related and cross-sell prices', 'usd-to-toman-price-sync-for-woocommerce' ); ?>
 				</label>
 				<br />
 				<label class="usdtf-checkbox">
+					<input type="hidden" name="<?php echo esc_attr( Settings::OPTION ); ?>[display_toman_cart]" value="0" />
 					<input type="checkbox" name="<?php echo esc_attr( Settings::OPTION ); ?>[display_toman_cart]" value="1" <?php checked( ! empty( $usdtf_options['display_toman_cart'] ) ); ?> />
 					<?php esc_html_e( 'Show Toman prices for cart, checkout and mini-cart line items (mode A only, totals stay in the transaction currency)', 'usd-to-toman-price-sync-for-woocommerce' ); ?>
 				</label>
 				<br />
 				<label class="usdtf-checkbox">
+					<input type="hidden" name="<?php echo esc_attr( Settings::OPTION ); ?>[persian_digits]" value="0" />
 					<input type="checkbox" name="<?php echo esc_attr( Settings::OPTION ); ?>[persian_digits]" value="1" <?php checked( ! empty( $usdtf_options['persian_digits'] ) ); ?> />
 					<?php esc_html_e( 'Use Persian digits', 'usd-to-toman-price-sync-for-woocommerce' ); ?>
 				</label>
@@ -215,6 +221,7 @@ $usdtf_options = $settings->all();
 			<th scope="row"><?php esc_html_e( 'Data removal', 'usd-to-toman-price-sync-for-woocommerce' ); ?></th>
 			<td>
 				<label class="usdtf-checkbox">
+					<input type="hidden" name="<?php echo esc_attr( Settings::OPTION ); ?>[delete_data_on_uninstall]" value="0" />
 					<input type="checkbox" name="<?php echo esc_attr( Settings::OPTION ); ?>[delete_data_on_uninstall]" value="1" <?php checked( ! empty( $usdtf_options['delete_data_on_uninstall'] ) ); ?> />
 					<?php esc_html_e( 'Remove all plugin data on uninstall, including the Toman source prices stored on products', 'usd-to-toman-price-sync-for-woocommerce' ); ?>
 				</label>

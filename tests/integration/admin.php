@@ -339,12 +339,19 @@ $wpdb->insert(
 		'message'    => 'Ancient log entry.',
 		'context'    => '{}',
 		'job_id'     => $cron_job_id,
-		'user_id'    => 0,
 		'created_at' => $log_stamp,
 	),
-	array( '%s', '%s', '%s', '%d', '%d', '%s' )
+	array( '%s', '%s', '%s', '%d', '%s' )
 );
 $wpdb->query( $wpdb->prepare( "UPDATE `{$items_table}` SET updated_at = %s WHERE job_id = %d", $log_stamp, $cron_job_id ) );
+
+// The retention assertion below can only mean something when the expired row
+// really landed, so the fixture is asserted instead of assumed.
+usdtf_it_assert_same(
+	1,
+	(int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM `{$logs_table}` WHERE message = %s", 'Ancient log entry.' ) ),
+	'the expired log fixture must be stored before the daily pass runs'
+);
 
 usdtf_plugin()->cron()->daily();
 
@@ -374,15 +381,14 @@ usdtf_it_assert( \USDTF\Database::table_exists( $jobs_table ), 'the plugin table
 // A meta key the plugin does not own, to prove a purge is scoped.
 update_post_meta( $uninstall_product->get_id(), 'usdtf_it_foreign_key', 'keep me' );
 
-$meta_count = static function ( $key ) use ( $wpdb ) {
-	return (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$wpdb->postmeta} WHERE meta_key = %s", $key ) );
-};
-
+// The assertions look at this scenario's own product instead of counting the
+// meta across the whole site: a store that already uses the plugin keeps its
+// own source prices, and that must not be mistaken for this fixture's.
 \USDTF\Installer::uninstall( false );
 
 usdtf_it_assert( ! \USDTF\Database::table_exists( $jobs_table ), 'uninstalling must drop the plugin tables' );
 usdtf_it_assert_same( '', (string) get_option( \USDTF\Settings::OPTION, '' ), 'uninstalling must remove the settings' );
-usdtf_it_assert_same( 1, $meta_count( $source_key ), 'uninstalling without the opt in must keep the canonical Toman price' );
+usdtf_it_assert_same( '5000000', usdtf_it_meta( $uninstall_product->get_id(), $source_key ), 'uninstalling without the opt in must keep the canonical Toman price' );
 
 \USDTF\Installer::create_tables();
 \USDTF\Installer::seed_options();
@@ -391,8 +397,12 @@ usdtf_it_assert( \USDTF\Database::table_exists( $jobs_table ), 'the tables must 
 
 \USDTF\Installer::uninstall( true );
 
-usdtf_it_assert_same( 0, $meta_count( $source_key ), 'the explicit opt in must remove the plugin metadata' );
-usdtf_it_assert_same( 1, $meta_count( 'usdtf_it_foreign_key' ), 'a purge must not touch meta the plugin does not own' );
+// The purge removes the rows with a direct query, so the cached meta of this
+// product is dropped before it is read back.
+clean_post_cache( $uninstall_product->get_id() );
+
+usdtf_it_assert_same( '', usdtf_it_meta( $uninstall_product->get_id(), $source_key ), 'the explicit opt in must remove the plugin metadata' );
+usdtf_it_assert_same( 'keep me', usdtf_it_meta( $uninstall_product->get_id(), 'usdtf_it_foreign_key' ), 'a purge must not touch meta the plugin does not own' );
 
 // What activating the plugin again does.
 \USDTF\Installer::create_tables();
