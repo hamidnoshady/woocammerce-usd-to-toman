@@ -789,8 +789,8 @@ $rates->save_rate( 270000 );
 // synced first: that is the state a product is in when a store owner deletes
 // it. Deleting a product removes its meta row by row, and anything written
 // during that loop outlives the product as junk in wp_postmeta.
-$doomed = usdtf_it_make_simple_product( 'Doomed product', '5400000' );
-$doomed_id = $doomed->get_id();
+$doomed     = usdtf_it_make_simple_product( 'Doomed product', '5400000' );
+$doomed_id  = $doomed->get_id();
 $doomed_job = usdtf_it_create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
 
 usdtf_it_run_job( (int) $doomed_job['id'] );
