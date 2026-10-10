@@ -97,6 +97,22 @@ jobs:
           composer phpcs -- --report=source 2>&1 | head -n 500 || true
           exit $status
 
+      - name: Show PHPCS log on failure
+        if: always()
+        run: |
+          if [ -f /tmp/phpcs.log ]; then
+            echo "--- PHPCS log head ---"
+            head -n 100 /tmp/phpcs.log || true
+            log_head=$(head -n 30 /tmp/phpcs.log | tr '\n' ' ' | cut -c1-800 | sed 's/%/%25/g; s/\r/%0D/g')
+            echo "::error::PHPCS failed: $log_head"
+            echo "### PHPCS failed" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            head -n 200 /tmp/phpcs.log >> $GITHUB_STEP_SUMMARY || true
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          else
+            echo "::warning::No phpcs log found"
+          fi
+
       - name: Upload PHPCS log
         if: always()
         uses: actions/upload-artifact@v6
