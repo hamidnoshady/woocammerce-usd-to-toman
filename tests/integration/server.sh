@@ -121,6 +121,7 @@ usdtf_supervise_server() {
     local restarts=0 started status lifetime
 
     if command -v nginx >/dev/null 2>&1 && usdtf_fpm_binary >/dev/null 2>&1; then
+        echo "[server] backend: nginx + $(usdtf_fpm_binary) (pool usdtf, $(nproc) cores)" >&2
         usdtf_supervise_fpm_nginx "$php_bin" "$port" "$wp_path"
         exit $?
     fi
@@ -153,9 +154,16 @@ usdtf_supervise_server() {
 }
 
 usdtf_fpm_binary() {
-    # Print the php-fpm binary matching the CLI version, or nothing.
+    # Print an available php-fpm binary, or nothing. The image's own
+    # builds are preferred over the setup-php build of the CLI version:
+    # the 8.2 fpm/cli-server SAPI of that build has been observed to
+    # segfault (fpm-error.log: child exited on signal 11) on some runner
+    # images while the same version's CLI and the image's own fpm builds
+    # stay stable, so the server prefers a different, image-provided
+    # build. The plugin supports every PHP version in the matrix, and the
+    # suite's CLI driver keeps using the configured PHP.
     local cand
-    for cand in php-fpm php-fpm8.2 php-fpm8.1 php-fpm8.0 php-fpm7.4; do
+    for cand in php-fpm8.3 php-fpm8.4 php-fpm8.1 php-fpm8.0 php-fpm php-fpm7.4 php-fpm8.2; do
         if command -v "$cand" >/dev/null 2>&1; then
             command -v "$cand"
             return 0
