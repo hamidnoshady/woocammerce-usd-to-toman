@@ -15,17 +15,11 @@ jobs:
           echo "Running bin/lint.php"
           php bin/lint.php 2>&1 | tee /tmp/lint.log; status=\${PIPESTATUS[0]}
           echo "lint exit $status"
-          echo "--- lint.log head ---"
-          head -n 100 /tmp/lint.log || true
+          echo "--- lint.log ---"
+          cat /tmp/lint.log || true
+          # Also create annotation with first 500 chars
+          log_head=$(head -c 1000 /tmp/lint.log | tr '\n' ' ' | sed 's/%/%25/g; s/\r/%0D/g; s/\n/%0A/g')
+          echo "::error::lint log: $log_head"
           echo "--- php -l all (first 200) ---"
           find . -name '*.php' -not -path './dist/*' -not -path './node_modules/*' -not -path './vendor/*' -print0 | xargs -0 -n1 -P4 php -l 2>&1 | head -n 200 || true
-          echo "### Lint debug" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          head -n 200 /tmp/lint.log >> $GITHUB_STEP_SUMMARY || echo "no lint log" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          echo "lint exit $status" >> $GITHUB_STEP_SUMMARY
-          if [ $status -ne 0 ]; then
-            echo "Lint failed, showing bad files via token_get_all"
-            php -r 'foreach (glob("includes/*.php") as $f) { try{ token_get_all(file_get_contents($f), TOKEN_PARSE); } catch(ParseError $e){ echo "$f: ".$e->getMessage()."\n"; } }' 2>&1 | head -n 100 || true
-          fi
           exit $status
