@@ -197,3 +197,36 @@ with every death logged. nginx buffers fastcgi responses, so a vanished
 client can never kill a worker — the failure mode that plagues php -S.
 When nginx or php-fpm is unavailable the supervisor logs it and falls back
 to `PHP_CLI_SERVER_WORKERS=4 php -S`.
+
+### THE unified root cause — captured (run f98bc04)
+
+The fpm error log, finally captured by the extended diagnostics, names the
+killer directly:
+
+```
+WARNING: [pool usdtf] child 2500 exited on signal 11 (SIGSEGV - core dumped) after 31.52s
+WARNING: [pool usdtf] child 2491 exited on signal 11 (SIGSEGV - core dumped) after 32.67s
+WARNING: [pool usdtf] child 2493 exited on signal 11 (SIGSEGV - core dumped) after 32.68s
+WARNING: [pool usdtf] child 2490 exited on signal 11 (SIGSEGV - core dumped) after 33.82s
+...
+```
+
+and nginx's error log shows the matching connection resets for exactly the
+requests whose clients had already gone (the timed-out poll and the
+Action Scheduler async poke). The whole failure family — the baseline's
+`status=NULL last=[]`, the php -S "workers never finish their next
+connection", the silent whole-tree deaths, and the 502 storms — is one
+mechanism:
+
+1. a caller fires a request and stops waiting (fire-and-forget loopback,
+   a 3 s-timeout wake, an abandoned poll),
+2. nginx (default `fastcgi_ignore_client_abort off`) closes the fastcgi
+   connection when the client vanishes,
+3. the PHP worker — kept alive past the disconnect by
+   `ignore_user_abort(true)` — reaches its response write on the closed
+   connection and this PHP build crashes there (fpm: SIGSEGV; the
+   built-in server: hang or tree death).
+
+Fix: `fastcgi_ignore_client_abort on;` — nginx completes the backend
+request regardless of the caller, which is precisely the fire-and-forget
+safety the worker claim needs, and the response is simply discarded.

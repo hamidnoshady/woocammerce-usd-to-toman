@@ -225,6 +225,13 @@ http {
             fastcgi_pass unix:${sock};
             fastcgi_param SCRIPT_FILENAME \$document_root\$fastcgi_script_name;
             fastcgi_read_timeout 300s;
+            # A worker must finish its step even when the caller (a
+            # fire-and-forget loopback or a timed-out wake) is already
+            # gone. Without this, nginx closes the fastcgi connection on
+            # client disconnect and the PHP build crashes at the response
+            # write (fpm-error.log: child exited on signal 11), which is
+            # what stalled whole suites with 502 storms.
+            fastcgi_ignore_client_abort on;
         }
     }
 }
