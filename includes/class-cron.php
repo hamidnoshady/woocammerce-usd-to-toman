@@ -57,7 +57,7 @@ final class Cron {
 		// Faster tick for lease recovery: every minute, still keeps five-minute for daily.
 		if ( ! isset( $schedules['usdtf_one_minute'] ) ) {
 			$schedules['usdtf_one_minute'] = array(
-				'interval' => 60,
+				'interval' => 60, // phpcs:ignore WordPress.WP.CronInterval.CronSchedulesInterval -- Lease recovery needs 60s.
 				'display'  => __( 'Every minute (USD/Toman lease recovery)', 'usd-to-toman-price-sync-for-woocommerce' ),
 			);
 		}

@@ -588,10 +588,10 @@ final class Scheduler {
 
 		// Ensure the client disconnect does not abort this worker after claim.
 		if ( function_exists( 'ignore_user_abort' ) ) {
-			ignore_user_abort( true ); // phpcs:ignore WordPressVIPMinimum.Functions.RestrictedFunctions.ignore_user_abort_ignore_user_abort
+			ignore_user_abort( true ); // phpcs:ignore WordPressVIPMinimum.Functions.RestrictedFunctions
 		}
 		if ( function_exists( 'set_time_limit' ) ) {
-			@set_time_limit( 0 ); // phpcs:ignore WordPressVIPMinimum.Functions.RestrictedFunctions.set_time_limit_set_time_limit
+			@set_time_limit( 0 ); // phpcs:ignore WordPressVIPMinimum.Functions.RestrictedFunctions
 		}
 
 		// Claim with lease: store timestamp before unscheduling so expiry can be detected.
