@@ -523,10 +523,10 @@ final class Rest_Controller {
 		}
 		return rest_ensure_response(
 			array(
-				'ok'        => true,
-				'resumed'   => $resumed,
+				'ok' => true,
+				'resumed' => $resumed,
 				'recovered' => $recovered,
-				'ticked'    => $ticked,
+				'ticked' => $ticked,
 			)
 		);
 	}
