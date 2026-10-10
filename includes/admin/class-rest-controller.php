@@ -509,6 +509,7 @@ final class Rest_Controller {
 	 * @return \WP_REST_Response
 	 */
 	public function test_tick() {
+		// phpcs:disable Generic.Formatting.MultipleStatementAlignment -- test helper deterministic tick; alignment not relevant.
 		$resumed   = 0;
 		$recovered = 0;
 		$ticked    = false;
@@ -523,8 +524,7 @@ final class Rest_Controller {
 		}
 		return rest_ensure_response(
 			array(
-				// phpcs:disable Generic.Formatting.MultipleStatementAlignment -- test helper array, alignment not relevant.
-				'ok' => true,
+					'ok' => true,
 				'resumed' => $resumed,
 				'recovered' => $recovered,
 				'ticked' => $ticked,
