@@ -220,22 +220,30 @@ function usdtf_it_http_wait_job( $job_id, $authorization, $timeout = 120 ) {
 	$last     = array();
 	$tries    = 0;
 	$refused  = 0;
+	$garbage  = array();
 
 	do {
 		$response = usdtf_it_http( 'GET', '/jobs/' . (int) $job_id, null, $authorization, array( '_usdtf' => (string) microtime( true ) ) );
 
-		if ( 200 === $response['code'] && is_array( $response['json'] ) ) {
-			$last  = $response['json'];
+		if ( 200 === $response['code'] && isset( $response['json']['status'] ) ) {
+			$last    = $response['json'];
 			$refused = 0;
 
 			if ( empty( $last['is_active'] ) ) {
 				return $last;
 			}
 		} else {
-			// A poll that cannot even connect is a server-side hang, not a slow
-			// job. Capture the server's process/socket state once so the failure
-			// is attributable (which PIDs exist, what they wait on, who holds
-			// the port) instead of an opaque "status=NULL last=[]".
+			// A poll that cannot connect, or a response without a parsable
+			// status (empty body, HTML error page), is a failed poll, never a
+			// finished job. Distinct garbage bodies are logged so their source
+			// is attributable, and after five consecutive failures the server's
+			// process/socket state is captured: which PIDs exist, what they wait
+			// on, who holds the port.
+			$body_key = $response['code'] . '|' . substr( (string) $response['body'], 0, 300 );
+			if ( ! isset( $garbage[ $body_key ] ) ) {
+				$garbage[ $body_key ] = true;
+				error_log( sprintf( 'usdtf wait job %d: poll failed with code %d body %s', (int) $job_id, $response['code'], var_export( substr( (string) $response['body'], 0, 300 ), true ) ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+			}
 			++$refused;
 			if ( 5 === $refused ) {
 				usdtf_it_http_hang_diagnostics( $job_id, $response );
@@ -332,43 +340,53 @@ function usdtf_it_http_wait_job_passive( $job_id, $authorization, $timeout = 30 
 	$last_body = '';
 	$polls    = 0;
 	$refused  = 0;
+	$garbage  = array();
 	do {
 		$response = usdtf_it_http( 'GET', '/jobs/' . (int) $job_id . '/status', null, $authorization, array( '_usdtf' => (string) microtime( true ) ) );
 		++$polls;
-		if ( 200 !== $response['code'] ) {
-			++$refused;
-			if ( 5 === $refused ) {
-				usdtf_it_http_hang_diagnostics( $job_id, $response );
-			}
-		} else {
-			$refused = 0;
-		}
-		if ( 200 === $response['code'] && is_array( $response['json'] ) ) {
-			$last = $response['json'];
+		$failed_poll = false;
+		if ( 200 === $response['code'] && isset( $response['json']['status'] ) ) {
+			$last      = $response['json'];
 			$last_code = $response['code'];
 			$last_body = $response['body'];
-			if ( empty( $last['is_active'] ) && isset( $last['status'] ) ) {
-				return $last;
-			}
-			if ( isset( $last['status'] ) && empty( $last['is_active'] ) ) {
-				return $last;
-			}
-		} else {
-			$last_code = $response['code'];
-			$last_body = $response['body'];
-		}
-		// Fallback to full job if status endpoint fails or job not on status.
-		$response2 = usdtf_it_http( 'GET', '/jobs/' . (int) $job_id, null, $authorization, array( '_usdtf' => (string) microtime( true ) ) );
-		if ( 200 === $response2['code'] && is_array( $response2['json'] ) ) {
-			$last = $response2['json'];
-			$last_code = $response2['code'];
-			$last_body = $response2['body'];
+			$refused   = 0;
 			if ( empty( $last['is_active'] ) ) {
 				return $last;
 			}
 		} else {
-			$last_code = $response2['code'];
-			$last_body = $response2['body'];
+			$last_code  = $response['code'];
+			$last_body  = $response['body'];
+			$failed_poll = true;
+		}
+		// Fallback to the full job endpoint when /status did not answer with a
+		// parsable job payload.
+		if ( $failed_poll ) {
+			$response2 = usdtf_it_http( 'GET', '/jobs/' . (int) $job_id, null, $authorization, array( '_usdtf' => (string) microtime( true ) ) );
+			if ( 200 === $response2['code'] && isset( $response2['json']['status'] ) ) {
+				$last      = $response2['json'];
+				$last_code = $response2['code'];
+				$last_body = $response2['body'];
+				$refused   = 0;
+				if ( empty( $last['is_active'] ) ) {
+					return $last;
+				}
+			} else {
+				$last_code = $response2['code'];
+				$last_body = $response2['body'];
+				// A poll that cannot connect, or answers without a parsable
+				// status, is a failed poll, never a finished job. Log each
+				// distinct garbage body once, and after five consecutive
+				// failures capture the server's process and socket state.
+				$body_key = $last_code . '|' . substr( (string) $last_body, 0, 300 );
+				if ( ! isset( $garbage[ $body_key ] ) ) {
+					$garbage[ $body_key ] = true;
+					error_log( sprintf( 'usdtf passive wait job %d: poll failed with code %d body %s', (int) $job_id, $last_code, var_export( substr( (string) $last_body, 0, 300 ), true ) ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+				}
+				++$refused;
+				if ( 5 === $refused ) {
+					usdtf_it_http_hang_diagnostics( $job_id, $response2 );
+				}
+			}
 		}
 		// Dedicated recovery tick: side-effect free GET replaced.
 		// Without waking via loopback/CLI/resume, but via testable cron trigger.

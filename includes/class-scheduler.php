@@ -475,22 +475,18 @@ final class Scheduler {
 			unset( $error );
 		}
 
-		wp_remote_post(
-			site_url( 'wp-cron.php?doing_wp_cron' ),
-			array(
-				'timeout'  => 0.5,
-				'blocking' => false,
-			)
-		);
 	}
 
 	/**
-	 * Fire a non blocking request that runs a worker action.
+	 * Fire a request that runs a worker action, waiting for the step.
 	 *
-	 * The request is verified with normal WordPress TLS rules: disabling
-	 * certificate verification would let a broken loopback silently run over
-	 * an intercepted connection. Hosts whose loopback fails keep the WP-Cron
-	 * twin of the action as their safety net.
+	 * The call is blocking with a short timeout so the worker's response is
+	 * actually consumed; see the comment at the request below for why a fire
+	 * and forget loopback is not used. The request is verified with normal
+	 * WordPress TLS rules: disabling certificate verification would let a
+	 * broken loopback silently run over an intercepted connection. Hosts
+	 * whose loopback fails keep the WP-Cron twin of the action as their
+	 * safety net.
 	 *
 	 * @param string $hook  Worker hook.
 	 * @param array  $args  Arguments.
@@ -518,11 +514,18 @@ final class Scheduler {
 			}
 		}
 
+		// Blocking request with a real timeout: a non blocking loopback closes
+		// its socket almost immediately, so the worker writes its response into
+		// a connection that is already gone. On the PHP built-in server that
+		// leaves the worker in a state where its NEXT accepted connection never
+		// completes, which stalled whole suites. Waiting for the step (bounded
+		// by the timeout) keeps the handshake clean; a timeout falls back to
+		// Action Scheduler exactly like a refused loopback did.
 		$result = wp_remote_post(
 			admin_url( 'admin-ajax.php' ),
 			array(
-				'timeout'  => 0.5,
-				'blocking' => false,
+				'timeout'  => 3,
+				'blocking' => true,
 				'body'     => array(
 					'action' => self::LOOPBACK_ACTION,
 					'token'  => self::token(),

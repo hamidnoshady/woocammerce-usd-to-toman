@@ -115,3 +115,36 @@ Branch: `arena/25782cb8-woocammerce-usd-to-toman`. Updated after CI runs
    failed attempt for attributable evidence.
 8. **No new sleeps**: no timeout or retry count was increased in this
    change set; A2's window stays 45 s and A4's stays 180 s.
+
+### The total-accept-stop hang (runs b7e1e00 and 5291b88) — CAPTURED
+
+The concurrent suite's `http.php` preview wait failed with
+`status=NULL last=[]` while the server log showed:
+
+- Every worker logs its final `[200]` (responses written to fire-and-forget
+  clients whose sockets were already closed), then
+- accepts one more connection (`Accepted` with no status line, no
+  `Closing`) and never completes it, and
+- the subsequent polls/wakes are all accepted-and-stuck — the port still
+  listens, so the failures are not refusals but never-finishing requests.
+
+`Scheduler::fire_loopback()` used `'blocking' => false, 'timeout' => 0.5`:
+WP's non-blocking mode returns immediately and closes the client socket, so
+the worker always wrote its `ok` response into a dead connection. That
+dead-socket write is what leaves the PHP built-in server worker unable to
+finish its next accepted connection. The same pattern existed for the
+`wp-cron.php?doing_wp_cron` poke added to `dispatch_action_scheduler()`.
+
+A second bug amplified the damage: `usdtf_it_http_wait_job()` treated ANY
+`200` response with `is_array( $json )` as a payload — and an empty body
+decodes to `array()`, which `empty( $last['is_active'] )` treated as "job
+finished", so the wait returned `[]` immediately and the hang diagnostics
+never fired.
+
+Fixes: `fire_loopback()` is now a blocking request with a 3 s timeout (the
+step's response is actually consumed; a timeout falls back to Action
+Scheduler exactly like a refused loopback); the redundant non-blocking
+wp-cron poke was removed; both wait helpers treat a response without a
+parsable `status` as a failed poll, log each distinct garbage body once,
+and capture `ps` (with wait channels), `ss` and the server log tail after
+five consecutive failures.
