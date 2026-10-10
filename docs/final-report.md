@@ -1,4 +1,4 @@
-# Final Report — PR #11 — head 85a74b0 (stability series: 85a74b0 + empty-commit SHAs, identical tree)
+# Final Report — PR #11 — final head 1765979 (tree identical to 9e4f940; the four later SHAs are empty verification commits)
 
 Branch: `arena/25782cb8-woocammerce-usd-to-toman`, base `2d892c6` (main).
 Root-cause evidence document: `docs/curl-52-root-cause.md` (EVIDENCE vs
@@ -155,33 +155,63 @@ behavior and RTL/LTR are untouched and covered by the existing
 
 ## Exact verification/CI results
 
-- **Final head: 85a74b0** — run
-  [38056061299](https://github.com/hamidnoshady/woocammerce-usd-to-toman/actions/runs/38056061299):
-  **11/11 success** (PHP 7.4–8.4 syntax, coding standards, translations,
-  release zip incl. archive contract + negative fixtures, ordinary
-  integration source+ZIP, concurrent integration source+ZIP).
-- **Stability series (identical tree, empty commits):** reported in the
-  final message with every run link and outcome.
-- Fix-iteration runs (all reported honestly): 38047660297 (4f65788, parse
-  error), 38048097104 … 38049588350 (PHPCS iterations), 38051124895
-  (b7e1e00, ordinary handover), 38051709298 (5291b88, concurrent lock
-  block), 38052451887 (40e970f, lease fix, ordinary built-ZIP leg),
-  38052898725 (da2aeac, server death captured), 38053394499 (4ddd819,
-  supervisor killed with tree), 38054268516 (12bf4be, ordinary green,
-  concurrent tree death), 38054837414 (b6000f3, concurrent green, ordinary
-  nginx start failure), 38055577604 (f7eeba7, ordinary start failure +
-  concurrent stall), 38056061299 (85a74b0, **all green**).
+- **Final tree: 9e4f940** (final head 1765979, an empty verification
+  commit on top; `git diff 9e4f940 1765979` is empty).
+- **Stability series — 5 consecutive runs of the identical tree, all
+  11/11 success:**
+  1. 9e4f940 — [run 38058877134](https://github.com/hamidnoshady/woocammerce-usd-to-toman/actions/runs/38058877134)
+  2. 178120b — [run 38059247305](https://github.com/hamidnoshady/woocammerce-usd-to-toman/actions/runs/38059247305)
+  3. 57abef6 — [run 38059618047](https://github.com/hamidnoshady/woocammerce-usd-to-toman/actions/runs/38059618047)
+  4. acb7aed — [run 38060002398](https://github.com/hamidnoshady/woocammerce-usd-to-toman/actions/runs/38060002398)
+  5. 1765979 — [run 38060383765](https://github.com/hamidnoshady/woocammerce-usd-to-toman/actions/runs/38060383765)
+
+  Each run: PHP 7.4–8.4 syntax, coding standards, translations, release
+  zip (canonical archive contract + 17 negative fixtures), ordinary
+  integration (source + built ZIP), concurrent integration (source + built
+  ZIP, passive autonomous scenarios enforced). Zero failed, zero skipped
+  beyond the documented environment-conditional autonomous skip on the
+  ordinary job.
+- **Token constraints, honestly:** the sandbox token cannot call the
+  re-run or workflow-dispatch APIs (403 "Resource not accessible by
+  integration"), so the repeated runs use empty commits on the identical
+  tree — every SHA and link is listed above and nothing is cherry-picked.
+- **Fix-iteration runs (every failure investigated and reported):**
+  38047660272 (4f65788 — PHP 7.4 parse error: unmatched brace),
+  38048097104/38048209535/38048315667/38048415409/38048477582/38048786791/
+  38049085772/38049335722/38049588350 (PHPCS + server-stack iterations;
+  failures: POST /update cURL 7, preview stalls, built-ZIP handover),
+  38051124895 (b7e1e00 — handover port conflict), 38051709298 (5291b88 —
+  dead worker's lease blocked recovery), 38052451887 (40e970f — built-ZIP
+  server death captured: no process, no listener), 38052898725 (da2aeac —
+  same, plus supervisor killed with its tree), 38053394499 (4ddd819 —
+  server tree death + 502 storm evidence captured),
+  38054268516 (12bf4be — ordinary green, concurrent tree death),
+  38054837414 (b6000f3 — concurrent green, ordinary nginx start failure),
+  38055577604 (f7eeba7 — 502 storm, fpm SIGSEGV captured),
+  38056061299 (85a74b0 — all green), 38056532598 (78b28c8 — 502 storm:
+  fpm children SIGSEGV en masse, captured in fpm-error.log),
+  38057098927 (f98bc04 — same, plus nginx reset evidence),
+  38057538391 (93a41b7 — concurrent green, ordinary 502 storm),
+  38057887820 (794f430 — 502 storm both legs),
+  38058343170 (2613ad8 — suites green, stop step killed by group-signal
+  exit 143), then the five green stability runs above.
 
 ## Genuine remaining issues
 
-1. The root cause of the built-in server's whole-tree death is identified
-   only by its captured signature (no process, no listener, no log line,
-   supervisor included); PHP's worker mode is the suspect class. The suite
-   no longer depends on it (nginx + PHP-FPM), and the fallback is logged.
+1. **PHP 8.2.34 SAPI instability on some runner images (environment, not
+   plugin code).** Captured evidence: setup-php's 8.2 fpm children exited
+   on signal 11 (SIGSEGV, core dumped) while serving REST/admin-ajax
+   requests, and the same version's built-in server died as a whole tree.
+   The suite no longer depends on that build: the fpm pool prefers the
+   runner image's own builds (8.3/8.4/8.1/8.0) and logs which backend was
+   chosen; the CLI driver and the syntax matrix still cover 8.2. If the
+   upstream build is fixed, nothing here needs to change.
 2. The `POST /test/tick` route accelerates the recovery cadence for the
-   tests (the production tick runs every 60 s); the unassisted scenarios
-   complete within their windows through the tick and would also complete
-   through the real cadence, but the tests do not wait a full minute per
-   step.
+   tests (the production tick recurs every 60 s); the unassisted
+   scenarios complete through the tick and would also complete through
+   the real cadence, but the tests do not wait a full minute per step.
 3. `verify-release.yml` (historical release verification) was not executed
    in this series; its pinned-helpers contract is unchanged.
+4. The empty-commit method for repeated runs (token cannot re-run or
+   dispatch) means the five stability runs have different SHAs but a
+   byte-identical tree; `git diff` between them is empty.
