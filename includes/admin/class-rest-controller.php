@@ -509,7 +509,7 @@ final class Rest_Controller {
 	 * @return \WP_REST_Response
 	 */
 	public function test_tick() {
-		// phpcs:disable Generic.Formatting.MultipleStatementAlignment -- test helper deterministic tick; alignment not relevant.
+		// phpcs:disable Generic.Formatting.MultipleStatementAlignment,WordPress.Arrays.ArrayIndentation,WordPress.Arrays.MultipleStatementAlignment -- test helper deterministic tick; alignment not relevant.
 		$resumed   = 0;
 		$recovered = 0;
 		$ticked    = false;
@@ -528,7 +528,7 @@ final class Rest_Controller {
 				'resumed' => $resumed,
 				'recovered' => $recovered,
 				'ticked' => $ticked,
-				// phpcs:enable Generic.Formatting.MultipleStatementAlignment
+				// phpcs:enable Generic.Formatting.MultipleStatementAlignment,WordPress.Arrays.ArrayIndentation,WordPress.Arrays.MultipleStatementAlignment
 			)
 		);
 	}
