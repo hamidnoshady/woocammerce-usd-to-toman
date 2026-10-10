@@ -322,54 +322,12 @@ function usdtf_collect( $root, array $rules ) {
 	return $files;
 }
 
-/**
- * Development paths that must never appear inside the archive.
- *
- * @return string[]
- */
-function usdtf_forbidden_paths() {
-	return array(
-		'tests/',
-		'bin/',
-		'.github/',
-		'.git/',
-		'phpcs.xml.dist',
-		'composer.json',
-		'composer.lock',
-		'package.json',
-		'node_modules/',
-		'phpunit.xml.dist',
-	);
-}
-
-/**
- * Whether a relative path is forbidden inside the archive.
- *
- * @param string $relative Relative path.
- * @return bool
- */
-function usdtf_is_forbidden( $relative ) {
-	foreach ( usdtf_forbidden_paths() as $forbidden ) {
-		if ( 0 === strpos( $relative, $forbidden ) ) {
-			return true;
-		}
-	}
-
-	if ( '.distignore' === basename( $relative ) || '.gitignore' === basename( $relative ) || '.gitattributes' === basename( $relative ) ) {
-		return true;
-	}
-
-	// Translation catalogues (.pot, .po, .mo) ship with the plugin, so they are
-	// deliberately absent from this list; only the types that never ship are here.
-	if ( preg_match( '#\.(md|zip|log|sh|neon|dist)$#i', $relative ) ) {
-		return true;
-	}
-
-	return false;
-}
+require_once __DIR__ . '/lib-archive-contract.php';
 
 /**
  * Check an archive: entry list, plugin header and readme.
+ * Delegates to the single contract so builder --check and explicit
+ * verifier enforce identical rules regardless of path.
  *
  * @param string $zip_path Archive path.
  * @param string $slug     Plugin slug.
@@ -377,93 +335,14 @@ function usdtf_is_forbidden( $relative ) {
  * @return string[] Problems found (empty when the archive is good).
  */
 function usdtf_verify_zip( $zip_path, $slug, $version ) {
-	$problems = array();
-
 	if ( ! class_exists( 'ZipArchive' ) ) {
 		usdtf_fail( 'the PHP zip extension is required.' );
 	}
-
-	$zip = new ZipArchive();
-
-	if ( true !== $zip->open( $zip_path ) ) {
+	if ( ! file_exists( $zip_path ) ) {
 		usdtf_fail( 'the archive could not be opened: ' . $zip_path );
 	}
-
-	$main      = $slug . '/usd-to-toman-price-sync-for-woocommerce.php';
-	$readme    = $slug . '/readme.txt';
-	$contents  = array();
-	$zip_main  = '';
-	$zip_read  = '';
-	$top_level = array();
-
-	for ( $index = 0; $index < $zip->numFiles; $index++ ) {
-		$name = str_replace( '\\', '/', (string) $zip->getNameIndex( $index ) );
-
-		if ( '' === $name || '/' === substr( $name, -1 ) ) {
-			continue;
-		}
-
-		$contents[] = $name;
-
-		$relative = $name;
-		$parts    = explode( '/', $name );
-
-		if ( count( $parts ) < 2 || $parts[0] !== $slug ) {
-			$problems[] = 'unexpected top level entry: ' . $name;
-
-			continue;
-		}
-
-		$top_level[ $parts[0] ] = true;
-
-		$inside = implode( '/', array_slice( $parts, 1 ) );
-
-		if ( usdtf_is_forbidden( $inside ) ) {
-			$problems[] = 'development file inside the archive: ' . $name;
-		}
-
-		if ( $main === $name ) {
-			$zip_main = (string) $zip->getFromIndex( $index );
-		}
-
-		if ( $readme === $name ) {
-			$zip_read = (string) $zip->getFromIndex( $index );
-		}
-	}
-
-	$zip->close();
-
-	if ( ! $contents ) {
-		$problems[] = 'the archive is empty.';
-	}
-
-	if ( array_keys( $top_level ) !== array( $slug ) ) {
-		$problems[] = sprintf( 'the archive must contain exactly one top level directory named "%s".', $slug );
-	}
-
-	if ( '' === $zip_main ) {
-		$problems[] = 'the plugin main file is missing from the archive.';
-	} elseif ( ! preg_match( '/^\s*\*?\s*Plugin Name:\s*(.+)$/mi', $zip_main ) ) {
-		$problems[] = 'the plugin main file inside the archive has no plugin header.';
-	} elseif ( ! preg_match( '/^\s*\*?\s*Version:\s*(.+)$/mi', $zip_main, $matches ) ) {
-		$problems[] = 'the plugin main file inside the archive has no version.';
-	} elseif ( '' !== $version && trim( $matches[1] ) !== $version ) {
-		$problems[] = sprintf( 'the archive version is %s, expected %s.', trim( $matches[1] ), $version );
-	}
-
-	if ( '' === $zip_read ) {
-		$problems[] = 'readme.txt is missing from the archive.';
-	} elseif ( ! preg_match( '/^\s*Stable tag:\s*(.+)$/mi', $zip_read, $matches ) ) {
-		$problems[] = 'readme.txt inside the archive has no "Stable tag" header.';
-	} elseif ( '' !== $version && trim( $matches[1] ) !== $version ) {
-		$problems[] = sprintf( 'the readme stable tag is %s, expected %s.', trim( $matches[1] ), $version );
-	}
-
-	if ( ! in_array( $slug . '/languages/usd-to-toman-price-sync-for-woocommerce.pot', $contents, true ) ) {
-		$problems[] = 'the translation template is missing from the archive.';
-	}
-
-	return $problems;
+	// Single contract: identical for builder --check and verifier explicit path.
+	return usdtf_archive_verify( $zip_path, $slug, $version );
 }
 
 // ---------------------------------------------------------------------------
