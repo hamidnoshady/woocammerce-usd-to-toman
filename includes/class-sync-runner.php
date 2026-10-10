@@ -1899,10 +1899,6 @@ final class Sync_Runner {
 	public function resume_orphaned_jobs() {
 		$resumed = 0;
 
-		if ( $this->lock->is_held_by_other() ) {
-			return 0;
-		}
-
 		foreach ( array( Job::STATUS_QUEUED, Job::STATUS_RUNNING ) as $status ) {
 			foreach ( $this->jobs->query(
 				array(
@@ -1911,6 +1907,14 @@ final class Sync_Runner {
 				)
 			) as $job ) {
 				if ( $job->is_stale() ) {
+					continue;
+				}
+
+				// A live lease owned by ANOTHER job means that job's worker is
+				// active right now; this orphan must wait for the single write
+				// slot. A leftover lease from THIS job's own dead worker must not
+				// block the re-queue: the next worker re-acquires its own lease.
+				if ( $this->lock->is_held_by_other_job( $job->id() ) ) {
 					continue;
 				}
 

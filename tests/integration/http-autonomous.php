@@ -217,9 +217,9 @@ try {
 
 	// Short passive poll: job should still be active because we interrupted
 	// the worker before it could queue the next step (orphaned). Production
-	// recovery (resume_orphaned_jobs via wp-cron/Action Scheduler, also
-	// triggered by GET /status when test routes enabled) must re-queue without
-	// manual POST /resume, CLI draining, or worker wake.
+	// recovery (resume_orphaned_jobs via the maintenance tick, fired by the
+	// passive poll's /test/tick trigger and by the real wp-cron cadence) must
+	// re-queue it without a manual POST /resume, CLI draining or worker wake.
 	$int_short = usdtf_it_http_wait_job_passive( $int_id, $usdtf_auto_header, 5 );
 	if ( ! empty( $int_short['is_active'] ) ) {
 		usdtf_it_assert( isset( $int_short['progress'] ), 'interrupted job must have progress persisted' );

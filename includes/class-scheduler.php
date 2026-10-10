@@ -474,7 +474,6 @@ final class Scheduler {
 		} catch ( \Throwable $error ) {
 			unset( $error );
 		}
-
 	}
 
 	/**

@@ -97,6 +97,27 @@ final class Lock {
 	}
 
 	/**
+	 * Whether a live lease is owned by a job OTHER than the given one.
+	 *
+	 * A worker that died mid-run leaves its own job's lease behind for the
+	 * whole TTL. That leftover must not stop the recovery pass from re-queueing
+	 * the SAME job (its next worker re-acquires its own lease); only a lease
+	 * owned by a different live job means "a worker is active elsewhere".
+	 *
+	 * @param int $job_id Job ID.
+	 * @return bool
+	 */
+	public function is_held_by_other_job( $job_id ) {
+		$lock = $this->read();
+
+		if ( empty( $lock['token'] ) ) {
+			return false;
+		}
+
+		return (int) $lock['expires'] > time() && (int) $lock['job_id'] !== (int) $job_id;
+	}
+
+	/**
 	 * Whether the given job currently owns the lease, expired or not.
 	 *
 	 * @param int $job_id Job ID.
