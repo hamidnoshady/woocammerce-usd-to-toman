@@ -64,7 +64,7 @@ if [ "$status" -ne 0 ]; then
 	# per step, so the first failures are the ones that matter.
 	reported=0
 
-	for pattern in 'FAIL:' 'Fatal error' 'PHP Fatal' 'Uncaught' '^PHP Warning' '^not ok'; do
+	for pattern in 'FAIL:' 'Fatal error' 'PHP Fatal' 'Uncaught' '^PHP Warning' '^not ok' '^usdtf wait job' '^usdtf passive wait' '^usdtf hang diagnostics' 'exited with status' 'cURL error'; do
 		while IFS= read -r line; do
 			[ -n "$line" ] || continue
 			[ "$reported" -lt 10 ] || break

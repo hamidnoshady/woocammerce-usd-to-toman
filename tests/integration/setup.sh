@@ -127,6 +127,21 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+# Put the SQLite database in WAL mode.
+#
+# The suite drives parallel PHP workers (REST request, token loopback, cron
+# tick, polls) against one database file. In the default rollback-journal
+# mode a writer blocks every reader, and two crossing write attempts can
+# wait on each other for the whole busy timeout, which stalls every request
+# at once. WAL lets readers and one writer proceed concurrently, which is
+# what the concurrent suite exercises on purpose.
+# ---------------------------------------------------------------------------
+for USDTF_DB in "$WP_PATH"/wp-content/database/*.sqlite "$WP_PATH"/wp-content/database/.ht.sqlite; do
+    [ -f "$USDTF_DB" ] || continue
+    php -r '$db = new PDO("sqlite:" . $argv[1]); $mode = $db->query("PRAGMA journal_mode=WAL")->fetchColumn(); echo $mode, PHP_EOL;' "$USDTF_DB" 2>/dev/null || true
+done
+
+# ---------------------------------------------------------------------------
 # Summary.
 # ---------------------------------------------------------------------------
 PLUGIN_SLUG="usd-to-toman-price-sync-for-woocommerce"

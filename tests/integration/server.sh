@@ -202,7 +202,9 @@ error_log ${conf_dir}/nginx-error.log warn;
 worker_processes 1;
 events { worker_connections 256; }
 http {
-    access_log off;
+    # Access log into the shared server log so failure diagnostics show the
+    # request flow under nginx exactly like the built-in server did.
+    access_log ${LOG_FILE};
     client_max_body_size 32M;
     server {
         listen 127.0.0.1:${port};
