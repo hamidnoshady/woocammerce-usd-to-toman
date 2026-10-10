@@ -148,3 +148,30 @@ wp-cron poke was removed; both wait helpers treat a response without a
 parsable `status` as a failed poll, log each distinct garbage body once,
 and capture `ps` (with wait channels), `ss` and the server log tail after
 five consecutive failures.
+
+### The mid-suite server death (run 4ddd819, built-ZIP leg) — CAPTURED
+
+The hardened wait helpers finally caught the ordinary leg's failure in the
+act:
+
+- `usdtf wait job 27: poll failed with code 0 body 'cURL error 7: Failed to
+  connect to 127.0.0.1 port 8888 after 0 ms'` — instant refusal, i.e. the
+  port was CLOSED, not busy.
+- The hang diagnostics captured at that moment: **no `php -S` process
+  exists at all** (only the runner's php-fpm pools and the test CLI), and
+  `ss` shows nothing listening on 8888.
+- The server log ends mid-suite right after serving the preview request —
+  the whole supervised tree (master + workers) died with no request-level
+  error, the same silent-death class as run 38003431248.
+
+Since the tree can die without leaving any trace in its own log, the
+lifecycle now runs the server under a **supervisor** (`server.sh
+__supervise__`): every death is recorded with its exit status and uptime
+(`[server] php -S (port …) exited with status N after Ns`), the listener is
+restored within a fraction of a second so a crashed dev-server cannot
+silently void a whole suite, and five consecutive sub-second exits stop the
+supervisor instead of spinning. The queue is persisted in the database, so
+a restarted server picks the job up from its persisted progress — the
+recovery paths this PR adds are what make that safe. Orphaned workers that
+survive a dead master are reaped precisely (php -S for this port and
+docroot only) before each restart.

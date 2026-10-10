@@ -104,6 +104,88 @@ usdtf_port_listening() {
     return $?
 }
 
+
+usdtf_supervise_server() {
+    # Runs as its own setsid'd process and never returns normally. The PHP
+    # built-in server tree has been observed to die mid-suite without any
+    # request-level error (whole process tree gone, port closed). The
+    # supervisor restores the listener within a fraction of a second and
+    # records every death with its exit status and uptime, which is the
+    # evidence a silent crash otherwise never leaves behind. Five
+    # consecutive sub-second exits stop the supervisor so a genuinely broken
+    # start cannot spin forever.
+    local php_bin="$1" port="$2" wp_path="$3" router="$4"
+    local restarts=0 started status lifetime
+
+    while true; do
+        started=$(date +%s)
+        PHP_CLI_SERVER_WORKERS=4 "$php_bin" -d memory_limit=512M -d max_execution_time=0 -S "127.0.0.1:${port}" -t "$wp_path" "$router"
+        status=$?
+        lifetime=$(( $(date +%s) - started ))
+        echo "[server] php -S (port ${port}) exited with status ${status} after ${lifetime}s at $(date -u +%Y-%m-%dT%H:%M:%SZ); restarting" >&2
+
+        if [ "$lifetime" -lt 1 ]; then
+            restarts=$(( restarts + 1 ))
+            if [ "$restarts" -ge 5 ]; then
+                echo "[server] php -S exited too quickly 5 times in a row, supervisor giving up" >&2
+                exit 1
+            fi
+        else
+            restarts=0
+        fi
+
+        # A restart can hit "Address already in use" when orphaned workers
+        # from the dead tree still hold the port: reap precisely owned
+        # leftovers (php -S for this port and docroot) before retrying.
+        bash "$0" __reap__ "$port" "$wp_path" >&2 || true
+        sleep 0.2
+    done
+}
+
+usdtf_reap_orphans() {
+    # Precisely stop php -S processes bound to this port that serve our
+    # docroot. Anything else on the port is reported, never killed.
+    local port="$1" docroot="$2"
+    local listeners="" opid ocmd
+
+    if command -v ss >/dev/null 2>&1; then
+        listeners="$(ss -ltnp "sport = :${port}" 2>/dev/null | grep -o 'pid=[0-9]*' | cut -d= -f2 | sort -u || true)"
+    elif command -v lsof >/dev/null 2>&1; then
+        listeners="$(lsof -t -iTCP:"${port}" -sTCP:LISTEN 2>/dev/null | sort -u || true)"
+    fi
+
+    for opid in $listeners; do
+        [ -n "$opid" ] || continue
+        ocmd="$(ps -o cmd= -p "$opid" 2>/dev/null || echo "")"
+        if [[ "$ocmd" != *"php"*"-S 127.0.0.1:${port}"* ]]; then
+            echo "[server] port ${port} listener PID ${opid} is not our php -S (cmd: ${ocmd}), not killing"
+            continue
+        fi
+        if [ -n "$docroot" ] && [[ "$ocmd" != *"$docroot"* ]]; then
+            echo "[server] port ${port} listener PID ${opid} serves another docroot, not killing"
+            continue
+        fi
+        echo "[server] reaping orphaned server PID ${opid} on port ${port}"
+        kill -TERM "$opid" 2>/dev/null || true
+    done
+
+    for i in $(seq 1 6); do
+        usdtf_port_listening "$port" || break
+        sleep 0.5
+    done
+
+    if usdtf_port_listening "$port"; then
+        for opid in $listeners; do
+            [ -n "$opid" ] || continue
+            ocmd="$(ps -o cmd= -p "$opid" 2>/dev/null || echo "")"
+            if [[ "$ocmd" == *"php"*"-S 127.0.0.1:${port}"* ]] && { [ -z "$docroot" ] || [[ "$ocmd" == *"$docroot"* ]]; }; then
+                echo "[server] force killing orphaned server PID ${opid}"
+                kill -KILL "$opid" 2>/dev/null || true
+            fi
+        done
+    fi
+}
+
 usdtf_start_concurrent() {
     # Genuine concurrent PHP execution: PHP_CLI_SERVER_WORKERS=4 makes php -S multi-worker since 7.4.
     # Proves overlapping execution via deterministic barrier (two 1.5s sleeps in parallel must finish in ~1.5s not 3s).
@@ -162,11 +244,11 @@ usdtf_start_concurrent() {
     # Track docroot for precise ownership.
     echo "$wp_path" > "${PID_FILE}.docroot"
 
-    usdtf_log "Starting concurrent PHP server (genuine workers): PHP_CLI_SERVER_WORKERS=4 $php_bin -d memory_limit=512M -d max_execution_time=0 -S 127.0.0.1:${port} -t ${wp_path} ${router}"
+    usdtf_log "Starting supervised concurrent PHP server (genuine workers, auto-restart on crash): PHP_CLI_SERVER_WORKERS=4 $php_bin -d memory_limit=512M -d max_execution_time=0 -S 127.0.0.1:${port} -t ${wp_path} ${router}"
     if command -v setsid >/dev/null 2>&1; then
-        setsid env PHP_CLI_SERVER_WORKERS=4 "$php_bin" -d memory_limit=512M -d max_execution_time=0 -S "127.0.0.1:${port}" -t "$wp_path" "$router" >"$LOG_FILE" 2>&1 < /dev/null &
+        setsid bash "$0" __supervise__ "$php_bin" "$port" "$wp_path" "$router" >"$LOG_FILE" 2>&1 < /dev/null &
     else
-        env PHP_CLI_SERVER_WORKERS=4 nohup "$php_bin" -d memory_limit=512M -d max_execution_time=0 -S "127.0.0.1:${port}" -t "$wp_path" "$router" >"$LOG_FILE" 2>&1 < /dev/null &
+        nohup bash "$0" __supervise__ "$php_bin" "$port" "$wp_path" "$router" >"$LOG_FILE" 2>&1 < /dev/null &
     fi
     local pid=$!
     echo "$pid" > "$PID_FILE"
@@ -178,7 +260,7 @@ usdtf_start_concurrent() {
 JSON
     echo "$pgid" > "${PID_FILE}.pgid" 2>/dev/null || true
     disown 2>/dev/null || true
-    usdtf_log "Concurrent PID $pid (pgid $pgid workers=4) on $port docroot $wp_path state /tmp/usdtf-server-${port}.json"
+    usdtf_log "Concurrent supervisor PID $pid (pgid $pgid, workers=4, auto-restart) on $port docroot $wp_path state /tmp/usdtf-server-${port}.json"
 
     local attempt=1
     while [ "$attempt" -le "$ATTEMPTS" ]; do
@@ -211,7 +293,7 @@ BARRIERPHP
                             rm -f "$PID_FILE" "${PID_FILE}.docroot" "${PID_FILE}.pgid" "/tmp/usdtf-server-${port}.json"
                             if usdtf_is_alive "$pid"; then
                                 cmdline="$(ps -o cmd= -p "$pid" 2>/dev/null || echo "")"
-                                if [[ "$cmdline" == *"php"*"-S 127.0.0.1:${port}"* ]]; then
+                                if [[ "$cmdline" == *"php"*"-S 127.0.0.1:${port}"* ]] || [[ "$cmdline" == *"__supervise__"* ]]; then
                                     kill "$pid" 2>/dev/null || true; sleep 0.5; kill -9 "$pid" 2>/dev/null || true
                                 fi
                             fi
@@ -240,7 +322,7 @@ BARRIERPHP
                 fi
             fi
         else
-            usdtf_log "Concurrent process $pid died"
+            usdtf_log "Concurrent supervisor $pid died (php -S gave up or crashed); see log"
             break
         fi
         usdtf_log "Waiting for concurrent server (attempt $attempt/${ATTEMPTS})..."
@@ -326,15 +408,13 @@ usdtf_start() {
         fi
     fi
 
-    # Start server detached. Use setsid if available, otherwise nohup.
-    # Redirect stdin from /dev/null, stdout/stderr to log, pid to file.
-    # PHP_CLI_SERVER_WORKERS=4 makes the built-in server serve requests in
-    # parallel: the REST request, its non-blocking loopback and the poll all
-    # make progress instead of racing for one thread.
+    # Start the supervised server detached (setsid when available): the
+    # supervisor owns the php process tree, restarts it when the tree dies
+    # mid-suite and records every death with its exit status.
     if command -v setsid >/dev/null 2>&1; then
-        setsid env PHP_CLI_SERVER_WORKERS=4 "$php_bin" -d memory_limit=512M -d max_execution_time=0 -S "127.0.0.1:${port}" -t "$wp_path" "$router" >"$LOG_FILE" 2>&1 < /dev/null &
+        setsid bash "$0" __supervise__ "$php_bin" "$port" "$wp_path" "$router" >"$LOG_FILE" 2>&1 < /dev/null &
     else
-        env PHP_CLI_SERVER_WORKERS=4 nohup "$php_bin" -d memory_limit=512M -d max_execution_time=0 -S "127.0.0.1:${port}" -t "$wp_path" "$router" >"$LOG_FILE" 2>&1 < /dev/null &
+        nohup bash "$0" __supervise__ "$php_bin" "$port" "$wp_path" "$router" >"$LOG_FILE" 2>&1 < /dev/null &
     fi
     local pid=$!
     echo "$pid" > "$PID_FILE"
@@ -347,7 +427,7 @@ JSON
     # Disown so the runner does not kill it when the step shell exits.
     disown 2>/dev/null || true
 
-    usdtf_log "Server PID $pid (pgid $pgid) on $port docroot $wp_path state /tmp/usdtf-server-${port}.json"
+    usdtf_log "Server supervisor PID $pid (pgid $pgid, workers=4, auto-restart) on $port docroot $wp_path state /tmp/usdtf-server-${port}.json"
 
     # Wait for server to answer. Use -w '%{http_code}' so a 500 is visible
     # instead of an opaque curl 22, and accept 2xx/3xx as healthy (WordPress
@@ -396,10 +476,11 @@ JSON
 
     # Failed: cleanup PID so next start does not think we own the port.
     rm -f "$PID_FILE"
-    # If we left a php -S running but unresponsive, kill it (verified ownership).
+    # If we left a supervised server running but unresponsive, stop it
+    # (verified ownership: supervisor or php -S for this port).
     if usdtf_is_alive "$pid"; then
         cmdline="$(ps -o cmd= -p "$pid" 2>/dev/null || echo "")"
-        if [[ "$cmdline" == *"php"*"-S 127.0.0.1:${port}"* ]]; then
+        if [[ "$cmdline" == *"php"*"-S 127.0.0.1:${port}"* ]] || [[ "$cmdline" == *"__supervise__"* ]]; then
             usdtf_log "Cleaning up unresponsive server PID $pid"
             kill "$pid" 2>/dev/null || true
             sleep 0.5
@@ -457,9 +538,11 @@ usdtf_stop() {
         fi
     elif [ -n "$pid" ] && usdtf_is_alive "$pid"; then
         # Legacy state (PID recorded, no process group): verify ownership
-        # before signalling anything, then stop the PID's whole group.
+        # before signalling anything, then stop the PID's whole group. The
+        # recorded PID is either the supervisor (bash ... __supervise__)
+        # or, from older revisions, the php -S master itself.
         cmdline="$(ps -o cmd= -p "$pid" 2>/dev/null || echo "")"
-        if [[ "$cmdline" != *"php"*"-S 127.0.0.1:${port}"* ]]; then
+        if [[ "$cmdline" != *"php"*"-S 127.0.0.1:${port}"* ]] && [[ "$cmdline" != *"__supervise__"* ]]; then
             usdtf_log "PID $pid does not look like our server (cmd: $cmdline), not killing"
         else
             pgid="$(ps -o pgid= -p "$pid" 2>/dev/null | tr -d ' ' || echo "")"
@@ -622,6 +705,16 @@ usdtf_status() {
 
 cmd="${1:-}"
 case "$cmd" in
+    __supervise__)
+        shift
+        usdtf_supervise_server "$@"
+        exit $?
+        ;;
+    __reap__)
+        shift
+        usdtf_reap_orphans "$@"
+        exit $?
+        ;;
     start)
         shift
         # If --concurrent flag given, use concurrent backend.
