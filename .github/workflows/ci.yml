@@ -89,6 +89,10 @@ jobs:
             head -n 500 /tmp/phpcs.log | sed 's/`/\\`/g; s/|/\\|/g'
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY" || true
+          # Annotation for quick triage without needing artifact download
+          if [ $status -ne 0 ]; then
+            head -n 20 /tmp/phpcs.log | tr '\n' ' ' | sed 's/%/%25/g; s/\r/%0D/g; s/\n/%0A/g' | xargs -I {} echo "::error::PHPCS: {}"
+          fi
           # Also show source report for quick triage
           composer phpcs -- --report=source 2>&1 | head -n 500 || true
           exit $status
