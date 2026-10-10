@@ -242,7 +242,7 @@ function usdtf_it_http_wait_job( $job_id, $authorization, $timeout = 120 ) {
 			$body_key = $response['code'] . '|' . substr( (string) $response['body'], 0, 300 );
 			if ( ! isset( $garbage[ $body_key ] ) ) {
 				$garbage[ $body_key ] = true;
-				error_log( sprintf( 'usdtf wait job %d: poll failed with code %d body %s', (int) $job_id, $response['code'], var_export( substr( (string) $response['body'], 0, 300 ), true ) ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+				fwrite( STDERR, sprintf( 'usdtf wait job %d: poll failed with code %d body %s\n', (int) $job_id, $response['code'], var_export( substr( (string) $response['body'], 0, 300 ), true ) ) ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- test diagnostics, CLI only.
 			}
 			++$refused;
 			if ( 5 === $refused ) {
@@ -380,7 +380,7 @@ function usdtf_it_http_wait_job_passive( $job_id, $authorization, $timeout = 30 
 				$body_key = $last_code . '|' . substr( (string) $last_body, 0, 300 );
 				if ( ! isset( $garbage[ $body_key ] ) ) {
 					$garbage[ $body_key ] = true;
-					error_log( sprintf( 'usdtf passive wait job %d: poll failed with code %d body %s', (int) $job_id, $last_code, var_export( substr( (string) $last_body, 0, 300 ), true ) ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+					fwrite( STDERR, sprintf( 'usdtf passive wait job %d: poll failed with code %d body %s\n', (int) $job_id, $last_code, var_export( substr( (string) $last_body, 0, 300 ), true ) ) ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- test diagnostics, CLI only.
 				}
 				++$refused;
 				if ( 5 === $refused ) {
@@ -551,7 +551,7 @@ try {
 		}
 		// Per-attempt evidence: which try failed, with what code and body, so a
 		// refused connection is attributable instead of opaque.
-		error_log( sprintf( 'usdtf update attempt %d/%d code %d body %s', $usdtf_u, $update_attempts, $update['code'], substr( (string) $update['body'], 0, 200 ) ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+		fwrite( STDERR, sprintf( "usdtf update attempt %d/%d code %d body %s\n", $usdtf_u, $update_attempts, $update['code'], substr( (string) $update['body'], 0, 200 ) ) ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- test diagnostics, CLI only.
 		if ( 0 === $update['code'] ) {
 			// cURL 7/52: server transiently refused / empty reply while still
 			// handling preview wakes; retry with backoff.

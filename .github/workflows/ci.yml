@@ -410,6 +410,11 @@ jobs:
           --- built-ZIP suite tail ---
           $(tail -n 60 /tmp/built-zip.log 2>/dev/null | head -c 8000)"
           fi
+          if [ -f "${WP_PATH}-built-zip/../debug.log" ]; then
+            diag="$diag
+          --- built-ZIP debug.log tail (error_log output of the suite and workers) ---
+          $(tail -n 80 "${WP_PATH}-built-zip/../debug.log" 2>/dev/null | head -c 8000)"
+          fi
           if [ -f "/tmp/server-start-2.log" ]; then
             diag="$diag
           --- server-start-2 log ---
