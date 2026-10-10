@@ -52,7 +52,7 @@ jobs:
       zip: ${{ steps.version.outputs.zip }}
     steps:
       - name: Check out the tagged source
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
 
@@ -100,24 +100,39 @@ jobs:
         # time, so rebuilding the same tag reproduces the same checksum.
         run: php bin/build-dist.php --source-date="$(git log -1 --format=%cI)"
 
-      - name: Validate the distribution
+      - name: Validate the distribution (canonical)
+        # Canonical validator checks the single top-level directory, forbidden
+        # files, required runtime files, language catalogue, version header and
+        # the usdtf/v1 REST namespace. Replaces the duplicated inline grep chain.
+        run: php bin/verify-archive.php --zip="dist/${PLUGIN_SLUG}.${{ steps.version.outputs.version }}.zip" --version="${{ steps.version.outputs.version }}"
+
+      - name: Build summary
+        id: build-summary
+        if: always()
         run: |
-          set -euo pipefail
-          php bin/build-dist.php --check
-          listing="$(unzip -Z1 "dist/${PLUGIN_SLUG}.${{ steps.version.outputs.version }}.zip")"
-          if echo "$listing" | grep -Eq '^(tests|bin|\.github|wordpress-org)/|phpcs\.xml|composer\.(json|lock)|\.distignore|\.git'; then
-            echo "::error::The distribution archive contains development files."
-            exit 1
-          fi
-          for catalogue in \
-            "languages/${PLUGIN_SLUG}-fa_IR.po" \
-            "languages/${PLUGIN_SLUG}-fa_IR.mo"; do
-            if ! echo "$listing" | grep -qx "${PLUGIN_SLUG}/${catalogue}"; then
-              echo "::error::The release archive is missing ${catalogue}."
-              exit 1
+          {
+            echo "### Build"
+            echo
+            echo "- **Outcome**: \`${{ job.status }}\`"
+            zip="dist/${PLUGIN_SLUG}.${{ steps.version.outputs.version }}.zip"
+            if [ -f "$zip" ]; then
+              zip_base="$(basename "$zip" | sed 's/`/\\`/g; s/|/\\|/g')"
+              zip_size="$(du -h "$zip" 2>/dev/null | cut -f1 | sed 's/`/\\`/g')"
+              cksum="$(cut -d' ' -f1 "$zip.sha256" 2>/dev/null | head -c 16 | sed 's/`/\\`/g')"
+              ver="$(printf '%s' "${{ steps.version.outputs.version }}" | sed 's/`/\\`/g; s/|/\\|/g')"
+              tag="$(printf '%s' "${{ steps.version.outputs.release_tag }}" | sed 's/`/\\`/g; s/|/\\|/g')"
+              echo "- **Archive**: \`${zip_base}\` (${zip_size}, $(unzip -Z1 "$zip" 2>/dev/null | wc -l) files)"
+              echo "- **Checksum**: \`${cksum}...\`"
+              echo "- **Version**: \`${ver}\` (tag \`${tag}\`)"
+              if [ "${{ job.status }}" = "success" ]; then
+                echo "- **Validation**: ✅ canonical validator passed"
+              else
+                echo "- **Validation**: ❌ failed"
+              fi
+            else
+              echo "- **Archive**: not found"
             fi
-          done
-          echo "Packaged $(echo "$listing" | wc -l) files."
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload the archive as a workflow artifact
         uses: actions/upload-artifact@v6
@@ -143,6 +158,10 @@ jobs:
             echo
             echo "Install it through **Plugins → Add New → Upload Plugin**, or copy the extracted"
             echo "\`${PLUGIN_SLUG}\` directory into \`wp-content/plugins/\`."
+            echo
+            echo "Download: \`${PLUGIN_SLUG}.${version}.zip\`"
+            echo "Checksum (\`sha256\`): \`$(cut -d' ' -f1 "dist/${PLUGIN_SLUG}.${version}.zip.sha256")\`"
+            echo
 
             # Include the matching CHANGELOG section so the release describes
             # itself instead of only linking to the archive.
@@ -181,6 +200,20 @@ jobs:
               --verify-tag
           fi
 
+          {
+            echo "### Publication"
+            echo
+            # Escape for markdown; repo is controlled but still escape.
+            tag_esc="$(printf '%s' "$release_tag" | sed 's/`/\\`/g; s/|/\\|/g')"
+            ver_esc="$(printf '%s' "$version" | sed 's/`/\\`/g; s/|/\\|/g')"
+            cksum="$(cut -d' ' -f1 "dist/${PLUGIN_SLUG}.${version}.zip.sha256" 2>/dev/null | head -c 16 | sed 's/`/\\`/g')"
+            echo "- **Release**: [\`${tag_esc}\`](https://github.com/${{ github.repository }}/releases/tag/${tag_esc})"
+            echo "- **Archive**: \`dist/${PLUGIN_SLUG}.${ver_esc}.zip\`"
+            echo "- **Checksum**: \`${cksum}\`"
+            echo "- **Notes**: $(wc -l < "$notes_file" 2>/dev/null | tr -d '\`' | tr -d '|') lines"
+            echo
+          } >> "$GITHUB_STEP_SUMMARY"
+
   verify:
     name: Verify the published release
     needs: release
@@ -207,7 +240,7 @@ jobs:
     environment: wordpress-org
     steps:
       - name: Check out the tagged source
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           ref: ${{ inputs.tag }}
 

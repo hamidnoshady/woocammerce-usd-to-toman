@@ -27,19 +27,39 @@ if [ -n "$summary" ]; then
 	{
 		echo "### Integration suite ($label)"
 		echo
+		# Count accurately: ok, not ok, and explicit skips.
+		passed="$(grep -c '^ok - ' "$log" || true)"
+		failed="$(grep -c '^not ok' "$log" || true)"
+		skipped="$(grep -c '^skip - ' "$log" || true)"
+		autonomous_skipped="$(grep -c 'autonomous.*skipped' "$log" || true)"
+		# Escape backticks in dynamic values for markdown.
+		echo "Passed: ${passed}, Failed: ${failed}, Skipped: ${skipped} (autonomous skipped: ${autonomous_skipped})"
 		if [ "$status" -eq 0 ]; then
-			echo "Passed: $(grep -c '^ok - ' "$log") scenario groups."
+			echo "Result: ✅ passed"
 		else
-			echo "Failed. Last 120 lines:"
+			echo "Result: ❌ failed"
+			echo
+			echo "Last 120 lines:"
 			echo
 			echo '```'
-			tail -n 120 "$log"
+			tail -n 120 "$log" | sed 's/`/\\`/g'
 			echo '```'
 		fi
 	} >>"$summary"
 fi
 
 if [ "$status" -ne 0 ]; then
+	# On failure, also capture the server health so an empty reply (curl 52)
+	# is not an opaque "FAIL: … Empty reply from server" without context.
+	if [ -x "tests/integration/server.sh" ] && [ -f "/tmp/usdtf-server.log" ]; then
+		echo "--- server log (last 50 lines) ---"
+		tail -n 50 /tmp/usdtf-server.log || true
+		echo "--- end server log ---"
+		if [ "${USDTF_REQUIRE_HTTP_TESTS:-}" = "1" ]; then
+			bash tests/integration/server.sh status 8888 2>&1 | head -n 100 || true
+		fi
+	fi
+
 	# Annotations accept one line each, and only ten error annotations are kept
 	# per step, so the first failures are the ones that matter.
 	reported=0
@@ -91,6 +111,36 @@ if [ "$status" -ne 0 ]; then
 	rm -f "$log"
 
 	exit 1
+fi
+
+if grep -q '^skip - ' "$log"; then
+	if [ "${USDTF_REQUIRE_HTTP_TESTS:-}" = "1" ]; then
+		echo "::error::The suite skipped scenarios with USDTF_REQUIRE_HTTP_TESTS=1, so HTTP is not verified:" >&2
+		grep '^skip - ' "$log" || true
+		echo "---- full log ----"
+		cat "$log"
+		rm -f "$log"
+		exit 1
+	fi
+	echo "::warning::The suite skipped: $(grep -c '^skip - ' "$log") scenario(s)" >&2
+	grep '^skip - ' "$log" || true
+fi
+
+# Autonomous must not be skipped when concurrent is required.
+if [ "${USDTF_CONCURRENT:-}" = "1" ] && grep -q "autonomous.*skipped.*requires USDTF_CONCURRENT" "$log"; then
+	echo "::error::Autonomous HTTP tests were skipped with USDTF_CONCURRENT=1 — concurrent server failed" >&2
+	grep "autonomous.*skipped" "$log" || true
+	rm -f "$log"
+	exit 1
+fi
+# Also check that autonomous actually passed when concurrent.
+if [ "${USDTF_CONCURRENT:-}" = "1" ] && [ "$status" -eq 0 ]; then
+	if ! grep -q "autonomous (passive) preview/update complete without wake" "$log"; then
+		echo "::error::Autonomous suite did not report success with USDTF_CONCURRENT=1" >&2
+		cat "$log"
+		rm -f "$log"
+		exit 1
+	fi
 fi
 
 rm -f "$log"

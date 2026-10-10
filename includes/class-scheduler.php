@@ -135,7 +135,10 @@ final class Scheduler {
 			// claims the Action Scheduler/WP-Cron action before executing it, so
 			// multiple pokes cannot run the same queued step twice.
 			if ( 0 === $delay && self::BACKEND_NONE !== $backend && $this->settings->get( 'loopback_fallback' ) ) {
-				$this->fire_loopback( $hook, $args );
+				$dispatched = $this->fire_loopback( $hook, $args );
+				if ( ! $dispatched && defined( 'REST_REQUEST' ) && REST_REQUEST ) {
+					$this->dispatch_action_scheduler();
+				}
 			}
 
 			return true;
@@ -163,10 +166,16 @@ final class Scheduler {
 			// use the plugin's token-protected loopback as an immediate wake-up.
 			// handle_loopback() claims (unschedules) the Action Scheduler action
 			// before running it, so the native queue remains a fallback rather than
-			// a duplicate execution path.
+			// a duplicate execution path. When the built-in server is busy the
+			// non-blocking loopback may be refused; a failed loopback falls
+			// back to Action Scheduler's own async dispatcher, which will run
+			// after the REST response is finished.
 			if ( $queued && 0 === $delay ) {
 				if ( $this->settings->get( 'loopback_fallback' ) ) {
-					$this->fire_loopback( $hook, $args );
+					$dispatched = $this->fire_loopback( $hook, $args );
+					if ( ! $dispatched && defined( 'REST_REQUEST' ) && REST_REQUEST ) {
+						$this->dispatch_action_scheduler();
+					}
 				} elseif ( defined( 'REST_REQUEST' ) && REST_REQUEST ) {
 					// Without the loopback, still wake Action Scheduler's own async
 					// runner: REST requests do not reliably reach its wp-admin
@@ -192,7 +201,10 @@ final class Scheduler {
 			// executed early: the previous implementation slept for at most ten
 			// seconds and could violate a 30–300 second retry backoff.
 			if ( 0 === $delay && $this->settings->get( 'loopback_fallback' ) ) {
-				$this->fire_loopback( $hook, $args );
+				$dispatched = $this->fire_loopback( $hook, $args );
+				if ( ! $dispatched && defined( 'REST_REQUEST' ) && REST_REQUEST ) {
+					$this->dispatch_action_scheduler();
+				}
 			}
 
 			return true;
@@ -460,10 +472,16 @@ final class Scheduler {
 			$runner = new \ActionScheduler_AsyncRequest_QueueRunner( $store );
 			$runner->maybe_dispatch();
 		} catch ( \Throwable $error ) {
-			// Queue persistence succeeded; the normal scheduled runner remains
-			// the safety net when an async HTTP dispatch cannot be started.
 			unset( $error );
 		}
+
+		wp_remote_post(
+			site_url( 'wp-cron.php?doing_wp_cron' ),
+			array(
+				'timeout'  => 0.5,
+				'blocking' => false,
+			)
+		);
 	}
 
 	/**
@@ -481,6 +499,23 @@ final class Scheduler {
 	private function fire_loopback( $hook, array $args ) {
 		if ( ! in_array( $hook, self::allowed_worker_hooks(), true ) ) {
 			return false;
+		}
+
+		// Test hook: deterministic failure injection. Only when
+		// USDTF_ENABLE_TEST_ROUTES is true, when the option
+		// usdtf_test_fail_next_loopback is "1" or equals the hook name,
+		// fail this dispatch once (queue remains persisted, fallback must run).
+		// Set via POST /usdtf/v1/test/fail-next-loopback. Ignored in production.
+		if ( defined( 'USDTF_ENABLE_TEST_ROUTES' ) && USDTF_ENABLE_TEST_ROUTES ) {
+			$fail = get_option( 'usdtf_test_fail_next_loopback', '' );
+			if ( '' !== $fail ) {
+				if ( '1' === (string) $fail || (string) $fail === (string) $hook ) {
+					// Consume once.
+					delete_option( 'usdtf_test_fail_next_loopback' );
+					error_log( sprintf( 'usdtf test: failing loopback for %s (injected)', $hook ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+					return false;
+				}
+			}
 		}
 
 		$result = wp_remote_post(
@@ -516,6 +551,11 @@ final class Scheduler {
 	/**
 	 * Handle the loopback worker request.
 	 *
+	 * Claim has a timestamp lease and heartbeat. If the lease expires,
+	 * the step is requeued exactly once by the recovery tick. The worker
+	 * request uses ignore_user_abort and time limit so the client
+	 * disconnect (0.5s timeout) does not kill it after claim.
+	 *
 	 * @return void
 	 */
 	public function handle_loopback() {
@@ -546,6 +586,19 @@ final class Scheduler {
 			wp_die( '', '', array( 'response' => 400 ) );
 		}
 
+		// Ensure the client disconnect does not abort this worker after claim.
+		if ( function_exists( 'ignore_user_abort' ) ) {
+			ignore_user_abort( true ); // phpcs:ignore WordPressVIPMinimum.Functions.RestrictedFunctions.ignore_user_abort_ignore_user_abort
+		}
+		if ( function_exists( 'set_time_limit' ) ) {
+			@set_time_limit( 0 ); // phpcs:ignore WordPressVIPMinimum.Functions.RestrictedFunctions.set_time_limit_set_time_limit
+		}
+
+		// Claim with lease: store timestamp before unscheduling so expiry can be detected.
+		$lease_key = 'usdtf_worker_lease_' . $job_id . '_' . $hook;
+		$now       = time();
+		update_option( $lease_key, array( 'time' => $now, 'pid' => getmypid() ), false );
+
 		// This request owns the work now: drop the WP-Cron twin of the action
 		// so the same step cannot be triggered twice (once here, once by cron).
 		// When the loopback never arrives, the cron event survives as the
@@ -573,12 +626,53 @@ final class Scheduler {
 		}
 
 		if ( ! $claimed ) {
+			delete_option( $lease_key );
 			wp_die( 'already claimed', '', array( 'response' => 200 ) );
 		}
+
+		// Heartbeat via job repository as well.
+		usdtf_plugin()->jobs()->heartbeat( $job_id );
 
 		// Only the hooks returned by allowed_worker_hooks() can reach this line.
 		do_action( $hook, $job_id ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.DynamicHooknameFound -- Whitelisted internal hook.
 
+		delete_option( $lease_key );
+
 		wp_die( 'ok', '', array( 'response' => 200 ) );
+	}
+
+	/**
+	 * Check if a worker lease has expired (e.g., worker killed after claim).
+	 *
+	 * @param int    $job_id Job ID.
+	 * @param string $hook   Hook.
+	 * @param int    $ttl    Seconds before lease considered expired (default 60).
+	 * @return bool True if lease exists and is expired.
+	 */
+	public static function is_lease_expired( $job_id, $hook, $ttl = 60 ) {
+		$lease = get_option( 'usdtf_worker_lease_' . $job_id . '_' . $hook, null );
+		if ( ! is_array( $lease ) || ! isset( $lease['time'] ) ) {
+			return false;
+		}
+		return ( time() - (int) $lease['time'] ) > $ttl;
+	}
+
+	/**
+	 * Clear expired leases (called by recovery).
+	 *
+	 * @return void
+	 */
+	public static function clear_expired_leases() {
+		global $wpdb;
+		$like = $wpdb->esc_like( 'usdtf_worker_lease_' ) . '%';
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+		$keys = $wpdb->get_col( $wpdb->prepare( "SELECT option_name FROM {$wpdb->options} WHERE option_name LIKE %s", $like ) );
+		foreach ( $keys as $key ) {
+			$lease = get_option( $key, null );
+			if ( is_array( $lease ) && isset( $lease['time'] ) && ( time() - (int) $lease['time'] ) > 300 ) {
+				delete_option( $key );
+			}
+		}
+	}
 	}
 }

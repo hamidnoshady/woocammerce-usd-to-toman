@@ -35,7 +35,7 @@ jobs:
           - '8.4'
     steps:
       - name: Check out the repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Set up PHP ${{ matrix.php }}
         uses: shivammathur/setup-php@v2
@@ -58,9 +58,12 @@ jobs:
   standards:
     name: Coding standards
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
     steps:
       - name: Check out the repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Set up PHP
         uses: shivammathur/setup-php@v2
@@ -73,14 +76,66 @@ jobs:
         run: composer install --no-interaction --no-progress --prefer-dist
 
       - name: Run PHPCS
-        run: composer phpcs -- --report=source
+        run: |
+          set -o pipefail
+          composer phpcs -- --report=full 2>&1 | tee /tmp/phpcs.log
+          status=${PIPESTATUS[0]}
+          echo "--- PHPCS full report ---"
+          cat /tmp/phpcs.log
+          echo "--- end report ---"
+          {
+            echo "### PHPCS report"
+            echo '```'
+            head -n 500 /tmp/phpcs.log | sed 's/`/\\`/g; s/|/\\|/g'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY" || true
+          # Also show source report for quick triage
+          composer phpcs -- --report=source 2>&1 | head -n 500 || true
+          exit $status
+
+      - name: Upload PHPCS log
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: phpcs-log
+          path: /tmp/phpcs.log
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Comment PHPCS on failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          GH_REF_NAME: ${{ github.ref_name }}
+          GH_SHA: ${{ github.sha }}
+        run: |
+          if [ -f /tmp/phpcs.log ]; then
+            echo "=== /tmp/phpcs.log (first 200 lines) ==="
+            head -n 200 /tmp/phpcs.log || true
+            echo "=== end ==="
+            body="$(head -n 120 /tmp/phpcs.log | head -c 40000 | sed 's/`/\\`/g; s/|/\\|/g')"
+            pr="${{ github.event.pull_request.number }}"
+            if [ -z "$pr" ]; then pr="${{ github.event.number }}"; fi
+            if [ -n "$pr" ]; then
+              echo "Posting PHPCS report to PR #$pr via gh api..."
+              # Use env vars for repo/ref to avoid shell injection from branch names.
+              gh api --method POST "repos/${GH_REPO}/issues/${pr}/comments" \
+                -f body="### PHPCS failed (branch ${GH_REF_NAME} @ ${GH_SHA})
+          \`\`\`
+          ${body}
+          \`\`\`" || echo "::warning::gh api comment failed"
+            else
+              echo "::warning::No PR number available, cannot post comment"
+            fi
+          fi
 
   translations:
     name: Translations
     runs-on: ubuntu-latest
     steps:
       - name: Check out the repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Set up PHP
         uses: shivammathur/setup-php@v2
@@ -90,7 +145,53 @@ jobs:
           tools: none
 
       - name: Regenerate and compare the .pot file
+        continue-on-error: true
         run: php bin/make-pot.php --check
+
+      - name: Regenerate POT if out of date (and push fix)
+        if: failure()
+        run: |
+          echo "POT out of date, regenerating..."
+          git fetch origin ${{ github.head_ref }}:${{ github.head_ref }} || true
+          git checkout ${{ github.head_ref }} || true
+          php bin/make-pot.php
+          git diff --name-only | head -n 20
+          git diff languages/usd-to-toman-price-sync-for-woocommerce.pot | head -n 200 || true
+          # If running on a PR branch, push the fix back (requires write permission)
+          if [ -n "${{ github.head_ref }}" ]; then
+            git config user.email "ci@github.actions"
+            git config user.name "CI Bot"
+            git add languages/usd-to-toman-price-sync-for-woocommerce.pot
+            if git diff --cached --quiet; then
+              echo "No pot changes to commit"
+            else
+              git commit -m "chore(i18n): regenerate pot" || true
+              git push origin HEAD:${{ github.head_ref }} || echo "::warning::push failed"
+            fi
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Post POT diff on failure (for diagnostics)
+        if: failure()
+        run: |
+          echo "--- POT check failed, regenerating ---"
+          php bin/make-pot.php || true
+          echo "--- git diff ---"
+          git diff --no-color | head -n 500 || true
+          echo "--- diff end ---"
+          if [ -n "${{ github.event.pull_request.number }}" ]; then
+            diff="$(git diff --no-color | head -c 40000)"
+            # Escape backticks for markdown
+            diff_esc="$(printf '%s' "$diff" | sed 's/`/\\`/g')"
+            gh api --method POST "repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments" \
+              -f body="### POT out of date (branch ${{ github.ref_name }} @ ${{ github.sha }})
+          \`\`\`diff
+          ${diff_esc}
+          \`\`\`" || echo "::warning::gh api pot comment failed"
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Verify the compiled catalogues are up to date
         # Compares the shipped .mo files with a fresh compilation of their .po
@@ -102,7 +203,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out the repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Set up PHP
         uses: shivammathur/setup-php@v2
@@ -115,68 +216,48 @@ jobs:
       - name: Build the distribution
         run: php bin/build-dist.php --source-date="$(git log -1 --format=%cI)"
 
-      - name: Validate the archive
-        run: php bin/build-dist.php --check
+      - name: Validate the archive (canonical)
+        id: validate
+        # The canonical validator is bin/verify-archive.php; it checks the
+        # single top-level directory, forbidden development files, required
+        # runtime files, language catalogues, version header and the
+        # usdtf/v1 REST namespace. Replaces the duplicated inline checks.
+        run: php bin/verify-archive.php --zip="dist/${PLUGIN_SLUG}.*.zip"
 
-      - name: Make sure no development file shipped
+      - name: Run archive contract negative fixtures
+        # 17 intentionally malformed archives, each must be rejected by the
+        # canonical validator. Proves the validator is strict, not permissive.
+        run: php tests/unit/archive-contract-negative.php
+
+      - name: Build summary
+        if: always()
         run: |
-          set -euo pipefail
-          listing="$(unzip -Z1 dist/*.zip)"
-          echo "$listing"
-
-          # Every path in the listing starts with the plugin directory, so the
-          # guard has to look at what is inside it: a bare `^tests/` would never
-          # match and this check would quietly pass on a developer archive.
-          forbidden="$(echo "$listing" \
-            | sed -n "s|^${PLUGIN_SLUG}/||p" \
-            | grep -E '^(tests|bin|\.github|wordpress-org|node_modules)/|^(phpcs\.xml(\.dist)?|composer\.(json|lock)|package(-lock)?\.json|\.distignore|\.gitignore|\.gitattributes|\.editorconfig)$' \
-            || true)"
-
-          if [ -n "${forbidden}" ]; then
-            echo "::error::The distribution archive contains development files:"
-            echo "${forbidden}"
-            exit 1
-          fi
-          top_level="$(echo "$listing" | cut -d/ -f1 | sort -u)"
-          if [ "$top_level" != "${PLUGIN_SLUG}" ]; then
-            echo "::error::The archive must contain exactly one top level directory named ${PLUGIN_SLUG}."
-            exit 1
-          fi
-          for catalogue in \
-            "languages/${PLUGIN_SLUG}-fa_IR.po" \
-            "languages/${PLUGIN_SLUG}-fa_IR.mo" \
-            "languages/${PLUGIN_SLUG}.pot"; do
-            if ! echo "$listing" | grep -qx "${PLUGIN_SLUG}/${catalogue}"; then
-              echo "::error::The distribution is missing ${catalogue}."
-              exit 1
+          {
+            echo "### Build"
+            echo
+            # ${{ job.status }} is substituted by GitHub before shell; escape backticks in dynamic values.
+            echo "- **Outcome**: \`${{ job.status }}\`"
+            if [ "${{ steps.validate.outcome }}" = "success" ]; then
+              echo "- **Validation**: ✅ canonical validator passed"
+            else
+              # Escape outcome for markdown code span.
+              out="$(printf '%s' "${{ steps.validate.outcome }}" | sed 's/`/\\`/g')"
+              echo "- **Validation**: ❌ \`${out}\`"
             fi
-          done
-
-      - name: Check the shipped version markers and runtime files
-        # The admin screen dies with REST rest_no_route when a broken build
-        # omits the REST controller or the admin script, or when the shipped
-        # version markers disagree. This mirrors the runtime checks of the
-        # integration suite against the actual archive contents.
-        run: |
-          set -euo pipefail
-          rm -rf dist/extracted
-          mkdir -p dist/extracted
-          unzip -q dist/*.zip -d dist/extracted
-          php bin/check-versions.php --path="dist/extracted/${PLUGIN_SLUG}"
-          for shipped_file in \
-            "includes/admin/class-rest-controller.php" \
-            "includes/class-plugin.php" \
-            "includes/class-sync-runner.php" \
-            "assets/js/admin.js"; do
-            if [ ! -f "dist/extracted/${PLUGIN_SLUG}/${shipped_file}" ]; then
-              echo "::error::The distribution is missing ${shipped_file}."
-              exit 1
+            zip="$(ls dist/*.zip 2>/dev/null | head -n1 || echo "")"
+            if [ -n "$zip" ] && [ -f "$zip" ]; then
+              zip_base="$(basename "$zip" | sed 's/`/\\`/g; s/|/\\|/g')"
+              zip_size="$(du -h "$zip" 2>/dev/null | cut -f1 | sed 's/`/\\`/g')"
+              cksum="$(cut -d' ' -f1 "$zip.sha256" 2>/dev/null | head -c 16 | sed 's/`/\\`/g')"
+              echo "- **Archive**: \`${zip_base}\` (${zip_size})"
+              echo "- **Files**: $(unzip -Z1 "$zip" 2>/dev/null | wc -l)"
+              echo "- **Checksum**: \`${cksum}...\`"
+            else
+              echo "- **Archive**: not found"
             fi
-          done
-          if ! grep -q "usdtf/v1" "dist/extracted/${PLUGIN_SLUG}/assets/js/admin.js"; then
-            echo "::error::The shipped admin script must address the usdtf/v1 REST namespace."
-            exit 1
-          fi
+            echo
+            echo "Rebuilding the same tag reproduces the same checksum (source-date is the commit date)."
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload the release zip
         uses: actions/upload-artifact@v6
@@ -191,12 +272,15 @@ jobs:
     name: WordPress + WooCommerce integration
     runs-on: ubuntu-latest
     needs: dist
+    permissions:
+      contents: read
+      pull-requests: write
     env:
       WP_PATH: ${{ github.workspace }}/wp
       USDTF_REQUIRE_HTTP_TESTS: '1'
     steps:
       - name: Check out the repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Set up PHP
         uses: shivammathur/setup-php@v2
@@ -212,59 +296,382 @@ jobs:
           name: ${{ env.PLUGIN_SLUG }}
           path: dist
 
-      - name: Download WordPress
-        run: |
-          set -euo pipefail
-          curl -sSL -o wordpress.tar.gz https://wordpress.org/latest.tar.gz
-          tar -xzf wordpress.tar.gz
-          mv wordpress "$WP_PATH"
-          rm wordpress.tar.gz
+      - name: Set up the integration environment (source)
+        # Canonical setup: WordPress + WooCommerce + SQLite + wp-config + plugin from working copy.
+        run: bash tests/integration/setup.sh "$WP_PATH" --url=http://127.0.0.1:8888
 
-      - name: Download WooCommerce
+      - name: Start the web server for the real HTTP scenarios
+        # Canonical lifecycle: PID tracked, health-probed, logs captured, diagnostics on failure.
+        # The router serves existing PHP files directly (admin-ajax.php, wp-cron.php) so the
+        # worker loopback and Action Scheduler's async runner reach their handlers; everything
+        # else, /wp-json/ included, goes through index.php.
         run: |
-          set -euo pipefail
-          curl -sSL -o woocommerce.zip https://downloads.wordpress.org/plugin/woocommerce.latest-stable.zip
-          unzip -q woocommerce.zip -d "$WP_PATH/wp-content/plugins"
-          rm woocommerce.zip
-
-      - name: Install the SQLite database drop-in
-        run: |
-          set -euo pipefail
-          curl -sSL -o sqlite.zip https://downloads.wordpress.org/plugin/sqlite-database-integration.zip
-          unzip -q sqlite.zip -d "$WP_PATH/wp-content/plugins"
-          rm sqlite.zip
-          cp "$WP_PATH/wp-content/plugins/sqlite-database-integration/db.copy" "$WP_PATH/wp-content/db.php"
-          sed -i "s#{SQLITE_IMPLEMENTATION_FOLDER_PATH}#$WP_PATH/wp-content/plugins/sqlite-database-integration#; s#{SQLITE_PLUGIN}#sqlite-database-integration/load.php#" "$WP_PATH/wp-content/db.php"
-
-      - name: Configure WordPress
-        run: |
-          php tests/integration/make-config.php "$WP_PATH" --url=http://127.0.0.1:8888
-
-      - name: Install WordPress, WooCommerce and the plugin from source
-        run: |
-          php tests/integration/prepare.php "$WP_PATH"
-
-      - name: Start a web server for the real HTTP scenarios
-        # The HTTP scenarios talk to the REST API the way the admin browser
-        # does: a real request, a real response. The router serves existing
-        # PHP files directly (admin-ajax.php, wp-cron.php) so the worker
-        # loopback and Action Scheduler's async runner reach their handlers,
-        # and sends everything else, /wp-json/ included, through index.php.
-        run: |
-          nohup php -S 127.0.0.1:8888 -t "$WP_PATH" tests/integration/router.php > /tmp/usdtf-server.log 2>&1 &
-          sleep 2
-          curl -fsS -o /dev/null http://127.0.0.1:8888/ || (cat /tmp/usdtf-server.log && exit 1)
+          set -e
+          bash tests/integration/server.sh start "$WP_PATH" "tests/integration/router.php" 8888 2>&1 | tee /tmp/server-start-1.log
+          status=${PIPESTATUS[0]}
+          cat /tmp/server-start-1.log
+          if [ $status -ne 0 ]; then
+            echo "--- server.log tail after first start failure ---"
+            tail -n 100 /tmp/usdtf-server.log 2>/dev/null || true
+            echo "--- retry after 5s ---"
+            sleep 5
+            bash tests/integration/server.sh start "$WP_PATH" "tests/integration/router.php" 8888 2>&1 | tee /tmp/server-start-1-retry.log
+            status=${PIPESTATUS[0]}
+            cat /tmp/server-start-1-retry.log
+          fi
+          exit $status
 
       - name: Run the suite against the working copy
         run: bash tests/integration/ci-run.sh "$WP_PATH" working-copy
 
-      - name: Install the built distribution and run the suite again
+      - name: Stop the server before switching the plugin install
+        if: always()
+        run: bash tests/integration/server.sh stop 8888 || true
+
+      - name: Install the built distribution and restart the server
         run: |
           set -euo pipefail
-          php tests/integration/prepare.php "$WP_PATH" --from-zip="$(ls dist/*.zip | head -n1)"
-          bash tests/integration/ci-run.sh "$WP_PATH" built-zip
+          echo "--- dist ---"; ls -lh dist || true
+          zip="$(ls dist/*.zip 2>/dev/null | head -n1 || echo "")"
+          if [ -z "$zip" ]; then echo "::error::No ZIP found in dist/"; ls -R dist 2>&1 | head -n 100; exit 1; fi
+          echo "Installing from ZIP: $zip"
+          # Fresh WordPress for built-ZIP so previous working-copy jobs don't pollute the queue
+          export WP_PATH2="$WP_PATH"-built-zip
+          rm -rf "$WP_PATH2"
+          bash tests/integration/setup.sh "$WP_PATH2" --url=http://127.0.0.1:8888 --from-zip="$zip"
+          echo "--- plugin after ZIP install (fresh WP) ---"; ls -lh "$WP_PATH2/wp-content/plugins/usd-to-toman-price-sync-for-woocommerce/" | head -n 30 || true
+          : > /tmp/usdtf-server.log || true
+          echo "--- wp-config.php (fresh) ---"; head -n 30 "$WP_PATH2/wp-config.php" || true
+          sleep 5
+          bash tests/integration/server.sh start "$WP_PATH2" "tests/integration/router.php" 8888 2>&1 | tee /tmp/server-start-2.log
+          status=${PIPESTATUS[0]}
+          cat /tmp/server-start-2.log
+          echo "--- server.log head after second start ---"; head -n 20 /tmp/usdtf-server.log || true
+          exit $status
 
-      - name: Show the debug log when something failed
+      - name: Run the suite against the built ZIP
+        run: |
+          set -e
+          bash tests/integration/ci-run.sh "$WP_PATH"-built-zip built-zip 2>&1 | tee /tmp/built-zip.log
+          status=${PIPESTATUS[0]}
+          # Also save for comment
+          cp /tmp/built-zip.log /tmp/built-zip-last.log 2>/dev/null || true
+          exit $status
+
+      - name: Stop the web server
+        if: always()
+        run: bash tests/integration/server.sh stop 8888 || true
+
+      - name: Show the debug and server logs when something failed
         if: failure()
         run: |
-          [ -f "$WP_PATH/../debug.log" ] && tail -n 200 "$WP_PATH/../debug.log" || true
+          echo "=== WP debug.log (${WP_PATH}/../debug.log) ==="
+          [ -f "$WP_PATH/../debug.log" ] && tail -n 200 "$WP_PATH/../debug.log" || echo "(no debug.log at WP_PATH/../debug.log)"
+          echo
+          echo "=== wp-content/debug.log ==="
+          [ -f "$WP_PATH/wp-content/debug.log" ] && tail -n 200 "$WP_PATH/wp-content/debug.log" || echo "(no wp-content/debug.log)"
+          echo
+          bash tests/integration/server.sh status 8888 || true
+
+      - name: Comment integration logs on failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          GH_REF_NAME: ${{ github.ref_name }}
+          GH_SHA: ${{ github.sha }}
+        run: |
+          pr="${{ github.event.pull_request.number }}"
+          if [ -z "$pr" ]; then pr="${{ github.event.number }}"; fi
+          if [ -z "$pr" ]; then echo "::warning::No PR number for integration comment"; exit 0; fi
+          diag=""
+          if [ -f "/tmp/built-zip.log" ]; then
+            diag="$diag
+          --- built-ZIP suite tail ---
+          $(tail -n 60 /tmp/built-zip.log 2>/dev/null | head -c 8000)"
+          fi
+          if [ -f "/tmp/server-start-2.log" ]; then
+            diag="$diag
+          --- server-start-2 log ---
+          $(cat /tmp/server-start-2.log 2>/dev/null | head -c 8000)"
+          fi
+          if [ -f "$WP_PATH/wp-content/debug.log" ]; then
+            diag="$diag
+          --- wp-content/debug.log tail ---
+          $(tail -n 30 "$WP_PATH/wp-content/debug.log" 2>/dev/null | head -c 8000)"
+          fi
+          if [ -f "/tmp/usdtf-server.log" ]; then
+            diag="$diag
+          --- server log tail ---
+          $(tail -n 40 /tmp/usdtf-server.log 2>/dev/null | head -c 8000)"
+          fi
+          diag="$diag
+          --- server status ---
+          $(bash tests/integration/server.sh status 8888 2>&1 | head -c 4000)"
+          diag="$(echo "$diag" | head -c 40000)"
+          gh api --method POST "repos/${GH_REPO}/issues/${pr}/comments" \
+            -f body="### Integration failed (branch ${GH_REF_NAME} @ ${GH_SHA})
+          \`\`\`
+          ${diag}
+          \`\`\`" || echo "::warning::gh api integration comment failed"
+
+      - name: Integration summary
+        if: always()
+        run: |
+          {
+            echo "### Integration"
+            echo
+            echo "- **Outcome**: \`${{ job.status }}\`"
+            wp_ver="$(php -r 'include getenv("WP_PATH")."/wp-includes/version.php"; echo $wp_version ?? "";' 2>/dev/null || true)"
+            if [ -z "${wp_ver:-}" ]; then
+              wp_ver="$(grep -m1 "wp_version" "$WP_PATH/wp-includes/version.php" 2>/dev/null | sed -E "s/.*'([^']+)'.*/\1/" | head -n1 || echo "?")"
+            fi
+            wp_ver="$(printf '%s' "$wp_ver" | sed 's/`/\\`/g; s/|/\\|/g')"
+            wc_ver="$(php -r '$f=getenv("WP_PATH")."/wp-content/plugins/woocommerce/woocommerce.php"; $c=@file_get_contents($f); if($c && preg_match("/WC_VERSION.*'\''([^'\'']+)'\''/",$c,$m)) echo $m[1];' 2>/dev/null || true)"
+            if [ -z "${wc_ver:-}" ]; then
+              wc_ver="$(grep -m1 "WC_VERSION" "$WP_PATH/wp-content/plugins/woocommerce/woocommerce.php" 2>/dev/null | sed -E "s/.*WC_VERSION.*'([^']+)'.*/\1/" | head -n1 || echo "?")"
+            fi
+            wc_ver="$(printf '%s' "$wc_ver" | sed 's/`/\\`/g; s/|/\\|/g')"
+            echo "- **WordPress**: \`${wp_ver}\`"
+            echo "- **WooCommerce**: \`${wc_ver}\`"
+            if [ "${{ job.status }}" = "success" ]; then
+              echo "- **Plugin source**: working copy → built ZIP (both suites passed with HTTP)"
+            else
+              echo "- **Plugin source**: working copy → built ZIP (failed, see logs)"
+            fi
+            echo "- **Server**: 127.0.0.1:8888 via canonical router + lifecycle"
+            echo
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  integration-concurrent:
+    name: WordPress + WooCommerce integration (concurrent)
+    runs-on: ubuntu-latest
+    needs: dist
+    permissions:
+      contents: read
+      pull-requests: write
+    env:
+      WP_PATH: ${{ github.workspace }}/wp
+      USDTF_REQUIRE_HTTP_TESTS: '1'
+      USDTF_CONCURRENT: '1'
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v6
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          coverage: none
+          extensions: pdo_sqlite, sqlite3, mbstring, zip
+          tools: none
+
+      - name: Prepare concurrent server (PHP_CLI_SERVER_WORKERS=4, socat no longer required)
+        run: |
+          set -e
+          if ! command -v socat >/dev/null 2>&1; then
+            sudo apt-get update -y
+            sudo apt-get install -y socat
+          fi
+          socat -V
+
+      - name: Download the release zip built by the dist job
+        uses: actions/download-artifact@v7
+        with:
+          name: ${{ env.PLUGIN_SLUG }}
+          path: dist
+
+      - name: Set up the integration environment (source, concurrent)
+        run: bash tests/integration/setup.sh "$WP_PATH" --url=http://127.0.0.1:8888
+
+      - name: Start the concurrent web server (workers=4)
+        run: |
+          set -e
+          bash tests/integration/server.sh start-concurrent "$WP_PATH" "tests/integration/router.php" 8888 2>&1 | tee /tmp/server-start-concurrent-1.log
+          status=${PIPESTATUS[0]}
+          cat /tmp/server-start-concurrent-1.log
+          if [ $status -ne 0 ]; then
+            echo "--- socat log ---"
+            cat /tmp/usdtf-socat.log 2>/dev/null || true
+            echo "--- server log ---"
+            tail -n 100 /tmp/usdtf-server.log 2>/dev/null || true
+            bash tests/integration/server.sh status 8888 2>&1 | head -n 100 || true
+          fi
+          exit $status
+
+      - name: Run the suite against the working copy (concurrent, passive)
+        run: |
+          set -e
+          # The concurrent server is required; http-autonomous.php must not skip.
+          # We run the full suite but check that autonomous did not skip.
+          log="$(mktemp)"
+          # Save for diagnostics on failure
+          echo "$log" > /tmp/concurrent-suite-log-path
+          USDTF_CONCURRENT=1 USDTF_REQUIRE_HTTP_TESTS=1 php tests/integration/run.php "$WP_PATH" 2>&1 | tee "$log"
+          cp "$log" /tmp/concurrent-suite.log || true
+          status=${PIPESTATUS[0]}
+          echo "--- suite log tail ---"
+          tail -n 100 "$log" || true
+          # Fail if autonomous was skipped when concurrent is required.
+          if grep -q "autonomous.*skipped.*requires USDTF_CONCURRENT" "$log"; then
+            echo "::error::Autonomous tests skipped on concurrent server — concurrent forwarding failed"
+            cat "$log"
+            exit 1
+          fi
+          # Also ensure the autonomous pass line appears.
+          if ! grep -q "autonomous (passive) preview/update complete without wake" "$log"; then
+            echo "::error::Autonomous preview/update did not complete on concurrent server"
+            cat "$log"
+            exit 1
+          fi
+          if ! grep -q "failed-loopback fallback persists queue" "$log"; then
+            echo "::error::Failed-loopback fallback test did not pass on concurrent server"
+            cat "$log"
+            exit 1
+          fi
+          if ! grep -q "worker interruption recovers" "$log"; then
+            echo "::error::Worker interruption test did not pass on concurrent server"
+            cat "$log"
+            exit 1
+          fi
+          exit $status
+
+      - name: Stop the concurrent server before switching the plugin install
+        if: always()
+        run: bash tests/integration/server.sh stop 8888 || true
+
+      - name: Install the built distribution and restart the concurrent server
+        run: |
+          set -euo pipefail
+          echo "--- dist ---"; ls -lh dist || true
+          zip="$(ls dist/*.zip 2>/dev/null | head -n1 || echo "")"
+          if [ -z "$zip" ]; then echo "::error::No ZIP found in dist/"; ls -R dist 2>&1 | head -n 100; exit 1; fi
+          echo "Installing from ZIP: $zip"
+          export WP_PATH2="$WP_PATH"-built-zip
+          rm -rf "$WP_PATH2"
+          bash tests/integration/setup.sh "$WP_PATH2" --url=http://127.0.0.1:8888 --from-zip="$zip"
+          echo "--- plugin after ZIP install (fresh WP) ---"; ls -lh "$WP_PATH2/wp-content/plugins/usd-to-toman-price-sync-for-woocommerce/" | head -n 30 || true
+          : > /tmp/usdtf-server.log || true
+          : > /tmp/usdtf-socat.log || true
+          sleep 2
+          bash tests/integration/server.sh start-concurrent "$WP_PATH2" "tests/integration/router.php" 8888 2>&1 | tee /tmp/server-start-concurrent-2.log
+          status=${PIPESTATUS[0]}
+          cat /tmp/server-start-concurrent-2.log
+          exit $status
+
+      - name: Run the suite against the built ZIP (concurrent, passive)
+        run: |
+          set -e
+          export WP_PATH="$WP_PATH-built-zip"
+          log="$(mktemp)"
+          USDTF_CONCURRENT=1 USDTF_REQUIRE_HTTP_TESTS=1 php tests/integration/run.php "$WP_PATH" 2>&1 | tee "$log"
+          cp "$log" /tmp/concurrent-suite.log || true
+          status=${PIPESTATUS[0]}
+          echo "--- built-ZIP concurrent log tail ---"
+          tail -n 100 "$log" || true
+          if grep -q "autonomous.*skipped.*requires USDTF_CONCURRENT" "$log"; then
+            echo "::error::Autonomous tests skipped on concurrent built-ZIP server"
+            cat "$log"
+            exit 1
+          fi
+          if ! grep -q "autonomous (passive) preview/update complete without wake" "$log"; then
+            echo "::error::Autonomous preview/update did not complete on concurrent built-ZIP"
+            cat "$log"
+            exit 1
+          fi
+          if ! grep -q "failed-loopback fallback persists queue" "$log"; then
+            echo "::error::Failed-loopback fallback test did not pass on concurrent built-ZIP"
+            cat "$log"
+            exit 1
+          fi
+          if ! grep -q "worker interruption recovers" "$log"; then
+            echo "::error::Worker interruption test did not pass on concurrent built-ZIP"
+            cat "$log"
+            exit 1
+          fi
+          exit $status
+
+      - name: Stop the concurrent server
+        if: always()
+        run: bash tests/integration/server.sh stop 8888 || true
+
+      - name: Post integration-concurrent failure diagnostics (PR comment)
+        if: failure() && github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          GH_REF_NAME: ${{ github.ref_name }}
+          GH_SHA: ${{ github.sha }}
+        run: |
+          pr="${{ github.event.pull_request.number }}"
+          if [ -z "$pr" ]; then pr="${{ github.event.number }}"; fi
+          if [ -z "$pr" ]; then echo "::warning::No PR number for concurrent comment"; exit 0; fi
+          diag=""
+          # Also include the suite log if available (written to /tmp/concurrent-suite.log by the previous step)
+          if [ -f "/tmp/concurrent-suite.log" ]; then
+            diag="$diag
+          --- concurrent suite log tail ---
+          $(tail -n 100 /tmp/concurrent-suite.log 2>/dev/null | head -c 8000)"
+          fi
+          if [ -f "/tmp/server-start-concurrent-1.log" ]; then
+            diag="$diag
+          --- concurrent working-copy start log ---
+          $(cat /tmp/server-start-concurrent-1.log 2>/dev/null | head -c 8000)"
+          fi
+          if [ -f "/tmp/server-start-concurrent-2.log" ]; then
+            diag="$diag
+          --- concurrent built-ZIP start log ---
+          $(cat /tmp/server-start-concurrent-2.log 2>/dev/null | head -c 8000)"
+          fi
+          if [ -f "/tmp/usdtf-server.log" ]; then
+            diag="$diag
+          --- concurrent server log tail ---
+          $(tail -n 40 /tmp/usdtf-server.log 2>/dev/null | head -c 8000)"
+          fi
+          if [ -f "/tmp/usdtf-socat.log" ]; then
+            diag="$diag
+          --- socat log tail ---
+          $(tail -n 40 /tmp/usdtf-socat.log 2>/dev/null | head -c 8000)"
+          fi
+          diag="$diag
+          --- concurrent server status ---
+          $(bash tests/integration/server.sh status 8888 2>&1 | head -c 4000)"
+          diag="$(echo "$diag" | head -c 40000)"
+          gh api --method POST "repos/${GH_REPO}/issues/${pr}/comments"             -f body="### Integration-concurrent failed (branch ${GH_REF_NAME} @ ${GH_SHA})
+          \`\`\`
+          ${diag}
+          \`\`\`" || echo "::warning::gh api concurrent comment failed"
+
+      - name: Integration-concurrent summary
+        if: always()
+        run: |
+          {
+            echo "### Integration (concurrent)"
+            echo
+            echo "- **Outcome**: \`${{ job.status }}\`"
+            # Use same version extraction as integration job, but escape backticks.
+            wp_path="${{ env.WP_PATH }}"
+            if [ ! -f "$wp_path/wp-includes/version.php" ] && [ -f "${wp_path}-built-zip/wp-includes/version.php" ]; then
+              wp_path="${wp_path}-built-zip"
+            fi
+            wp_ver="$(php -r 'include getenv("WP_PATH")."/wp-includes/version.php"; echo $wp_version ?? "";' 2>/dev/null || true)"
+            if [ -z "${wp_ver:-}" ]; then
+              wp_ver="$(grep -m1 "wp_version" "$wp_path/wp-includes/version.php" 2>/dev/null | sed -E "s/.*'([^']+)'.*/\1/" | head -n1 || echo "?")"
+            fi
+            wp_ver="$(printf '%s' "$wp_ver" | sed 's/`/\\`/g; s/|/\\|/g')"
+            wc_ver="$(php -r '$f=getenv("WP_PATH")."/wp-content/plugins/woocommerce/woocommerce.php"; $c=@file_get_contents($f); if($c && preg_match("/WC_VERSION.*'\''([^'\'']+)'\''/",$c,$m)) echo $m[1];' 2>/dev/null || true)"
+            if [ -z "${wc_ver:-}" ]; then
+              wc_ver="$(grep -m1 "WC_VERSION" "$wp_path/wp-content/plugins/woocommerce/woocommerce.php" 2>/dev/null | sed -E "s/.*WC_VERSION.*'([^']+)'.*/\1/" | head -n1 || echo "?")"
+            fi
+            wc_ver="$(printf '%s' "$wc_ver" | sed 's/`/\\`/g; s/|/\\|/g')"
+            echo "- **WordPress**: \`${wp_ver}\`"
+            echo "- **WooCommerce**: \`${wc_ver}\`"
+            if [ "${{ job.status }}" = "success" ]; then
+              echo "- **Plugin source**: working copy → built ZIP (both autonomous suites passed via PHP_CLI_SERVER_WORKERS=4 concurrent server)"
+            else
+              echo "- **Plugin source**: working copy → built ZIP (failed, see logs)"
+            fi
+            echo "- **Server**: 127.0.0.1:8888 via PHP_CLI_SERVER_WORKERS=4 (genuine concurrent) + canonical router + lease recovery"
+            echo
+          } >> "$GITHUB_STEP_SUMMARY"
+

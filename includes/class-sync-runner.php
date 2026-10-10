@@ -943,6 +943,29 @@ final class Sync_Runner {
 
 		unset( $out_of_time );
 
+		// Test hook: simulate a worker crash after N batches. Only enabled
+		// when USDTF_ENABLE_TEST_ROUTES is true (test installations).
+		if ( defined( 'USDTF_ENABLE_TEST_ROUTES' ) && USDTF_ENABLE_TEST_ROUTES ) {
+			$interrupt_after = (int) get_option( 'usdtf_test_interrupt_after', 0 );
+			if ( $interrupt_after > 0 ) {
+				$counter = (int) get_option( 'usdtf_test_interrupt_counter', 0 ) + 1;
+				update_option( 'usdtf_test_interrupt_counter', $counter, false );
+				if ( $counter >= $interrupt_after ) {
+					// Simulate a crash: do not queue the next step, leave the job
+					// active with its current progress persisted and orphaned.
+					// Production recovery (resume_orphaned_jobs via wp-cron /
+					// Action Scheduler) must re-queue and complete it without
+					// manual resume, CLI draining, or worker wake. Delete the
+					// counter so the next resume is not also interrupted.
+					delete_option( 'usdtf_test_interrupt_after' );
+					delete_option( 'usdtf_test_interrupt_counter' );
+					error_log( sprintf( 'usdtf test: interrupting job %d after %d batches (simulated crash, orphaned)', $job_id, $counter ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+					$this->jobs->heartbeat( $job_id );
+					return;
+				}
+			}
+		}
+
 		$this->after_run( $job_id, false );
 	}
 
@@ -1894,6 +1917,8 @@ final class Sync_Runner {
 				$pending_process  = $this->scheduler->has_pending( self::HOOK_PROCESS, array( $job->id() ) );
 				$pending_discover = $this->scheduler->has_pending( self::HOOK_DISCOVER, array( $job->id() ) );
 				$pending_finalize = $this->scheduler->has_pending( self::HOOK_FINALIZE, array( $job->id() ) );
+
+				error_log( sprintf( 'usdtf resume_orphaned check job %d status %s phase %s pending p=%d d=%d f=%d stale=%d', $job->id(), $job->status(), $job->phase(), (int) $pending_process, (int) $pending_discover, (int) $pending_finalize, (int) $job->is_stale() ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
 
 				if ( $pending_process || $pending_discover || $pending_finalize ) {
 					continue;
