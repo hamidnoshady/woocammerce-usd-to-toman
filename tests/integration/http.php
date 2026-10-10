@@ -182,19 +182,63 @@ function usdtf_it_http( $method, $path, $body = null, $authorization = null, arr
  * @param int    $timeout       Timeout in seconds.
  * @return array Last job payload.
  */
+/**
+ * Capture server-side evidence while the suite is still running.
+ *
+ * Called when several polls in a row cannot reach the server: dumps the php
+ * server processes (with wait channels), the port owner, and the server log
+ * tail to the test output, so a hang is attributable from the job log alone.
+ *
+ * @param int   $job_id   Job being polled.
+ * @param array $response The last failed poll (code + body).
+ * @return void
+ */
+function usdtf_it_http_hang_diagnostics( $job_id, $response ) {
+	$lines = array( sprintf( 'usdtf hang diagnostics for job %d: last poll code %d body %s', (int) $job_id, (int) $response['code'], substr( (string) $response['body'], 0, 200 ) ) );
+	foreach ( array(
+		'ps -eo pid,ppid,stat,wchan:24,etime,cmd | grep -E "COMMAND|php" | grep -v grep',
+		'ss -ltnp 2>&1 | head -n 20',
+	) as $cmd ) {
+		$out = array();
+		exec( $cmd . ' 2>&1', $out ); // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.system_calls_exec -- test diagnostics.
+		foreach ( $out as $line ) {
+			$lines[] = '  ' . $line;
+		}
+	}
+	$log = getenv( 'USDTF_SERVER_LOG' ) ? getenv( 'USDTF_SERVER_LOG' ) : '/tmp/usdtf-server.log';
+	if ( is_readable( $log ) ) {
+		$lines[] = '  server log tail:';
+		foreach ( array_slice( file( $log, FILE_IGNORE_NEW_LINES ) ?: array(), -10 ) as $line ) { // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- test diagnostics.
+			$lines[] = '    ' . $line;
+		}
+	}
+	error_log( implode( "\n", $lines ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+}
+
 function usdtf_it_http_wait_job( $job_id, $authorization, $timeout = 120 ) {
 	$deadline = microtime( true ) + max( 1, (int) $timeout );
 	$last     = array();
 	$tries    = 0;
+	$refused  = 0;
 
 	do {
 		$response = usdtf_it_http( 'GET', '/jobs/' . (int) $job_id, null, $authorization, array( '_usdtf' => (string) microtime( true ) ) );
 
 		if ( 200 === $response['code'] && is_array( $response['json'] ) ) {
-			$last = $response['json'];
+			$last  = $response['json'];
+			$refused = 0;
 
 			if ( empty( $last['is_active'] ) ) {
 				return $last;
+			}
+		} else {
+			// A poll that cannot even connect is a server-side hang, not a slow
+			// job. Capture the server's process/socket state once so the failure
+			// is attributable (which PIDs exist, what they wait on, who holds
+			// the port) instead of an opaque "status=NULL last=[]".
+			++$refused;
+			if ( 5 === $refused ) {
+				usdtf_it_http_hang_diagnostics( $job_id, $response );
 			}
 		}
 
@@ -287,9 +331,18 @@ function usdtf_it_http_wait_job_passive( $job_id, $authorization, $timeout = 30 
 	$last_code = 0;
 	$last_body = '';
 	$polls    = 0;
+	$refused  = 0;
 	do {
 		$response = usdtf_it_http( 'GET', '/jobs/' . (int) $job_id . '/status', null, $authorization, array( '_usdtf' => (string) microtime( true ) ) );
 		++$polls;
+		if ( 200 !== $response['code'] ) {
+			++$refused;
+			if ( 5 === $refused ) {
+				usdtf_it_http_hang_diagnostics( $job_id, $response );
+			}
+		} else {
+			$refused = 0;
+		}
 		if ( 200 === $response['code'] && is_array( $response['json'] ) ) {
 			$last = $response['json'];
 			$last_code = $response['code'];

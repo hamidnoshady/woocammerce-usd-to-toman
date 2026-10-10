@@ -431,86 +431,127 @@ JSON
 
 usdtf_stop() {
     local port="${1:-$DEFAULT_PORT}"
-    local pid=""
+    local pid="" pgid=""
     if [ -f "$PID_FILE" ]; then
         pid="$(cat "$PID_FILE" 2>/dev/null || echo "")"
     fi
-    if [ -n "$pid" ] && usdtf_is_alive "$pid"; then
-        # Verify PID ownership: must be php -S for this port and docroot.
+    if [ -f "${PID_FILE}.pgid" ]; then
+        pgid="$(cat "${PID_FILE}.pgid" 2>/dev/null || echo "")"
+    fi
+
+    # With PHP_CLI_SERVER_WORKERS the master forks workers that share the
+    # listen socket; killing only the master can orphan a worker that keeps
+    # the port open. The server runs in its own session (setsid), so the
+    # tracked process group contains exactly our master and its workers.
+    if [ -n "$pgid" ] && kill -0 "-$pgid" 2>/dev/null; then
+        usdtf_log "Stopping server process group $pgid (master $pid) on port $port"
+        kill -TERM "-$pgid" 2>/dev/null || true
+        for i in $(seq 1 10); do
+            kill -0 "-$pgid" 2>/dev/null || break
+            sleep 0.5
+        done
+        if kill -0 "-$pgid" 2>/dev/null; then
+            usdtf_log "Force killing process group $pgid"
+            kill -KILL "-$pgid" 2>/dev/null || true
+            sleep 0.5
+        fi
+    elif [ -n "$pid" ] && usdtf_is_alive "$pid"; then
+        # Legacy state (PID recorded, no process group): verify ownership
+        # before signalling anything, then stop the PID's whole group.
         cmdline="$(ps -o cmd= -p "$pid" 2>/dev/null || echo "")"
         if [[ "$cmdline" != *"php"*"-S 127.0.0.1:${port}"* ]]; then
             usdtf_log "PID $pid does not look like our server (cmd: $cmdline), not killing"
         else
-            usdtf_log "Stopping server PID $pid on port $port"
-            kill "$pid" 2>/dev/null || true
-            for i in $(seq 1 5); do
-                if ! usdtf_is_alive "$pid"; then
-                    break
-                fi
-                sleep 0.5
-            done
-            if usdtf_is_alive "$pid"; then
-                usdtf_log "Force killing $pid"
-                kill -9 "$pid" 2>/dev/null || true
+            pgid="$(ps -o pgid= -p "$pid" 2>/dev/null | tr -d ' ' || echo "")"
+            if [ -n "$pgid" ] && [ "$pgid" != "$$" ]; then
+                usdtf_log "Stopping server PID $pid (group $pgid) on port $port"
+                kill -TERM "-$pgid" 2>/dev/null || true
+                for i in $(seq 1 10); do
+                    kill -0 "-$pgid" 2>/dev/null || break
+                    sleep 0.5
+                done
+                kill -KILL "-$pgid" 2>/dev/null || true
+            else
+                kill "$pid" 2>/dev/null || true
             fi
         fi
     else
         if [ -n "$pid" ]; then
             usdtf_log "PID file $pid not alive, removing stale file"
         fi
-        # No PID file or stale PID: do not kill unrelated occupants.
-        # If port is listening, treat as genuine conflict and report, don't pkill.
+    fi
+
+    # Orphaned worker reaping: if the port is still listening and the
+    # listener is a php -S bound to this port (and our docroot when the
+    # state file exists), it is an orphan from a killed master. Stop it
+    # precisely by PID after the ownership check; never signal anything
+    # that is not a php -S for this port + docroot.
+    if usdtf_port_listening "$port"; then
+        local docroot=""
+        if [ -f "${PID_FILE}.docroot" ]; then
+            docroot="$(cat "${PID_FILE}.docroot" 2>/dev/null || echo "")"
+        fi
+        local listeners=""
+        if command -v ss >/dev/null 2>&1; then
+            listeners="$(ss -ltnp "sport = :${port}" 2>/dev/null | grep -o 'pid=[0-9]*' | cut -d= -f2 | sort -u || true)"
+        elif command -v lsof >/dev/null 2>&1; then
+            listeners="$(lsof -t -iTCP:"${port}" -sTCP:LISTEN 2>/dev/null | sort -u || true)"
+        fi
+        for opid in $listeners; do
+            [ -n "$opid" ] || continue
+            ocmd="$(ps -o cmd= -p "$opid" 2>/dev/null || echo "")"
+            if [[ "$ocmd" != *"php"*"-S 127.0.0.1:${port}"* ]]; then
+                usdtf_log "Port $port listener PID $opid is not our php -S (cmd: $ocmd), not killing"
+                continue
+            fi
+            if [ -n "$docroot" ] && [[ "$ocmd" != *"$docroot"* ]]; then
+                usdtf_log "Port $port listener PID $opid serves another docroot, not killing"
+                continue
+            fi
+            usdtf_log "Reaping orphaned server worker PID $opid on port $port"
+            kill -TERM "$opid" 2>/dev/null || true
+        done
+        # Give the orphans a moment to exit; anything left gets KILLed only
+        # if it still matches the ownership check.
+        for i in $(seq 1 6); do
+            usdtf_port_listening "$port" || break
+            sleep 0.5
+        done
         if usdtf_port_listening "$port"; then
-            usdtf_log "Port $port is listening but PID file is missing/stale — genuine conflict, not killing"
-            if command -v ss >/dev/null 2>&1; then
-                ss -ltn "sport = :${port}" 2>/dev/null | head -n 20 >&2 || true
-            fi
-        fi
-    fi
-    rm -f "$PID_FILE" "${PID_FILE}.docroot" "${PID_FILE}.pgid" "/tmp/usdtf-server-${port}.json"
-    # Legacy 18888 backend (socat era): precise ownership only, no broad pkill/fuser.
-    if usdtf_port_listening "18888"; then
-        usdtf_log "Port 18888 still listening (legacy socat backend) — checking precise ownership, not broad pkill"
-        if command -v ss >/dev/null 2>&1; then ss -ltn "sport = :18888" 2>/dev/null | head -n 20 >&2 || true; fi
-        # Only kill if PID_FILE still points to a php -S on 18888.
-        if [ -f "$PID_FILE" ]; then
-            pid2="$(cat "$PID_FILE" 2>/dev/null || echo "")"
-            if [ -n "$pid2" ] && usdtf_is_alive "$pid2"; then
-                cmd2="$(ps -o cmd= -p "$pid2" 2>/dev/null || echo "")"
-                if [[ "$cmd2" == *"php"*"-S 127.0.0.1:18888"* ]]; then
-                    usdtf_log "Found owned backend 18888 PID $pid2, stopping precisely"
-                    kill "$pid2" 2>/dev/null || true
-                    sleep 0.5
-                    kill -9 "$pid2" 2>/dev/null || true
+            for opid in $listeners; do
+                [ -n "$opid" ] || continue
+                ocmd="$(ps -o cmd= -p "$opid" 2>/dev/null || echo "")"
+                if [[ "$ocmd" == *"php"*"-S 127.0.0.1:${port}"* ]] && { [ -z "$docroot" ] || [[ "$ocmd" == *"$docroot"* ]]; }; then
+                    usdtf_log "Force killing orphaned server worker PID $opid"
+                    kill -KILL "$opid" 2>/dev/null || true
                 fi
-            fi
-        fi
-        if usdtf_port_listening "18888"; then
-            usdtf_log "Port 18888 still listening after precise check — genuine unrelated occupant, not killed"
+            done
         fi
     fi
-    # Also stop socat forwarder if present.
-    socat_pid_file="/tmp/usdtf-socat.pid"
-    if [ -f "$socat_pid_file" ]; then
-        spid="$(cat "$socat_pid_file" 2>/dev/null || echo "")"
-        if [ -n "$spid" ] && kill -0 "$spid" 2>/dev/null; then
-            cmdline="$(ps -o cmd= -p "$spid" 2>/dev/null || echo "")"
-            if [[ "$cmdline" == *"socat"* ]]; then
-                usdtf_log "Stopping socat $spid"
-                kill "$spid" 2>/dev/null || true
-                for i in $(seq 1 5); do
-                    if ! kill -0 "$spid" 2>/dev/null; then break; fi
+
+    if usdtf_port_listening "$port"; then
+        usdtf_log "Port $port is still listening after stop — genuine conflict (unrelated occupant, not killed)"
+        if command -v ss >/dev/null 2>&1; then ss -ltnp "sport = :${port}" 2>/dev/null | head -n 20 >&2 || true; fi
+    fi
+
+    rm -f "$PID_FILE" "${PID_FILE}.docroot" "${PID_FILE}.pgid" "/tmp/usdtf-server-${port}.json"
+    # Legacy 18888/socat state from earlier revisions: remove only precisely
+    # owned leftovers, never pkill/fuser anything.
+    for stale in "/tmp/usdtf-socat.pid"; do
+        if [ -f "$stale" ]; then
+            spid="$(cat "$stale" 2>/dev/null || echo "")"
+            if [ -n "$spid" ] && kill -0 "$spid" 2>/dev/null; then
+                scmd="$(ps -o cmd= -p "$spid" 2>/dev/null || echo "")"
+                if [[ "$scmd" == *"socat"* ]]; then
+                    usdtf_log "Stopping legacy socat $spid"
+                    kill "$spid" 2>/dev/null || true
                     sleep 0.5
-                done
-                if kill -0 "$spid" 2>/dev/null; then
                     kill -9 "$spid" 2>/dev/null || true
                 fi
-            else
-                usdtf_log "Socat PID $spid not ours (cmd: $cmdline), not killing"
             fi
+            rm -f "$stale"
         fi
-        rm -f "$socat_pid_file"
-    fi
+    done
     # Do not remove log file; diagnostics need it after stop.
     return 0
 }
