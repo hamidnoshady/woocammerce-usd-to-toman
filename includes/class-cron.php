@@ -117,7 +117,13 @@ final class Cron {
 		// (client disconnect after unschedule, no heartbeat), requeue exactly
 		// once after TTL (60s). Uses Scheduler lease helpers.
 		if ( class_exists( '\\USDTF\\Scheduler' ) && method_exists( '\\USDTF\\Scheduler', 'is_lease_expired' ) ) {
-			foreach ( usdtf_plugin()->jobs()->query( array( 'status' => \USDTF\Job::STATUS_RUNNING, 'limit' => 20 ) ) as $job ) {
+			$running = usdtf_plugin()->jobs()->query(
+				array(
+					'status' => \USDTF\Job::STATUS_RUNNING,
+					'limit'  => 20,
+				)
+			);
+			foreach ( $running as $job ) {
 				foreach ( \USDTF\Scheduler::allowed_worker_hooks() as $hook ) {
 					if ( \USDTF\Scheduler::is_lease_expired( $job->id(), $hook, 60 ) ) {
 						// Lease expired: clear and requeue the exact hook for this job.
