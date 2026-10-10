@@ -316,6 +316,18 @@ jobs:
           name: ${{ env.PLUGIN_SLUG }}
           path: dist
 
+      - name: Install nginx for the integration server
+        # The suite prefers nginx + php-fpm (real process management, no
+        # built-in-server worker fragility); server.sh falls back to php -S
+        # when nginx is unavailable.
+        run: |
+          set -e
+          if ! command -v nginx >/dev/null 2>&1; then
+            sudo apt-get update -y
+            sudo apt-get install -y nginx-light
+          fi
+          nginx -v 2>&1 || true
+
       - name: Set up the integration environment (source)
         # Canonical setup: WordPress + WooCommerce + SQLite + wp-config + plugin from working copy.
         run: bash tests/integration/setup.sh "$WP_PATH" --url=http://127.0.0.1:8888
@@ -496,6 +508,18 @@ jobs:
         with:
           name: ${{ env.PLUGIN_SLUG }}
           path: dist
+
+      - name: Install nginx for the integration server
+        # The suite prefers nginx + php-fpm (real process management, no
+        # built-in-server worker fragility); server.sh falls back to php -S
+        # when nginx is unavailable.
+        run: |
+          set -e
+          if ! command -v nginx >/dev/null 2>&1; then
+            sudo apt-get update -y
+            sudo apt-get install -y nginx-light
+          fi
+          nginx -v 2>&1 || true
 
       - name: Set up the integration environment (source, concurrent)
         run: bash tests/integration/setup.sh "$WP_PATH" --url=http://127.0.0.1:8888

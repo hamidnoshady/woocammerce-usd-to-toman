@@ -106,16 +106,26 @@ usdtf_port_listening() {
 
 
 usdtf_supervise_server() {
-    # Runs as its own setsid'd process and never returns normally. The PHP
-    # built-in server tree has been observed to die mid-suite without any
-    # request-level error (whole process tree gone, port closed). The
-    # supervisor restores the listener within a fraction of a second and
-    # records every death with its exit status and uptime, which is the
-    # evidence a silent crash otherwise never leaves behind. Five
-    # consecutive sub-second exits stop the supervisor so a genuinely broken
-    # start cannot spin forever.
+    # Runs as its own setsid'd process and never returns normally.
+    #
+    # Backend selection: nginx + PHP-FPM when both binaries exist, the PHP
+    # built-in server otherwise. The built-in server tree has been observed
+    # to die mid-suite without any request-level error (whole process tree
+    # gone, port closed, supervisor killed with it), a fragility of its
+    # worker mode that fastcgi does not share: nginx buffers responses, so
+    # a vanished client never kills a worker. Either way the supervisor
+    # records every death with its exit status and uptime and restores the
+    # listener within a fraction of a second; five consecutive sub-second
+    # exits stop the supervisor so a genuinely broken start cannot spin.
     local php_bin="$1" port="$2" wp_path="$3" router="$4"
     local restarts=0 started status lifetime
+
+    if command -v nginx >/dev/null 2>&1 && usdtf_fpm_binary >/dev/null 2>&1; then
+        usdtf_supervise_fpm_nginx "$php_bin" "$port" "$wp_path"
+        exit $?
+    fi
+
+    echo "[server] nginx/php-fpm unavailable, falling back to the built-in server (worker-mode fragility applies)" >&2
 
     while true; do
         started=$(date +%s)
@@ -138,6 +148,113 @@ usdtf_supervise_server() {
         # from the dead tree still hold the port: reap precisely owned
         # leftovers (php -S for this port and docroot) before retrying.
         bash "$0" __reap__ "$port" "$wp_path" >&2 || true
+        sleep 0.2
+    done
+}
+
+usdtf_fpm_binary() {
+    # Print the php-fpm binary matching the CLI version, or nothing.
+    local cand
+    for cand in php-fpm php-fpm8.2 php-fpm8.1 php-fpm8.0 php-fpm7.4; do
+        if command -v "$cand" >/dev/null 2>&1; then
+            command -v "$cand"
+            return 0
+        fi
+    done
+    return 1
+}
+
+usdtf_supervise_fpm_nginx() {
+    # nginx + PHP-FPM supervision: one pool on a private unix socket, nginx
+    # on the test port, both restarted together when either dies. Semantics
+    # mirror the router: existing files are served directly, everything else
+    # goes through index.php.
+    local php_bin="$1" port="$2" wp_path="$3"
+    local fpm_bin sock conf_dir restarts=0 started status lifetime fpm_pid
+
+    fpm_bin="$(usdtf_fpm_binary)"
+    sock="/tmp/usdtf-fpm-${port}.sock"
+    conf_dir="/tmp/usdtf-nginx-${port}"
+    mkdir -p "$conf_dir"
+
+    cat > "${conf_dir}/fpm.conf" <<FPMCONF
+[global]
+error_log = ${conf_dir}/fpm-error.log
+daemonize = no
+pid = ${conf_dir}/fpm.pid
+[usdtf]
+listen = ${sock}
+listen.owner = $(id -un)
+listen.group = $(id -gn)
+listen.mode = 0660
+pm = static
+pm.max_children = 8
+php_admin_value[memory_limit] = 512M
+php_admin_value[max_execution_time] = 0
+php_value[upload_max_filesize] = 32M
+php_value[post_max_size] = 32M
+FPMCONF
+
+    cat > "${conf_dir}/nginx.conf" <<NGINXCONF
+daemon off;
+pid ${conf_dir}/nginx.pid;
+error_log ${conf_dir}/nginx-error.log warn;
+worker_processes 1;
+events { worker_connections 256; }
+http {
+    access_log off;
+    client_max_body_size 32M;
+    server {
+        listen 127.0.0.1:${port};
+        server_name _;
+        root ${wp_path};
+        index index.php;
+        location / {
+            try_files \$uri /index.php\$is_args\$args;
+        }
+        location ~ \.php\$ {
+            include /etc/nginx/fastcgi_params;
+            fastcgi_pass unix:${sock};
+            fastcgi_param SCRIPT_FILENAME \$document_root\$fastcgi_script_name;
+            fastcgi_read_timeout 300s;
+        }
+    }
+}
+NGINXCONF
+
+    while true; do
+        started=$(date +%s)
+        "$fpm_bin" --fpm-config "${conf_dir}/fpm.conf" -p "${conf_dir}" &
+        fpm_pid=$!
+        # Give the pool a moment to create its socket.
+        for i in $(seq 1 20); do
+            [ -S "$sock" ] && break
+            sleep 0.1
+        done
+        if [ ! -S "$sock" ]; then
+            echo "[server] php-fpm did not create ${sock}; see ${conf_dir}/fpm-error.log" >&2
+            kill "$fpm_pid" 2>/dev/null || true
+            exit 1
+        fi
+
+        # nginx in the foreground: the supervisor lives and dies with it.
+        nginx -c "${conf_dir}/nginx.conf"
+        status=$?
+        lifetime=$(( $(date +%s) - started ))
+        echo "[server] nginx (port ${port}) exited with status ${status} after ${lifetime}s at $(date -u +%Y-%m-%dT%H:%M:%SZ); restarting pair" >&2
+        kill "$fpm_pid" 2>/dev/null || true
+        wait "$fpm_pid" 2>/dev/null || true
+        rm -f "$sock"
+
+        if [ "$lifetime" -lt 1 ]; then
+            restarts=$(( restarts + 1 ))
+            if [ "$restarts" -ge 5 ]; then
+                echo "[server] nginx exited too quickly 5 times in a row, supervisor giving up" >&2
+                exit 1
+            fi
+        else
+            restarts=0
+        fi
         sleep 0.2
     done
 }
@@ -244,7 +361,7 @@ usdtf_start_concurrent() {
     # Track docroot for precise ownership.
     echo "$wp_path" > "${PID_FILE}.docroot"
 
-    usdtf_log "Starting supervised concurrent PHP server (genuine workers, auto-restart on crash): PHP_CLI_SERVER_WORKERS=4 $php_bin -d memory_limit=512M -d max_execution_time=0 -S 127.0.0.1:${port} -t ${wp_path} ${router}"
+    usdtf_log "Starting supervised concurrent server (nginx+php-fpm when available, else php -S workers=4; auto-restart on crash) on 127.0.0.1:${port} docroot ${wp_path}"
     if command -v setsid >/dev/null 2>&1; then
         setsid bash "$0" __supervise__ "$php_bin" "$port" "$wp_path" "$router" >"$LOG_FILE" 2>&1 < /dev/null &
     else
@@ -399,7 +516,7 @@ usdtf_start() {
         return 1
     fi
 
-    usdtf_log "Starting PHP server (workers=4): PHP_CLI_SERVER_WORKERS=4 $php_bin -d memory_limit=512M -d max_execution_time=0 -S 127.0.0.1:${port} -t ${wp_path} ${router}"
+    usdtf_log "Starting supervised server (nginx+php-fpm when available, else php -S workers=4; auto-restart on crash) on 127.0.0.1:${port} docroot ${wp_path}"
     usdtf_log "Log: $LOG_FILE, PID: $PID_FILE, router: $router, docroot: $wp_path"
     usdtf_log "PHP version: $($php_bin -v 2>&1 | head -n1 || echo unknown)"
     if [ -n "$router" ] && [ -f "$router" ]; then

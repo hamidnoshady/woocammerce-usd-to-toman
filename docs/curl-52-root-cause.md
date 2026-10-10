@@ -175,3 +175,25 @@ a restarted server picks the job up from its persisted progress — the
 recovery paths this PR adds are what make that safe. Orphaned workers that
 survive a dead master are reaped precisely (php -S for this port and
 docroot only) before each restart.
+
+### Supervisor killed with its tree (run 12bf4be) → backend switch
+
+With the supervisor in place the ordinary job passed both legs, but the
+concurrent job's tree died again — this time **including the supervisor**:
+no `[server] php -S exited …` line was ever written, the port stayed closed
+for the whole 120 s window, and the diagnostics showed no php process at
+all. One event killed the whole session (bash supervisor + php master +
+workers) with no trace in any log. This matches the known fragility class
+of the built-in server's worker mode (see moodle-workflows#19: "dies
+(segfault, OOM kill, unknown) … in countless runs").
+
+The structural fix this PR now uses: **nginx + PHP-FPM**. The runner's
+setup-php already ships matching php-fpm binaries, so `server.sh
+__supervise__` builds a private pool (static 8 children, 512M, no
+execution limit) on a per-port unix socket and an nginx server on the test
+port with the router's semantics (existing files served directly,
+everything else through index.php), supervised and restarted as a pair
+with every death logged. nginx buffers fastcgi responses, so a vanished
+client can never kill a worker — the failure mode that plagues php -S.
+When nginx or php-fpm is unavailable the supervisor logs it and falls back
+to `PHP_CLI_SERVER_WORKERS=4 php -S`.
