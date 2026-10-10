@@ -460,6 +460,12 @@ BARRIERPHP
     echo "::error::Concurrent server did not answer on http://127.0.0.1:${port}/ after $((ATTEMPTS * DELAY))s." >&2
     usdtf_status "$port" || true
     echo "--- log ---" >&2; tail -n 100 "$LOG_FILE" 2>/dev/null || true
+    for usdtf_err in "$(dirname "$LOG_FILE")"/usdtf-nginx-*/fpm-error.log "$(dirname "$LOG_FILE")"/usdtf-nginx-*/nginx-error.log; do
+        if [ -f "$usdtf_err" ]; then
+            usdtf_tail="$(tail -n 10 "$usdtf_err" 2>/dev/null | tr '\n' ' ' | cut -c1-600 || true)"
+            [ -n "$usdtf_tail" ] && echo "::error::${usdtf_err}: ${usdtf_tail}" >&2
+        fi
+    done
     return 1
 }
 
@@ -612,6 +618,14 @@ JSON
     echo "--- server log (${LOG_FILE}, $(wc -l < "$LOG_FILE" 2>/dev/null || echo 0) lines) ---" >&2
     tail -n 200 "$LOG_FILE" 2>/dev/null || true
     echo "--- end server log ---" >&2
+    # Annotate the backend's own logs so a failed nginx/php-fpm start is
+    # attributable from the API without downloading job logs.
+    for usdtf_err in "$(dirname "$LOG_FILE")"/usdtf-nginx-*/fpm-error.log "$(dirname "$LOG_FILE")"/usdtf-nginx-*/nginx-error.log; do
+        if [ -f "$usdtf_err" ]; then
+            usdtf_tail="$(tail -n 10 "$usdtf_err" 2>/dev/null | tr '\n' ' ' | cut -c1-600 || true)"
+            [ -n "$usdtf_tail" ] && echo "::error::${usdtf_err}: ${usdtf_tail}" >&2
+        fi
+    done
 
     # Also dump WordPress debug log if exists.
     local wp_debug="${wp_path}/../debug.log"

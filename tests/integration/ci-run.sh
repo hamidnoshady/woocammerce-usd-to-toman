@@ -18,7 +18,10 @@ log="$(mktemp)"
 
 echo "Running the integration suite ($label) against $wp_path"
 
-php "$(dirname "$0")/run.php" "$wp_path" 2>&1 | tee "$log"
+# tee into a stable per-label copy as well, so failure comments can include
+# the suite output even after this script removes its temporary copy.
+stable_log="/tmp/usdtf-suite-${label}.log"
+php "$(dirname "$0")/run.php" "$wp_path" 2>&1 | tee "$log" "$stable_log"
 status="${PIPESTATUS[0]}"
 
 summary="${GITHUB_STEP_SUMMARY:-}"
@@ -132,21 +135,29 @@ if [ -n "$unexplained_skips" ]; then
 	echo "$unexplained_skips"
 fi
 
-# Autonomous must not be skipped when concurrent is required.
-if [ "${USDTF_CONCURRENT:-}" = "1" ] && grep -q "autonomous.*skipped.*requires USDTF_CONCURRENT" "$log"; then
-	echo "::error::Autonomous HTTP tests were skipped with USDTF_CONCURRENT=1 — concurrent server failed" >&2
-	grep "autonomous.*skipped" "$log" || true
-	rm -f "$log"
-	exit 1
-fi
-# Also check that autonomous actually passed when concurrent.
-if [ "${USDTF_CONCURRENT:-}" = "1" ] && [ "$status" -eq 0 ]; then
-	if ! grep -q "autonomous (passive) preview/update complete without wake" "$log"; then
-		echo "::error::Autonomous suite did not report success with USDTF_CONCURRENT=1" >&2
-		cat "$log"
+# Autonomous must not be skipped when concurrent is required, and its
+# scenarios must actually report success: the passive suite proves
+# unassisted completion, the failed-loopback fallback and the worker
+# interruption recovery.
+if [ "${USDTF_CONCURRENT:-}" = "1" ]; then
+	if grep -q "autonomous.*skipped.*requires USDTF_CONCURRENT" "$log"; then
+		echo "::error::Autonomous HTTP tests were skipped with USDTF_CONCURRENT=1 — concurrent server failed" >&2
+		grep "autonomous.*skipped" "$log" || true
 		rm -f "$log"
 		exit 1
 	fi
+	for usdtf_pass_line in \
+		'autonomous (passive) preview/update complete without wake' \
+		'failed-loopback fallback persists queue' \
+		'worker interruption recovers' \
+	; do
+		if ! grep -q "$usdtf_pass_line" "$log"; then
+			echo "::error::Concurrent suite did not report success: missing '$usdtf_pass_line'" >&2
+			cat "$log"
+			rm -f "$log"
+			exit 1
+		fi
+	done
 fi
 
 rm -f "$log"
