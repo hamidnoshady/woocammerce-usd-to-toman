@@ -1,0 +1,23 @@
+name: Debug Lint
+on: push
+jobs:
+  debug:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          coverage: none
+          tools: none
+      - name: Run lint with verbose
+        run: |
+          echo "Running bin/lint.php"
+          php bin/lint.php; status=$?
+          echo "lint exit $status"
+          php bin/lint.php --quiet 2>&1 | head -n 100 || true
+          echo "--- php -l all ---"
+          find . -name '*.php' -not -path './dist/*' -not -path './node_modules/*' -not -path './vendor/*' -print0 | xargs -0 -n1 -P4 php -l 2>&1 | head -n 100 || true
+          echo "--- done ---"
+          cat bin/lint.php | head -n 20
+          exit $status
