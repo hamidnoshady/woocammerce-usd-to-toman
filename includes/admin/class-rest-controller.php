@@ -522,12 +522,28 @@ final class Rest_Controller {
 			$cron->tick();
 			$ticked = true;
 		}
+		// Run due Action Scheduler actions in-process, exactly as AS's own
+		// wp-cron event (action_scheduler_run_queue) does in production. The
+		// integration environment keeps AS's async runner off the CLI path, and
+		// a queued step whose loopback dispatch failed would otherwise wait for
+		// AS's next cron cycle. Firing the production queue runner here is the
+		// queue leg of recovery; the claim logic still prevents double runs.
+		$queued = 0;
+		if ( class_exists( '\\ActionScheduler' ) && class_exists( '\\ActionScheduler_QueueRunner' ) ) {
+			try {
+				$queued = \ActionScheduler_QueueRunner::instance()->run();
+			} catch ( \Throwable $error ) {
+				unset( $error );
+				$queued = -1;
+			}
+		}
 		return rest_ensure_response(
 			array(
 					'ok' => true,
 				'resumed' => $resumed,
 				'recovered' => $recovered,
 				'ticked' => $ticked,
+				'queued' => $queued,
 				// phpcs:enable Generic.Formatting.MultipleStatementAlignment,WordPress.Arrays.ArrayIndentation,WordPress.Arrays.MultipleStatementAlignment
 			)
 		);

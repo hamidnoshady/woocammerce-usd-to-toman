@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 # Canonical server lifecycle for the integration suite.
 #
-# The PHP built-in server is single-threaded and its failure mode is an
-# empty reply (curl 52). The suite must prove the plugin works over real
-# HTTP, so the server has to be observable: PID tracked, health probed,
-# logs tailed on failure, and stopped cleanly between runs.
+# Both suites run the PHP built-in server with PHP_CLI_SERVER_WORKERS=4
+# (available since PHP 7.4): a single-threaded server turns every
+# non-blocking loopback into a backlog race (cURL 7/52) and cannot prove
+# autonomous completion at all. The server has to be observable: PID and
+# process group tracked, health probed, logs tailed on failure, and
+# stopped cleanly between runs.
 #
 # Usage:
 #   bash tests/integration/server.sh start  <wp-path> [router] [port]
@@ -315,7 +317,7 @@ usdtf_start() {
         return 1
     fi
 
-    usdtf_log "Starting PHP server: $php_bin -d memory_limit=512M -d max_execution_time=0 -S 127.0.0.1:${port} -t ${wp_path} ${router}"
+    usdtf_log "Starting PHP server (workers=4): PHP_CLI_SERVER_WORKERS=4 $php_bin -d memory_limit=512M -d max_execution_time=0 -S 127.0.0.1:${port} -t ${wp_path} ${router}"
     usdtf_log "Log: $LOG_FILE, PID: $PID_FILE, router: $router, docroot: $wp_path"
     usdtf_log "PHP version: $($php_bin -v 2>&1 | head -n1 || echo unknown)"
     if [ -n "$router" ] && [ -f "$router" ]; then
@@ -326,10 +328,13 @@ usdtf_start() {
 
     # Start server detached. Use setsid if available, otherwise nohup.
     # Redirect stdin from /dev/null, stdout/stderr to log, pid to file.
+    # PHP_CLI_SERVER_WORKERS=4 makes the built-in server serve requests in
+    # parallel: the REST request, its non-blocking loopback and the poll all
+    # make progress instead of racing for one thread.
     if command -v setsid >/dev/null 2>&1; then
-        setsid "$php_bin" -d memory_limit=512M -d max_execution_time=0 -S "127.0.0.1:${port}" -t "$wp_path" "$router" >"$LOG_FILE" 2>&1 < /dev/null &
+        setsid env PHP_CLI_SERVER_WORKERS=4 "$php_bin" -d memory_limit=512M -d max_execution_time=0 -S "127.0.0.1:${port}" -t "$wp_path" "$router" >"$LOG_FILE" 2>&1 < /dev/null &
     else
-        nohup "$php_bin" -d memory_limit=512M -d max_execution_time=0 -S "127.0.0.1:${port}" -t "$wp_path" "$router" >"$LOG_FILE" 2>&1 < /dev/null &
+        env PHP_CLI_SERVER_WORKERS=4 nohup "$php_bin" -d memory_limit=512M -d max_execution_time=0 -S "127.0.0.1:${port}" -t "$wp_path" "$router" >"$LOG_FILE" 2>&1 < /dev/null &
     fi
     local pid=$!
     echo "$pid" > "$PID_FILE"

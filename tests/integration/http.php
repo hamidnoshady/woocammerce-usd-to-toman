@@ -478,6 +478,9 @@ try {
 		if ( 200 === $update['code'] ) {
 			break;
 		}
+		// Per-attempt evidence: which try failed, with what code and body, so a
+		// refused connection is attributable instead of opaque.
+		error_log( sprintf( 'usdtf update attempt %d/%d code %d body %s', $usdtf_u, $update_attempts, $update['code'], substr( (string) $update['body'], 0, 200 ) ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
 		if ( 0 === $update['code'] ) {
 			// cURL 7/52: server transiently refused / empty reply while still
 			// handling preview wakes; retry with backoff.

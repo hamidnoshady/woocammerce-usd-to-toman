@@ -486,15 +486,6 @@ jobs:
           extensions: pdo_sqlite, sqlite3, mbstring, zip
           tools: none
 
-      - name: Prepare concurrent server (PHP_CLI_SERVER_WORKERS=4, socat no longer required)
-        run: |
-          set -e
-          if ! command -v socat >/dev/null 2>&1; then
-            sudo apt-get update -y
-            sudo apt-get install -y socat
-          fi
-          socat -V
-
       - name: Download the release zip built by the dist job
         uses: actions/download-artifact@v7
         with:
@@ -647,11 +638,6 @@ jobs:
             diag="$diag
           --- concurrent server log tail ---
           $(tail -n 40 /tmp/usdtf-server.log 2>/dev/null | head -c 8000)"
-          fi
-          if [ -f "/tmp/usdtf-socat.log" ]; then
-            diag="$diag
-          --- socat log tail ---
-          $(tail -n 40 /tmp/usdtf-socat.log 2>/dev/null | head -c 8000)"
           fi
           diag="$diag
           --- concurrent server status ---

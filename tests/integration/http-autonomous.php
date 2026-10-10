@@ -137,18 +137,14 @@ try {
 	usdtf_it_assert( isset( $fb_status['json']['id'] ) && (int) $fb_status['json']['id'] === $fb_preview_id, 'status must return correct id even after loopback failure' );
 	usdtf_it_assert( isset( $fb_status['json']['status'] ), 'status must have status field even after loopback failure' );
 
-	// Now let it complete autonomously via the production fallback without any CLI wake.
-	// Increased to 45s for the async runner on slower runners. On concurrent the
-	// job may still be RUNNING after 45s (fallback via wp-cron is slower), so
-	// accept RUNNING with counters and let the later persisted-queue test prove
-	// eventual completion.
+	// Now let it complete autonomously via the production fallback without
+	// any CLI wake: the passive poll fires the production recovery tick
+	// (resume/recover + the Action Scheduler queue runner), which must run
+	// the queued step whose loopback dispatch was injected to fail. The job
+	// must actually COMPLETE — a merely readable running job proves nothing.
 	$fb_recovered = usdtf_it_http_wait_job_passive( $fb_preview_id, $usdtf_auto_header, 45 );
-	usdtf_it_assert( in_array( $fb_recovered['status'] ?? '', array( Job::STATUS_COMPLETED, Job::STATUS_RUNNING ), true ), 'after loopback failure, persisted queue must recover and be readable via fallback (status=' . var_export( $fb_recovered['status'] ?? null, true ) . ')' );
-	usdtf_it_assert( isset( $fb_recovered['counters'] ) || isset( $fb_recovered['status'] ), 'recovered job must be readable (queue persisted)' );
-	// If still RUNNING, processed may still be 0 while discovery is queued; don't fail the fallback proof.
-	if ( Job::STATUS_COMPLETED === ( $fb_recovered['status'] ?? '' ) ) {
-		usdtf_it_assert( (int) ( $fb_recovered['counters']['processed'] ?? 0 ) >= 1, 'completed fallback job must have processed at least 1' );
-	}
+	usdtf_it_assert_same( Job::STATUS_COMPLETED, $fb_recovered['status'] ?? '', 'after loopback failure, persisted queue must recover and complete via production fallback (status=' . var_export( $fb_recovered['status'] ?? null, true ) . ')' );
+	usdtf_it_assert( (int) ( $fb_recovered['counters']['processed'] ?? 0 ) >= 1, 'completed fallback job must have processed at least 1, got ' . var_export( $fb_recovered['counters']['processed'] ?? null, true ) );
 
 	// Cleanup: ensure injection consumed and product still correctly priced.
 	wp_cache_flush();

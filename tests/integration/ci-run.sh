@@ -113,17 +113,23 @@ if [ "$status" -ne 0 ]; then
 	exit 1
 fi
 
-if grep -q '^skip - ' "$log"; then
+# The autonomous (passive) scenarios are environment conditional by design:
+# they need a concurrent server (USDTF_CONCURRENT=1) and the ordinary job
+# deliberately runs without it. Their skip line stays visible in the log, the
+# concurrent job enforces that they actually ran, and only skips that are NOT
+# environment conditional fail the required-HTTP check.
+unexplained_skips="$(grep '^skip - ' "$log" | grep -v 'requires USDTF_CONCURRENT' || true)"
+if [ -n "$unexplained_skips" ]; then
 	if [ "${USDTF_REQUIRE_HTTP_TESTS:-}" = "1" ]; then
 		echo "::error::The suite skipped scenarios with USDTF_REQUIRE_HTTP_TESTS=1, so HTTP is not verified:" >&2
-		grep '^skip - ' "$log" || true
+		echo "$unexplained_skips"
 		echo "---- full log ----"
 		cat "$log"
 		rm -f "$log"
 		exit 1
 	fi
-	echo "::warning::The suite skipped: $(grep -c '^skip - ' "$log") scenario(s)" >&2
-	grep '^skip - ' "$log" || true
+	echo "::warning::The suite skipped: $(echo "$unexplained_skips" | grep -c .) scenario(s)" >&2
+	echo "$unexplained_skips"
 fi
 
 # Autonomous must not be skipped when concurrent is required.
