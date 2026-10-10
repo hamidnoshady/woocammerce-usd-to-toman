@@ -674,5 +674,4 @@ final class Scheduler {
 			}
 		}
 	}
-	}
 }
