@@ -245,6 +245,23 @@ http {
 }
 NGINXCONF
 
+    # Precise teardown: signal the supervisor and it stops its own children
+    # (php-fpm by PID, nginx via its pid file), then exits.
+    term_children() {
+        [ -n "${fpm_pid:-}" ] && kill "$fpm_pid" 2>/dev/null || true
+        if [ -f "${conf_dir}/nginx.pid" ]; then
+            local npid
+            npid="$(cat "${conf_dir}/nginx.pid" 2>/dev/null | tr -dc '0-9' || true)"
+            case "$npid" in
+                ''|0|1) ;;
+                *) kill "$npid" 2>/dev/null || true ;;
+            esac
+        fi
+        rm -f "$sock"
+        exit 0
+    }
+    trap term_children TERM INT
+
     while true; do
         started=$(date +%s)
         "$fpm_bin" --fpm-config "${conf_dir}/fpm.conf" -p "${conf_dir}" &
@@ -666,104 +683,78 @@ JSON
 
 usdtf_stop() {
     local port="${1:-$DEFAULT_PORT}"
-    local pid="" pgid=""
+    local pid="" conf_dir="/tmp/usdtf-server-${port}"
+
     if [ -f "$PID_FILE" ]; then
         pid="$(cat "$PID_FILE" 2>/dev/null || echo "")"
     fi
-    if [ -f "${PID_FILE}.pgid" ]; then
-        pgid="$(cat "${PID_FILE}.pgid" 2>/dev/null || echo "")"
+    # The nginx/php-fpm backend keeps its own pid files next to the socket.
+    if [ -d "/tmp/usdtf-nginx-${port}" ]; then
+        conf_dir="/tmp/usdtf-nginx-${port}"
     fi
 
-    # With PHP_CLI_SERVER_WORKERS the master forks workers that share the
-    # listen socket; killing only the master can orphan a worker that keeps
-    # the port open. The server runs in its own session (setsid), so the
-    # tracked process group contains exactly our master and its workers.
-    if [ -n "$pgid" ] && kill -0 "-$pgid" 2>/dev/null; then
-        usdtf_log "Stopping server process group $pgid (master $pid) on port $port"
-        kill -TERM "-$pgid" 2>/dev/null || true
-        for i in $(seq 1 10); do
-            kill -0 "-$pgid" 2>/dev/null || break
-            sleep 0.5
-        done
-        if kill -0 "-$pgid" 2>/dev/null; then
-            usdtf_log "Force killing process group $pgid"
-            kill -KILL "-$pgid" 2>/dev/null || true
-            sleep 0.5
-        fi
-    elif [ -n "$pid" ] && usdtf_is_alive "$pid"; then
-        # Legacy state (PID recorded, no process group): verify ownership
-        # before signalling anything, then stop the PID's whole group. The
-        # recorded PID is either the supervisor (bash ... __supervise__)
-        # or, from older revisions, the php -S master itself.
-        cmdline="$(ps -o cmd= -p "$pid" 2>/dev/null || echo "")"
-        if [[ "$cmdline" != *"php"*"-S 127.0.0.1:${port}"* ]] && [[ "$cmdline" != *"__supervise__"* ]]; then
-            usdtf_log "PID $pid does not look like our server (cmd: $cmdline), not killing"
-        else
-            pgid="$(ps -o pgid= -p "$pid" 2>/dev/null | tr -d ' ' || echo "")"
-            if [ -n "$pgid" ] && [ "$pgid" != "$$" ]; then
-                usdtf_log "Stopping server PID $pid (group $pgid) on port $port"
-                kill -TERM "-$pgid" 2>/dev/null || true
-                for i in $(seq 1 10); do
-                    kill -0 "-$pgid" 2>/dev/null || break
-                    sleep 0.5
-                done
-                kill -KILL "-$pgid" 2>/dev/null || true
-            else
-                kill "$pid" 2>/dev/null || true
+    # Teardown is strictly PID based and ownership checked: the supervisor
+    # (which traps TERM and stops its own nginx/php-fpm children), the fpm
+    # master and the nginx master. No process groups are signalled, so no
+    # unrelated or runner-owned process can ever be hit.
+    local victims=""
+    for vfile in "$PID_FILE" "${conf_dir}/fpm.pid" "${conf_dir}/nginx.pid"; do
+        if [ -f "$vfile" ]; then
+            local vpid
+            vpid="$(cat "$vfile" 2>/dev/null | tr -dc '0-9' || true)"
+            case "$vpid" in
+                ''|0|1) continue ;;
+            esac
+            if kill -0 "$vpid" 2>/dev/null; then
+                victims="$victims $vpid"
             fi
         fi
-    else
-        if [ -n "$pid" ]; then
-            usdtf_log "PID file $pid not alive, removing stale file"
+    done
+
+    for vpid in $victims; do
+        vcmd="$(ps -o cmd= -p "$vpid" 2>/dev/null || echo "")"
+        case "$vcmd" in
+            *"__supervise__"*|*"php-fpm"*|*"nginx"*|*"php"*"-S 127.0.0.1:${port}"*)
+                usdtf_log "Stopping server process PID $vpid (cmd: ${vcmd:0:90})"
+                kill -TERM "$vpid" 2>/dev/null || true
+                ;;
+            *)
+                usdtf_log "PID $vpid does not look like our server (cmd: $vcmd), not killing"
+                ;;
+        esac
+    done
+
+    # Give the victims a moment; force kill the ones still alive (still
+    # ownership checked).
+    for i in $(seq 1 10); do
+        alive=0
+        for vpid in $victims; do
+            kill -0 "$vpid" 2>/dev/null && alive=1
+        done
+        [ "$alive" = "0" ] && break
+        sleep 0.5
+    done
+    for vpid in $victims; do
+        if kill -0 "$vpid" 2>/dev/null; then
+            vcmd="$(ps -o cmd= -p "$vpid" 2>/dev/null || echo "")"
+            case "$vcmd" in
+                *"__supervise__"*|*"php-fpm"*|*"nginx"*|*"php"*"-S 127.0.0.1:${port}"*)
+                    usdtf_log "Force killing server process PID $vpid"
+                    kill -KILL "$vpid" 2>/dev/null || true
+                    ;;
+            esac
         fi
-    fi
+    done
 
     # Orphaned worker reaping: if the port is still listening and the
-    # listener is a php -S bound to this port (and our docroot when the
-    # state file exists), it is an orphan from a killed master. Stop it
-    # precisely by PID after the ownership check; never signal anything
-    # that is not a php -S for this port + docroot.
+    # listener is one of our php -S processes (fallback backend) serving
+    # our docroot, stop it precisely by PID.
     if usdtf_port_listening "$port"; then
         local docroot=""
         if [ -f "${PID_FILE}.docroot" ]; then
             docroot="$(cat "${PID_FILE}.docroot" 2>/dev/null || echo "")"
         fi
-        local listeners=""
-        if command -v ss >/dev/null 2>&1; then
-            listeners="$(ss -ltnp "sport = :${port}" 2>/dev/null | grep -o 'pid=[0-9]*' | cut -d= -f2 | sort -u || true)"
-        elif command -v lsof >/dev/null 2>&1; then
-            listeners="$(lsof -t -iTCP:"${port}" -sTCP:LISTEN 2>/dev/null | sort -u || true)"
-        fi
-        for opid in $listeners; do
-            [ -n "$opid" ] || continue
-            ocmd="$(ps -o cmd= -p "$opid" 2>/dev/null || echo "")"
-            if [[ "$ocmd" != *"php"*"-S 127.0.0.1:${port}"* ]]; then
-                usdtf_log "Port $port listener PID $opid is not our php -S (cmd: $ocmd), not killing"
-                continue
-            fi
-            if [ -n "$docroot" ] && [[ "$ocmd" != *"$docroot"* ]]; then
-                usdtf_log "Port $port listener PID $opid serves another docroot, not killing"
-                continue
-            fi
-            usdtf_log "Reaping orphaned server worker PID $opid on port $port"
-            kill -TERM "$opid" 2>/dev/null || true
-        done
-        # Give the orphans a moment to exit; anything left gets KILLed only
-        # if it still matches the ownership check.
-        for i in $(seq 1 6); do
-            usdtf_port_listening "$port" || break
-            sleep 0.5
-        done
-        if usdtf_port_listening "$port"; then
-            for opid in $listeners; do
-                [ -n "$opid" ] || continue
-                ocmd="$(ps -o cmd= -p "$opid" 2>/dev/null || echo "")"
-                if [[ "$ocmd" == *"php"*"-S 127.0.0.1:${port}"* ]] && { [ -z "$docroot" ] || [[ "$ocmd" == *"$docroot"* ]]; }; then
-                    usdtf_log "Force killing orphaned server worker PID $opid"
-                    kill -KILL "$opid" 2>/dev/null || true
-                fi
-            done
-        fi
+        bash "$0" __reap__ "$port" "$docroot" >&2 || true
     fi
 
     if usdtf_port_listening "$port"; then
@@ -772,8 +763,7 @@ usdtf_stop() {
     fi
 
     rm -f "$PID_FILE" "${PID_FILE}.docroot" "${PID_FILE}.pgid" "/tmp/usdtf-server-${port}.json"
-    # Legacy 18888/socat state from earlier revisions: remove only precisely
-    # owned leftovers, never pkill/fuser anything.
+    # Legacy socat state from earlier revisions.
     for stale in "/tmp/usdtf-socat.pid"; do
         if [ -f "$stale" ]; then
             spid="$(cat "$stale" 2>/dev/null || echo "")"
