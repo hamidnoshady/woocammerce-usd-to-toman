@@ -3,6 +3,9 @@ on: push
 jobs:
   debug:
     runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      contents: read
     steps:
       - uses: actions/checkout@v6
       - uses: shivammathur/setup-php@v2
@@ -11,13 +14,31 @@ jobs:
           coverage: none
           tools: none
       - name: Run lint with verbose
+        id: lint
+        continue-on-error: true
         run: |
           echo "Running bin/lint.php"
-          php bin/lint.php; status=$?
+          php bin/lint.php 2>&1 | tee /tmp/lint.log; status=\${PIPESTATUS[0]}
           echo "lint exit $status"
-          php bin/lint.php --quiet 2>&1 | head -n 100 || true
-          echo "--- php -l all ---"
-          find . -name '*.php' -not -path './dist/*' -not -path './node_modules/*' -not -path './vendor/*' -print0 | xargs -0 -n1 -P4 php -l 2>&1 | head -n 100 || true
-          echo "--- done ---"
-          cat bin/lint.php | head -n 20
-          exit $status
+          echo "--- lint.log ---"
+          cat /tmp/lint.log || true
+          echo "--- php -l all (first 100) ---"
+          find . -name '*.php' -not -path './dist/*' -not -path './node_modules/*' -not -path './vendor/*' -print0 | xargs -0 -n1 -P4 php -l 2>&1 | head -n 200 || true
+          echo "status=$status" >> $GITHUB_OUTPUT
+          exit 0
+      - name: Post lint log to PR
+        if: always()
+        env:
+          GH_TOKEN: \${{ github.token }}
+        run: |
+          pr="\${{ github.event.pull_request.number }}"
+          if [ -z "$pr" ]; then pr="11"; fi
+          log=$(cat /tmp/lint.log 2>/dev/null | head -c 4000 | sed 's/`/\\`/g')
+          lint_status="\${{ steps.lint.outputs.status }}"
+          gh api --method POST "repos/\${{ github.repository }}/issues/$pr/comments" -f body="### Debug lint (bbdd1cf @ \${{ github.sha }}) lint exit $lint_status
+          \`\`\`
+          $log
+          \`\`\`" || echo "gh comment failed"
+          cat /tmp/lint.log || true
+          # Also fail the job if lint failed
+          if [ "\${{ steps.lint.outputs.status }}" != "0" ]; then exit 1; fi
