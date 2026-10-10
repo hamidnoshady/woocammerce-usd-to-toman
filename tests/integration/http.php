@@ -208,11 +208,29 @@ function usdtf_it_http_hang_diagnostics( $job_id, $response ) {
 	$log = getenv( 'USDTF_SERVER_LOG' ) ? getenv( 'USDTF_SERVER_LOG' ) : '/tmp/usdtf-server.log';
 	if ( is_readable( $log ) ) {
 		$lines[] = '  server log tail:';
-		foreach ( array_slice( file( $log, FILE_IGNORE_NEW_LINES ) ?: array(), -10 ) as $line ) { // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- test diagnostics.
+		foreach ( array_slice( file( $log, FILE_IGNORE_NEW_LINES ) ?: array(), -30 ) as $line ) { // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- test diagnostics.
 			$lines[] = '    ' . $line;
 		}
 	}
-	error_log( implode( "\n", $lines ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+	// The backend's own error logs name crashed or stuck PHP-FPM children;
+	// they are the decisive evidence for a 502 storm.
+	foreach ( glob( '/tmp/usdtf-nginx-*/fpm-error.log' ) ?: array() as $errlog ) { // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_glob -- test diagnostics.
+		if ( is_readable( $errlog ) ) {
+			$lines[] = "  {$errlog} tail:";
+			foreach ( array_slice( file( $errlog, FILE_IGNORE_NEW_LINES ) ?: array(), -15 ) as $line ) { // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- test diagnostics.
+				$lines[] = '    ' . $line;
+			}
+		}
+	}
+	foreach ( glob( '/tmp/usdtf-nginx-*/nginx-error.log' ) ?: array() as $errlog ) { // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_glob -- test diagnostics.
+		if ( is_readable( $errlog ) ) {
+			$lines[] = "  {$errlog} tail:";
+			foreach ( array_slice( file( $errlog, FILE_IGNORE_NEW_LINES ) ?: array(), -15 ) as $line ) { // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- test diagnostics.
+				$lines[] = '    ' . $line;
+			}
+		}
+	}
+	fwrite( STDERR, implode( "\n", $lines ) . "\n" ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- test diagnostics, CLI only.
 }
 
 function usdtf_it_http_wait_job( $job_id, $authorization, $timeout = 120 ) {

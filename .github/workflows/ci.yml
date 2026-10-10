@@ -608,8 +608,15 @@ jobs:
           if [ -f "/tmp/usdtf-server.log" ]; then
             diag="$diag
           --- concurrent server log tail ---
-          $(tail -n 40 /tmp/usdtf-server.log 2>/dev/null | head -c 8000)"
+          $(tail -n 150 /tmp/usdtf-server.log 2>/dev/null | head -c 12000)"
           fi
+          for usdtf_errlog in /tmp/usdtf-nginx-*/fpm-error.log /tmp/usdtf-nginx-*/nginx-error.log; do
+            if [ -f "$usdtf_errlog" ]; then
+              diag="$diag
+          --- $usdtf_errlog tail ---
+          $(tail -n 30 "$usdtf_errlog" 2>/dev/null | head -c 6000)"
+            fi
+          done
           diag="$diag
           --- concurrent server status ---
           $(bash tests/integration/server.sh status 8888 2>&1 | head -c 4000)"

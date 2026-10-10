@@ -184,11 +184,17 @@ daemonize = no
 pid = ${conf_dir}/fpm.pid
 [usdtf]
 listen = ${sock}
+listen.backlog = 1024
 listen.owner = $(id -un)
 listen.group = $(id -gn)
 listen.mode = 0660
 pm = static
-pm.max_children = 8
+pm.max_children = 12
+; Recycle children periodically and terminate stuck ones: a child that
+; hangs or crashes must not hold a pool slot forever (requests then fail
+; with 502 while the pool looks alive).
+pm.max_requests = 200
+request_terminate_timeout = 60s
 php_admin_value[memory_limit] = 512M
 php_admin_value[max_execution_time] = 0
 php_value[upload_max_filesize] = 32M
