@@ -417,11 +417,25 @@ jobs:
           if [ -z "$pr" ]; then pr="${{ github.event.number }}"; fi
           if [ -z "$pr" ]; then echo "::warning::No PR number for integration comment"; exit 0; fi
           diag=""
+          for usdtf_suite_log in /tmp/usdtf-suite-working-copy.log /tmp/usdtf-suite-built-zip.log; do
+            if [ -f "$usdtf_suite_log" ]; then
+              diag="$diag
+          --- suite log tail ($usdtf_suite_log) ---
+          $(tail -n 80 "$usdtf_suite_log" 2>/dev/null | head -c 10000)"
+            fi
+          done
           if [ -f "/tmp/built-zip.log" ]; then
             diag="$diag
           --- built-ZIP suite tail ---
           $(tail -n 60 /tmp/built-zip.log 2>/dev/null | head -c 8000)"
           fi
+          for usdtf_errlog in /tmp/usdtf-nginx-*/fpm-error.log /tmp/usdtf-nginx-*/nginx-error.log; do
+            if [ -f "$usdtf_errlog" ]; then
+              diag="$diag
+          --- $usdtf_errlog tail ---
+          $(tail -n 30 "$usdtf_errlog" 2>/dev/null | head -c 6000)"
+            fi
+          done
           if [ -f "${WP_PATH}-built-zip/../debug.log" ]; then
             diag="$diag
           --- built-ZIP debug.log tail (error_log output of the suite and workers) ---
