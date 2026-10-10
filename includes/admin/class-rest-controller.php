@@ -523,10 +523,12 @@ final class Rest_Controller {
 		}
 		return rest_ensure_response(
 			array(
+				// phpcs:disable Generic.Formatting.MultipleStatementAlignment -- test helper array, alignment not relevant.
 				'ok' => true,
 				'resumed' => $resumed,
 				'recovered' => $recovered,
 				'ticked' => $ticked,
+				// phpcs:enable Generic.Formatting.MultipleStatementAlignment
 			)
 		);
 	}
