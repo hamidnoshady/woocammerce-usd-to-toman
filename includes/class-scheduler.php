@@ -590,6 +590,7 @@ final class Scheduler {
 		if ( function_exists( 'ignore_user_abort' ) ) {
 			ignore_user_abort( true ); // phpcs:ignore WordPressVIPMinimum.Functions.RestrictedFunctions
 		}
+		// phpcs:disable WordPress.PHP.NoSilencedErrors.Discouraged -- intentional CLI timeout disable for worker lease.
 		if ( function_exists( 'set_time_limit' ) ) {
 			@set_time_limit( 0 ); // phpcs:ignore WordPressVIPMinimum.Functions.RestrictedFunctions,WordPress.PHP.NoSilencedErrors.Discouraged
 		}
@@ -597,7 +598,15 @@ final class Scheduler {
 		// Claim with lease: store timestamp before unscheduling so expiry can be detected.
 		$lease_key = 'usdtf_worker_lease_' . $job_id . '_' . $hook;
 		$now       = time();
-		update_option( $lease_key, array( 'time' => $now, 'pid' => getmypid() ), false ); // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
+		update_option(
+			$lease_key,
+			array(
+				'time' => $now,
+				'pid'  => getmypid(),
+			),
+			false
+		);
+		// phpcs:enable WordPress.PHP.NoSilencedErrors.Discouraged
 
 		// This request owns the work now: drop the WP-Cron twin of the action
 		// so the same step cannot be triggered twice (once here, once by cron).
