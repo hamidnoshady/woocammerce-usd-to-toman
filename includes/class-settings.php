@@ -20,16 +20,6 @@ final class Settings {
 	const OPTION = 'usdtf_settings';
 
 	/**
-	 * Currency mode: WooCommerce stores the derived USD price and charges USD.
-	 */
-	const MODE_USD = 'usd';
-
-	/**
-	 * Currency mode: WooCommerce stores and charges the canonical Toman price.
-	 */
-	const MODE_TOMAN = 'toman';
-
-	/**
 	 * Option holding the rate that is currently active.
 	 */
 	const OPTION_RATE = 'usdtf_rate';
@@ -38,11 +28,6 @@ final class Settings {
 	 * Option holding a rate that is waiting for explicit confirmation.
 	 */
 	const OPTION_PENDING_RATE = 'usdtf_pending_rate';
-
-	/**
-	 * Option remembering which currency mode the stored price fields belong to.
-	 */
-	const OPTION_SYNCED_CURRENCY_MODE = 'usdtf_synced_currency_mode';
 
 	/**
 	 * Cached settings array.
@@ -58,24 +43,13 @@ final class Settings {
 	 */
 	public static function defaults() {
 		return array(
-			// Toman transactions by default: the price fields hold the canonical
-			// Toman value, so the gateway, the cart and the order totals are in
-			// Toman. Mode A (USD transactions with a Toman display) is one
-			// setting away and is described in the readme.
-			'currency_mode'            => self::MODE_TOMAN,
 			'rounding'                 => Calculator::ROUND_UP,
-			'increment'                => 1.0,
-			'decimals'                 => 0,
+			'increment'                => Calculator::default_increment( Store_Currency::unit() ),
 			'rate_change_threshold'    => 15.0,
 			'batch_size'               => 10,
 			'time_budget'              => 20,
 			'retry_limit'              => 3,
 			'retention_days'           => 30,
-			'auto_manage_new_products' => true,
-			'display_toman'            => true,
-			'display_toman_cart'       => false,
-			'persian_digits'           => true,
-			'toman_suffix'             => 'تومان',
 			'loopback_fallback'        => true,
 			'require_preview'          => true,
 			'required_capability'      => Capabilities::DEFAULT_CAPABILITY,
@@ -95,12 +69,13 @@ final class Settings {
 	}
 
 	/**
-	 * Allowed rounding increments.
+	 * Allowed rounding increments for a store currency unit.
 	 *
+	 * @param string|null $unit Store currency unit, the current store unit when omitted.
 	 * @return float[]
 	 */
-	public static function allowed_increments() {
-		return array( 1.0, 5.0, 10.0 );
+	public static function allowed_increments( $unit = null ) {
+		return Calculator::increments_for_unit( null === $unit ? Store_Currency::unit() : $unit );
 	}
 
 	/**
@@ -193,18 +168,12 @@ final class Settings {
 
 		$clean = array();
 
-		$clean['currency_mode'] = in_array( $settings['currency_mode'], array( self::MODE_USD, self::MODE_TOMAN ), true )
-			? $settings['currency_mode']
-			: $defaults['currency_mode'];
-
 		$clean['rounding'] = in_array( $settings['rounding'], Calculator::rounding_modes(), true )
 			? $settings['rounding']
 			: $defaults['rounding'];
 
 		$increment          = (float) $settings['increment'];
 		$clean['increment'] = in_array( $increment, self::allowed_increments(), true ) ? $increment : $defaults['increment'];
-
-		$clean['decimals'] = max( 0, min( 6, (int) $settings['decimals'] ) );
 
 		$threshold                      = (float) $settings['rate_change_threshold'];
 		$clean['rate_change_threshold'] = ( $threshold >= 0 && $threshold <= 90 ) ? $threshold : $defaults['rate_change_threshold'];
@@ -221,12 +190,9 @@ final class Settings {
 		$retention               = (int) $settings['retention_days'];
 		$clean['retention_days'] = ( $retention >= 0 && $retention <= 3650 ) ? $retention : $defaults['retention_days'];
 
-		foreach ( array( 'auto_manage_new_products', 'display_toman', 'display_toman_cart', 'persian_digits', 'loopback_fallback', 'require_preview', 'credit_author', 'delete_data_on_uninstall' ) as $flag ) {
+		foreach ( array( 'loopback_fallback', 'require_preview', 'credit_author', 'delete_data_on_uninstall' ) as $flag ) {
 			$clean[ $flag ] = ! empty( $settings[ $flag ] );
 		}
-
-		$suffix                = isset( $settings['toman_suffix'] ) ? sanitize_text_field( (string) $settings['toman_suffix'] ) : $defaults['toman_suffix'];
-		$clean['toman_suffix'] = '' === $suffix ? $defaults['toman_suffix'] : $suffix;
 
 		// Only the documented allowlist is storable. Weaker capabilities stay
 		// available to developers through the usdtf_required_capability filter.
@@ -281,63 +247,23 @@ final class Settings {
 	}
 
 	/**
-	 * Rounding options used by the calculator.
+	 * Rounding options used by the calculator. The increment falls back to the
+	 * default of the store unit when the stored one is not allowed for it, and
+	 * the decimals are the WooCommerce price decimals.
 	 *
-	 * @return array
+	 * @return array{rounding:string,increment:float,decimals:int}
 	 */
 	public function rounding_args() {
+		$increment = (float) $this->get( 'increment' );
+
+		if ( ! in_array( $increment, self::allowed_increments(), true ) ) {
+			$increment = Calculator::default_increment( Store_Currency::unit() );
+		}
+
 		return array(
 			'rounding'  => (string) $this->get( 'rounding' ),
-			'increment' => (float) $this->get( 'increment' ),
-			'decimals'  => (int) $this->get( 'decimals' ),
+			'increment' => $increment,
+			'decimals'  => wc_get_price_decimals(),
 		);
-	}
-
-	/**
-	 * Whether WooCommerce should transact in USD while displaying Toman.
-	 *
-	 * @return bool
-	 */
-	public function is_usd_mode() {
-		return self::MODE_TOMAN !== $this->get( 'currency_mode' );
-	}
-
-	/**
-	 * Whether WooCommerce should transact in Toman.
-	 *
-	 * @return bool
-	 */
-	public function is_toman_mode() {
-		return self::MODE_TOMAN === $this->get( 'currency_mode' );
-	}
-
-	/**
-	 * The currency mode the price fields were last written for.
-	 *
-	 * @return string
-	 */
-	public function synced_currency_mode() {
-		$mode = get_option( self::OPTION_SYNCED_CURRENCY_MODE, '' );
-
-		return $mode ? (string) $mode : self::defaults()['currency_mode'];
-	}
-
-	/**
-	 * Remember which currency mode the price fields now hold.
-	 *
-	 * @param string $mode Currency mode.
-	 * @return void
-	 */
-	public function set_synced_currency_mode( $mode ) {
-		update_option( self::OPTION_SYNCED_CURRENCY_MODE, $mode, false );
-	}
-
-	/**
-	 * Whether the stored prices still match the configured currency mode.
-	 *
-	 * @return bool
-	 */
-	public function currency_mode_is_stale() {
-		return $this->synced_currency_mode() !== $this->get( 'currency_mode' );
 	}
 }

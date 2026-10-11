@@ -358,7 +358,6 @@ function usdtf_it_guard_store() {
 		\USDTF\Settings::OPTION,
 		\USDTF\Settings::OPTION_RATE,
 		\USDTF\Settings::OPTION_PENDING_RATE,
-		\USDTF\Settings::OPTION_SYNCED_CURRENCY_MODE,
 		\USDTF\Lock::OPTION,
 		'usdtf_last_error',
 		'usdtf_stale_resumes',
@@ -1006,7 +1005,6 @@ function usdtf_it_reset_plugin_state() {
 		\USDTF\Settings::OPTION,
 		\USDTF\Settings::OPTION_RATE,
 		\USDTF\Settings::OPTION_PENDING_RATE,
-		\USDTF\Settings::OPTION_SYNCED_CURRENCY_MODE,
 		'usdtf_last_error',
 		'usdtf_stale_resumes',
 	);
@@ -1017,12 +1015,6 @@ function usdtf_it_reset_plugin_state() {
 
 	// Use the shared instance so nothing keeps a cached copy of the old values.
 	usdtf_plugin()->settings()->reset();
-
-	// A fresh install defaults to Toman transactions, which has its own
-	// scenario. The other scenarios describe the USD transaction mode, so it is
-	// pinned here instead of being inherited from the default.
-	usdtf_plugin()->settings()->update( array( 'currency_mode' => \USDTF\Settings::MODE_USD ) );
-	usdtf_plugin()->settings()->set_synced_currency_mode( \USDTF\Settings::MODE_USD );
 
 	// The shipped default requires a dry run before every update; the mechanics
 	// scenarios create jobs directly, so they opt out. The enforcement itself

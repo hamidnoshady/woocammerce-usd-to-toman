@@ -26,6 +26,7 @@ final class Installer {
 	 */
 	public static function activate() {
 		self::create_tables();
+		self::migrate_to_pegged_model();
 		self::seed_options();
 
 		update_option( self::VERSION_OPTION, Database::SCHEMA_VERSION, false );
@@ -64,11 +65,66 @@ final class Installer {
 		}
 
 		self::create_tables();
+		self::migrate_to_pegged_model();
 		self::seed_options();
 
 		update_option( self::VERSION_OPTION, Database::SCHEMA_VERSION, false );
 
 		Cron::schedule();
+	}
+
+	/**
+	 * Remove the data of the old currency-mode model.
+	 *
+	 * Deletes the obsolete post meta in one query, reads a stored "native"
+	 * product mode as "excluded", and drops the obsolete settings keys and
+	 * options. Safe to run more than once. The obsolete table columns stay in
+	 * place, unused: dbDelta never drops columns.
+	 *
+	 * @return void
+	 */
+	public static function migrate_to_pegged_model() {
+		global $wpdb;
+
+		$obsolete_meta = array(
+			'_usdtf_source_regular',
+			'_usdtf_source_sale',
+			'_usdtf_derived_regular',
+			'_usdtf_derived_sale',
+			'_usdtf_mode_synced',
+			'_usdtf_external_source',
+			'_usdtf_revision',
+		);
+
+		$placeholders = implode( ', ', array_fill( 0, count( $obsolete_meta ), '%s' ) );
+
+		// A one-off upgrade query on the plugin's own meta keys.
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare
+		$wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->postmeta} WHERE meta_key IN ({$placeholders})", $obsolete_meta ) );
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		$wpdb->query( $wpdb->prepare( "UPDATE {$wpdb->postmeta} SET meta_value = %s WHERE meta_key = %s AND meta_value = %s", 'excluded', '_usdtf_mode', 'native' ) );
+
+		// The queries above bypass the meta cache.
+		if ( function_exists( 'wp_cache_supports' ) && wp_cache_supports( 'flush_group' ) ) {
+			wp_cache_flush_group( 'post_meta' );
+		} else {
+			wp_cache_flush();
+		}
+
+		$stored = get_option( Settings::OPTION, null );
+
+		if ( is_array( $stored ) ) {
+			$kept = array_intersect_key( $stored, Settings::defaults() );
+
+			if ( $kept !== $stored ) {
+				update_option( Settings::OPTION, $kept );
+			}
+		}
+
+		foreach ( Database::OBSOLETE_OPTIONS as $option ) {
+			delete_option( $option );
+		}
 	}
 
 	/**
@@ -89,12 +145,12 @@ final class Installer {
 
 		$schema = array();
 
+		// `generated` is a reserved word in MySQL 8, so the column name is quoted.
 		$schema[] = "CREATE TABLE {$jobs} (
 			id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
 			status varchar(24) NOT NULL DEFAULT 'queued',
 			job_type varchar(24) NOT NULL DEFAULT 'sync',
 			scope longtext NULL,
-			currency_mode varchar(16) NOT NULL DEFAULT 'usd',
 			rate decimal(20,6) NOT NULL DEFAULT 0,
 			previous_rate decimal(20,6) NULL,
 			rounding varchar(12) NOT NULL DEFAULT 'up',
@@ -102,6 +158,8 @@ final class Installer {
 			decimals smallint(3) NOT NULL DEFAULT 0,
 			total_items bigint(20) unsigned NOT NULL DEFAULT 0,
 			processed bigint(20) unsigned NOT NULL DEFAULT 0,
+			`generated` bigint(20) unsigned NOT NULL DEFAULT 0,
+			rebased bigint(20) unsigned NOT NULL DEFAULT 0,
 			changed bigint(20) unsigned NOT NULL DEFAULT 0,
 			unchanged bigint(20) unsigned NOT NULL DEFAULT 0,
 			skipped bigint(20) unsigned NOT NULL DEFAULT 0,
@@ -134,15 +192,12 @@ final class Installer {
 			object_id bigint(20) unsigned NOT NULL DEFAULT 0,
 			parent_id bigint(20) unsigned NOT NULL DEFAULT 0,
 			object_type varchar(20) NOT NULL DEFAULT 'product',
-			expected_revision bigint(20) unsigned NOT NULL DEFAULT 0,
-			source_regular varchar(32) NULL,
-			source_sale varchar(32) NULL,
+			usd_regular varchar(32) NULL,
+			usd_sale varchar(32) NULL,
 			old_regular varchar(32) NULL,
 			old_sale varchar(32) NULL,
 			new_regular varchar(32) NULL,
 			new_sale varchar(32) NULL,
-			toman_regular varchar(32) NULL,
-			toman_sale varchar(32) NULL,
 			status varchar(16) NOT NULL DEFAULT 'pending',
 			attention tinyint(1) NOT NULL DEFAULT 0,
 			child_cursor bigint(20) unsigned NOT NULL DEFAULT 0,
@@ -213,10 +268,6 @@ final class Installer {
 			$settings->update( $stored );
 		}
 
-		if ( '' === (string) get_option( Settings::OPTION_SYNCED_CURRENCY_MODE, '' ) ) {
-			$settings->set_synced_currency_mode( (string) $settings->get( 'currency_mode' ) );
-		}
-
 		if ( '' === (string) get_option( Settings::OPTION_RATE, '' ) ) {
 			update_option( Settings::OPTION_RATE, '0', false );
 		}
@@ -228,9 +279,9 @@ final class Installer {
 	 * Remove the plugin's own data. Used by uninstall.php.
 	 *
 	 * Options, cron events, queued worker actions, transients and the plugin
-	 * tables are always removed. Product metadata (the canonical Toman prices)
-	 * is only removed when the store owner opted in, because it is real price
-	 * data that a reinstall can reuse.
+	 * tables are always removed. Product metadata (the USD prices) is only
+	 * removed when the store owner opted in, because it is real price data
+	 * that a reinstall can reuse.
 	 *
 	 * @param bool $purge_product_meta Whether product meta should be deleted too.
 	 * @return void
@@ -254,7 +305,6 @@ final class Installer {
 			Settings::OPTION,
 			Settings::OPTION_RATE,
 			Settings::OPTION_PENDING_RATE,
-			Settings::OPTION_SYNCED_CURRENCY_MODE,
 			self::VERSION_OPTION,
 			Lock::OPTION,
 			Scheduler::TOKEN_OPTION,
@@ -263,6 +313,8 @@ final class Installer {
 			'usdtf_needs_full_resync',
 			'usdtf_stale_resumes',
 		);
+
+		$options = array_merge( $options, Database::OBSOLETE_OPTIONS );
 
 		foreach ( $options as $option ) {
 			delete_option( $option );

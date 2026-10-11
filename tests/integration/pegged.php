@@ -147,6 +147,245 @@ usdtf_it_assert_same( 'unchanged', \USDTF\Price_Planner::ACTION_UNCHANGED, 'the 
 usdtf_it_assert_same( 'skip', \USDTF\Price_Planner::ACTION_SKIP, 'the skip action constant' );
 usdtf_it_pass( 'the price planner decides every case' );
 
+// ---------------------------------------------------------------------------
+// Settings: unit-aware rounding increments, no obsolete keys.
+// ---------------------------------------------------------------------------
+$removed_settings_keys = array( 'currency_mode', 'display_toman', 'display_toman_cart', 'persian_digits', 'toman_suffix', 'decimals', 'auto_manage_new_products' );
+
+usdtf_it_reset_plugin_state();
+usdtf_it_set_currency( 'IRT' );
+
+usdtf_it_assert_same( array( 1.0, 100.0, 1000.0, 10000.0 ), \USDTF\Settings::allowed_increments(), 'the allowed increments default to the store unit' );
+usdtf_it_assert_same( array( 10.0, 1000.0, 10000.0, 100000.0 ), \USDTF\Settings::allowed_increments( 'rial' ), 'the allowed increments can be asked for another unit' );
+usdtf_it_assert_same( 1000.0, \USDTF\Settings::sanitize( array( 'increment' => 5 ) )['increment'], 'an increment that is not allowed for Toman falls back to 1000' );
+usdtf_it_assert_same( 100.0, \USDTF\Settings::sanitize( array( 'increment' => 100 ) )['increment'], 'a Toman increment of 100 is kept' );
+usdtf_it_assert_same( 'up', \USDTF\Settings::defaults()['rounding'], 'rounding defaults to up' );
+usdtf_it_assert_same( 1000.0, \USDTF\Settings::defaults()['increment'], 'the Toman default increment is 1000' );
+
+$clean_settings = \USDTF\Settings::sanitize( array( 'increment' => 5 ) );
+
+foreach ( $removed_settings_keys as $removed_key ) {
+	usdtf_it_assert( ! array_key_exists( $removed_key, $clean_settings ), 'sanitize() must not return the removed key ' . $removed_key );
+	usdtf_it_assert( ! array_key_exists( $removed_key, \USDTF\Settings::defaults() ), 'the defaults must not hold the removed key ' . $removed_key );
+}
+
+usdtf_it_assert_same( 15, \USDTF\Settings::sanitize( array( 'batch_size' => 15 ) )['batch_size'], 'a partial update keeps the submitted value' );
+usdtf_it_assert_same( 10, \USDTF\Settings::sanitize( array( 'increment' => 100 ) )['batch_size'], 'a partial update keeps the other defaults' );
+
+usdtf_it_set_currency( 'IRR' );
+usdtf_it_assert_same( 10000.0, \USDTF\Settings::sanitize( array( 'increment' => 100 ) )['increment'], 'an increment that is not allowed for Rial falls back to 10000' );
+usdtf_it_assert_same( 1000.0, \USDTF\Settings::sanitize( array( 'increment' => 1000 ) )['increment'], 'a Rial increment of 1000 is kept' );
+usdtf_it_assert_same( 10000.0, \USDTF\Settings::defaults()['increment'], 'the Rial default increment is 10000' );
+
+// The rounding options follow the unit and the Woo decimals.
+$settings_object = usdtf_plugin()->settings();
+usdtf_it_set_currency( 'IRT' );
+$settings_object->update( array( 'increment' => 100.0 ) );
+usdtf_it_assert_same( 100.0, $settings_object->rounding_args()['increment'], 'rounding_args() returns a stored allowed increment' );
+usdtf_it_assert_same( wc_get_price_decimals(), $settings_object->rounding_args()['decimals'], 'rounding_args() decimals come from WooCommerce' );
+
+$two_decimals = function () {
+	return 2;
+};
+add_filter( 'wc_get_price_decimals', $two_decimals );
+usdtf_it_assert_same( 2, $settings_object->rounding_args()['decimals'], 'rounding_args() follows the WooCommerce price decimals' );
+remove_filter( 'wc_get_price_decimals', $two_decimals );
+
+usdtf_it_set_currency( 'IRR' );
+usdtf_it_assert_same( 10000.0, $settings_object->rounding_args()['increment'], 'a stored increment that the unit does not allow falls back in rounding_args()' );
+usdtf_it_assert_same( array( 'rounding', 'increment', 'decimals' ), array_keys( $settings_object->rounding_args() ), 'rounding_args() has exactly the calculator keys' );
+usdtf_it_assert_same( 'up', $settings_object->rounding_args()['rounding'], 'rounding_args() returns the rounding mode' );
+
+usdtf_it_set_currency( 'IRT' );
+usdtf_it_reset_plugin_state();
+usdtf_it_pass( 'the settings are unit aware and free of the obsolete keys' );
+
+// ---------------------------------------------------------------------------
+// Jobs: the generated and rebased counters and the new item columns.
+// ---------------------------------------------------------------------------
+$job_repo = usdtf_plugin()->jobs();
+$job_id   = $job_repo->create( array( 'rate' => 270000 ) );
+usdtf_it_assert( $job_id > 0, 'the job row must be created' );
+
+usdtf_it_assert_same( 'generated', \USDTF\Job_Repository::ITEM_GENERATED, 'the generated item status' );
+usdtf_it_assert_same( 'rebased', \USDTF\Job_Repository::ITEM_REBASED, 'the rebased item status' );
+
+$job_repo->increment(
+	$job_id,
+	array(
+		'generated' => 3,
+		'rebased'   => 2,
+		'changed'   => 1,
+	)
+);
+$job_counters = $job_repo->get( $job_id )->counters();
+usdtf_it_assert_same( 3, $job_counters['generated'], 'the generated counter increments' );
+usdtf_it_assert_same( 2, $job_counters['rebased'], 'the rebased counter increments' );
+usdtf_it_assert_same( 1, $job_counters['changed'], 'the changed counter still increments' );
+
+$job_repo->set_counter( $job_id, 'generated', 7 );
+usdtf_it_assert_same( 7, $job_repo->get( $job_id )->counters()['generated'], 'the generated counter can be set' );
+
+$job_repo->update(
+	$job_id,
+	array(
+		'rebased' => 9,
+		'message' => 'x',
+	)
+);
+usdtf_it_assert_same( 9, $job_repo->get( $job_id )->counters()['rebased'], 'the rebased counter can be updated' );
+
+usdtf_it_assert( ! in_array( 'source_regular', \USDTF\Job_Repository::ITEM_COLUMNS, true ), 'the item columns no longer list source_regular' );
+usdtf_it_assert( ! in_array( 'toman_regular', \USDTF\Job_Repository::ITEM_COLUMNS, true ), 'the item columns no longer list toman_regular' );
+usdtf_it_assert( ! in_array( 'expected_revision', \USDTF\Job_Repository::ITEM_COLUMNS, true ), 'the item columns no longer list expected_revision' );
+usdtf_it_assert( in_array( 'usd_regular', \USDTF\Job_Repository::ITEM_COLUMNS, true ), 'the item columns list usd_regular' );
+usdtf_it_assert( in_array( 'usd_sale', \USDTF\Job_Repository::ITEM_COLUMNS, true ), 'the item columns list usd_sale' );
+usdtf_it_assert_same( count( \USDTF\Job_Repository::ITEM_COLUMNS ), count( \USDTF\Job_Repository::ITEM_FORMATS ), 'every item column has a format' );
+
+$job_repo->add_items(
+	$job_id,
+	array(
+		array(
+			'object_id'   => 123,
+			'usd_regular' => '18.52',
+			'usd_sale'    => '16.00',
+			'old_regular' => '5000000',
+			'new_regular' => '5001000',
+			'status'      => \USDTF\Job_Repository::ITEM_GENERATED,
+		),
+	)
+);
+$item_row = \USDTF\Database::get_row( 'SELECT * FROM `' . \USDTF\Database::items_table() . '` WHERE job_id = ' . (int) $job_id );
+usdtf_it_assert_same( '18.52', $item_row['usd_regular'], 'an item stores the USD regular anchor' );
+usdtf_it_assert_same( '16.00', $item_row['usd_sale'], 'an item stores the USD sale anchor' );
+usdtf_it_assert_same( 'generated', $item_row['status'], 'an item can be generated' );
+usdtf_it_pass( 'the job counters and item columns carry the pegged model' );
+usdtf_it_reset_plugin_state();
+
+// ---------------------------------------------------------------------------
+// Upgrade: an old-shaped database is migrated once, and only once.
+// ---------------------------------------------------------------------------
+global $wpdb;
+
+$items_table = \USDTF\Database::items_table();
+$jobs_table  = \USDTF\Database::jobs_table();
+$columns_of  = function ( $table ) use ( $wpdb ) {
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+	return (array) $wpdb->get_col( "SHOW COLUMNS FROM `{$table}`", 0 );
+};
+
+// Put the tables back in the old shape: no new columns.
+foreach ( array( $items_table => array( 'usd_regular', 'usd_sale' ), $jobs_table => array( 'generated', 'rebased' ) ) as $table_name => $new_columns ) {
+	foreach ( $new_columns as $new_column ) {
+		if ( in_array( $new_column, $columns_of( $table_name ), true ) ) {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+			$wpdb->query( "ALTER TABLE `{$table_name}` DROP COLUMN `{$new_column}`" );
+		}
+	}
+}
+
+$items_before = $columns_of( $items_table );
+$jobs_before  = $columns_of( $jobs_table );
+usdtf_it_assert( ! in_array( 'usd_regular', $items_before, true ), 'the old items table has no usd_regular column' );
+usdtf_it_assert( ! in_array( 'generated', $columns_of( $jobs_table ), true ), 'the old jobs table has no generated column' );
+
+$old_pid   = usdtf_it_make_priced_product( 'Old shape', 5000000 )->get_id();
+$kept_pid  = usdtf_it_make_priced_product( 'Kept shape', 6000000 )->get_id();
+$old_metas = array(
+	'_usdtf_source_regular'  => '18.52',
+	'_usdtf_source_sale'     => '16',
+	'_usdtf_derived_regular' => '5000000',
+	'_usdtf_derived_sale'    => '4320000',
+	'_usdtf_mode_synced'     => 'native',
+	'_usdtf_external_source' => 'woo',
+	'_usdtf_revision'        => '4',
+);
+
+foreach ( $old_metas as $meta_key => $meta_value ) {
+	update_post_meta( $old_pid, $meta_key, $meta_value );
+	update_post_meta( $kept_pid, $meta_key, $meta_value );
+}
+
+update_post_meta( $old_pid, '_usdtf_mode', 'native' );
+update_post_meta( $kept_pid, '_usdtf_mode', 'managed' );
+update_post_meta( $kept_pid, '_usdtf_usd_regular', '22.22' );
+update_post_meta( $kept_pid, '_usdtf_rate', '270000' );
+
+update_option(
+	'usdtf_settings',
+	array(
+		'currency_mode'            => 'toman',
+		'rounding'                 => 'nearest',
+		'increment'                => 1.0,
+		'decimals'                 => 2,
+		'batch_size'               => 15,
+		'auto_manage_new_products' => true,
+		'display_toman'            => true,
+		'display_toman_cart'       => false,
+		'persian_digits'           => true,
+		'toman_suffix'             => 'تومان',
+	)
+);
+update_option( 'usdtf_synced_currency_mode', 'usd', false );
+update_option( \USDTF\Installer::VERSION_OPTION, '5', false );
+usdtf_plugin()->settings()->all( true );
+
+\USDTF\Installer::maybe_upgrade();
+
+foreach ( array_keys( $old_metas ) as $meta_key ) {
+	usdtf_it_assert_same( '', usdtf_it_meta( $old_pid, $meta_key ), 'the upgrade deletes ' . $meta_key . ' from the first product' );
+	usdtf_it_assert_same( '', usdtf_it_meta( $kept_pid, $meta_key ), 'the upgrade deletes ' . $meta_key . ' from the second product' );
+}
+
+usdtf_it_assert_same( 'excluded', usdtf_it_meta( $old_pid, '_usdtf_mode' ), 'a stored native mode is rewritten to excluded' );
+usdtf_it_assert_same( 'managed', usdtf_it_meta( $kept_pid, '_usdtf_mode' ), 'a managed product stays managed' );
+usdtf_it_assert_same( '22.22', usdtf_it_meta( $kept_pid, '_usdtf_usd_regular' ), 'the new USD anchor is left alone by the upgrade' );
+usdtf_it_assert_same( '270000', usdtf_it_meta( $kept_pid, '_usdtf_rate' ), 'the stored rate is left alone by the upgrade' );
+usdtf_it_assert_same( '5000000', usdtf_it_price( $old_pid ), 'the upgrade never touches a WooCommerce price' );
+
+$upgraded_settings = get_option( 'usdtf_settings' );
+
+foreach ( $removed_settings_keys as $removed_key ) {
+	usdtf_it_assert( ! array_key_exists( $removed_key, $upgraded_settings ), 'the upgrade drops the settings key ' . $removed_key );
+}
+
+usdtf_it_assert_same( 'nearest', $upgraded_settings['rounding'], 'the upgrade keeps the rounding mode' );
+usdtf_it_assert_same( 15, $upgraded_settings['batch_size'], 'the upgrade keeps the batch size' );
+usdtf_it_assert_same( false, get_option( 'usdtf_synced_currency_mode', false ), 'the upgrade removes the synced currency mode option' );
+usdtf_it_assert_same( \USDTF\Database::SCHEMA_VERSION, get_option( \USDTF\Installer::VERSION_OPTION ), 'the upgrade records the new schema version' );
+usdtf_it_assert( '5' !== \USDTF\Database::SCHEMA_VERSION, 'the schema version was bumped' );
+
+usdtf_it_assert( in_array( 'usd_regular', $columns_of( $items_table ), true ), 'the upgrade adds items.usd_regular' );
+usdtf_it_assert( in_array( 'usd_sale', $columns_of( $items_table ), true ), 'the upgrade adds items.usd_sale' );
+usdtf_it_assert( in_array( 'generated', $columns_of( $jobs_table ), true ), 'the upgrade adds jobs.generated' );
+usdtf_it_assert( in_array( 'rebased', $columns_of( $jobs_table ), true ), 'the upgrade adds jobs.rebased' );
+usdtf_it_assert_same( array(), array_diff( $items_before, $columns_of( $items_table ) ), 'the obsolete items columns stay in place' );
+usdtf_it_assert_same( array(), array_diff( $jobs_before, $columns_of( $jobs_table ) ), 'the obsolete jobs columns stay in place' );
+
+// A second run changes nothing, even when the version marker is lost.
+$state_after_first = array(
+	'settings' => get_option( 'usdtf_settings' ),
+	'metas'    => array( get_post_meta( $old_pid ), get_post_meta( $kept_pid ) ),
+	'items'    => $columns_of( $items_table ),
+	'jobs'     => $columns_of( $jobs_table ),
+);
+
+\USDTF\Installer::maybe_upgrade();
+update_option( \USDTF\Installer::VERSION_OPTION, '5', false );
+\USDTF\Installer::maybe_upgrade();
+\USDTF\Installer::migrate_to_pegged_model();
+
+$state_after_second = array(
+	'settings' => get_option( 'usdtf_settings' ),
+	'metas'    => array( get_post_meta( $old_pid ), get_post_meta( $kept_pid ) ),
+	'items'    => $columns_of( $items_table ),
+	'jobs'     => $columns_of( $jobs_table ),
+);
+
+usdtf_it_assert_same( $state_after_first, $state_after_second, 'running the upgrade again changes nothing' );
+usdtf_it_assert_same( \USDTF\Database::SCHEMA_VERSION, get_option( \USDTF\Installer::VERSION_OPTION ), 'the schema version stays current after a second upgrade' );
+usdtf_it_pass( 'the upgrade migrates an old database once' );
+
 // Leave nothing behind for the legacy scenarios that follow in a full run.
 usdtf_it_set_currency( null );
 usdtf_it_delete_products();

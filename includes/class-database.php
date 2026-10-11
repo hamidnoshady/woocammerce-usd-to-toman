@@ -20,7 +20,15 @@ final class Database {
 	/**
 	 * Current schema version.
 	 */
-	const SCHEMA_VERSION = '5';
+	const SCHEMA_VERSION = '6';
+
+	/**
+	 * Options from earlier versions that the upgrade step and the uninstall
+	 * routine remove.
+	 *
+	 * @var string[]
+	 */
+	const OBSOLETE_OPTIONS = array( 'usdtf_synced_currency_mode' );
 
 	/**
 	 * Fully qualified table name.
