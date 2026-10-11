@@ -18,7 +18,10 @@ log="$(mktemp)"
 
 echo "Running the integration suite ($label) against $wp_path"
 
-php "$(dirname "$0")/run.php" "$wp_path" 2>&1 | tee "$log"
+# tee into a stable per-label copy as well, so failure comments can include
+# the suite output even after this script removes its temporary copy.
+stable_log="/tmp/usdtf-suite-${label}.log"
+php "$(dirname "$0")/run.php" "$wp_path" 2>&1 | tee "$log" "$stable_log"
 status="${PIPESTATUS[0]}"
 
 summary="${GITHUB_STEP_SUMMARY:-}"
@@ -27,24 +30,44 @@ if [ -n "$summary" ]; then
 	{
 		echo "### Integration suite ($label)"
 		echo
+		# Count accurately: ok, not ok, and explicit skips.
+		passed="$(grep -c '^ok - ' "$log" || true)"
+		failed="$(grep -c '^not ok' "$log" || true)"
+		skipped="$(grep -c '^skip - ' "$log" || true)"
+		autonomous_skipped="$(grep -c 'autonomous.*skipped' "$log" || true)"
+		# Escape backticks in dynamic values for markdown.
+		echo "Passed: ${passed}, Failed: ${failed}, Skipped: ${skipped} (autonomous skipped: ${autonomous_skipped})"
 		if [ "$status" -eq 0 ]; then
-			echo "Passed: $(grep -c '^ok - ' "$log") scenario groups."
+			echo "Result: ✅ passed"
 		else
-			echo "Failed. Last 120 lines:"
+			echo "Result: ❌ failed"
+			echo
+			echo "Last 120 lines:"
 			echo
 			echo '```'
-			tail -n 120 "$log"
+			tail -n 120 "$log" | sed 's/`/\\`/g'
 			echo '```'
 		fi
 	} >>"$summary"
 fi
 
 if [ "$status" -ne 0 ]; then
+	# On failure, also capture the server health so an empty reply (curl 52)
+	# is not an opaque "FAIL: … Empty reply from server" without context.
+	if [ -x "tests/integration/server.sh" ] && [ -f "/tmp/usdtf-server.log" ]; then
+		echo "--- server log (last 50 lines) ---"
+		tail -n 50 /tmp/usdtf-server.log || true
+		echo "--- end server log ---"
+		if [ "${USDTF_REQUIRE_HTTP_TESTS:-}" = "1" ]; then
+			bash tests/integration/server.sh status 8888 2>&1 | head -n 100 || true
+		fi
+	fi
+
 	# Annotations accept one line each, and only ten error annotations are kept
 	# per step, so the first failures are the ones that matter.
 	reported=0
 
-	for pattern in 'FAIL:' 'Fatal error' 'PHP Fatal' 'Uncaught' '^PHP Warning' '^not ok'; do
+	for pattern in 'FAIL:' 'Fatal error' 'PHP Fatal' 'Uncaught' '^PHP Warning' '^not ok' '^usdtf wait job' '^usdtf passive wait' '^usdtf hang diagnostics' 'exited with status' 'cURL error'; do
 		while IFS= read -r line; do
 			[ -n "$line" ] || continue
 			[ "$reported" -lt 10 ] || break
@@ -91,6 +114,50 @@ if [ "$status" -ne 0 ]; then
 	rm -f "$log"
 
 	exit 1
+fi
+
+# The autonomous (passive) scenarios are environment conditional by design:
+# they need a concurrent server (USDTF_CONCURRENT=1) and the ordinary job
+# deliberately runs without it. Their skip line stays visible in the log, the
+# concurrent job enforces that they actually ran, and only skips that are NOT
+# environment conditional fail the required-HTTP check.
+unexplained_skips="$(grep '^skip - ' "$log" | grep -v 'requires USDTF_CONCURRENT' || true)"
+if [ -n "$unexplained_skips" ]; then
+	if [ "${USDTF_REQUIRE_HTTP_TESTS:-}" = "1" ]; then
+		echo "::error::The suite skipped scenarios with USDTF_REQUIRE_HTTP_TESTS=1, so HTTP is not verified:" >&2
+		echo "$unexplained_skips"
+		echo "---- full log ----"
+		cat "$log"
+		rm -f "$log"
+		exit 1
+	fi
+	echo "::warning::The suite skipped: $(echo "$unexplained_skips" | grep -c .) scenario(s)" >&2
+	echo "$unexplained_skips"
+fi
+
+# Autonomous must not be skipped when concurrent is required, and its
+# scenarios must actually report success: the passive suite proves
+# unassisted completion, the failed-loopback fallback and the worker
+# interruption recovery.
+if [ "${USDTF_CONCURRENT:-}" = "1" ]; then
+	if grep -q "autonomous.*skipped.*requires USDTF_CONCURRENT" "$log"; then
+		echo "::error::Autonomous HTTP tests were skipped with USDTF_CONCURRENT=1 — concurrent server failed" >&2
+		grep "autonomous.*skipped" "$log" || true
+		rm -f "$log"
+		exit 1
+	fi
+	for usdtf_pass_line in \
+		'autonomous (passive) preview/update complete without wake' \
+		'failed-loopback fallback persists queue' \
+		'worker interruption recovers' \
+	; do
+		if ! grep -q "$usdtf_pass_line" "$log"; then
+			echo "::error::Concurrent suite did not report success: missing '$usdtf_pass_line'" >&2
+			cat "$log"
+			rm -f "$log"
+			exit 1
+		fi
+	done
 fi
 
 rm -f "$log"

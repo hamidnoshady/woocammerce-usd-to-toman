@@ -104,6 +104,24 @@ if ( '' !== $usdtf_zip ) {
 	}
 
 	echo "Installed the plugin from {$usdtf_zip}\n";
+
+	// After a ZIP reinstall (working-copy -> built-ZIP), ensure a clean slate for the second suite run.
+	// The previous suite left behind usdtf_jobs, usdtf_items and Action Scheduler actions that could
+	// confuse the next run's background queue. Truncate those tables if they exist; failures are non-fatal.
+	if ( '' !== $usdtf_zip && file_exists( $usdtf_wp_path . '/wp-load.php' ) ) {
+		require_once $usdtf_wp_path . '/wp-load.php';
+		global $wpdb;
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- test setup.
+		$wpdb->query( "TRUNCATE TABLE {$wpdb->prefix}usdtf_jobs" );
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- test setup.
+		$wpdb->query( "TRUNCATE TABLE {$wpdb->prefix}usdtf_items" );
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- test setup.
+		$wpdb->query( "TRUNCATE TABLE {$wpdb->prefix}actionscheduler_actions" );
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- test setup.
+		$wpdb->query( "TRUNCATE TABLE {$wpdb->prefix}actionscheduler_logs" );
+		delete_option( 'usdtf_loopback_token' );
+		echo "Cleaned previous jobs and token for built-ZIP run\n";
+	}
 } elseif ( ! is_dir( $usdtf_target ) && ! is_link( $usdtf_target ) ) {
 	if ( ! @symlink( $usdtf_plugin_dir, $usdtf_target ) ) { // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
 		echo "Symlink failed, copying the plugin instead.\n";

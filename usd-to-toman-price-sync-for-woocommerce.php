@@ -28,6 +28,10 @@ define( 'USDTF_URL', plugin_dir_url( __FILE__ ) );
 define( 'USDTF_BASENAME', plugin_basename( __FILE__ ) );
 define( 'USDTF_SLUG', 'usd-to-toman-price-sync-for-woocommerce' );
 
+if ( ! defined( 'USDTF_ENABLE_TEST_ROUTES' ) ) {
+	define( 'USDTF_ENABLE_TEST_ROUTES', false );
+}
+
 require_once USDTF_DIR . 'includes/class-autoloader.php';
 
 \USDTF\Autoloader::register();

@@ -349,6 +349,204 @@ final class Rest_Controller {
 				),
 			)
 		);
+
+		// Test helpers: only registered when USDTF_ENABLE_TEST_ROUTES is true.
+		// Production installs must not expose them and must ignore fault-injection options.
+		if ( defined( 'USDTF_ENABLE_TEST_ROUTES' ) && USDTF_ENABLE_TEST_ROUTES ) {
+			// Fail the next loopback dispatch. The queue is still persisted.
+			register_rest_route(
+				self::NAMESPACE_V1,
+				'/test/fail-next-loopback',
+				array(
+					'methods'             => 'POST',
+					'callback'            => array( $this, 'test_fail_next_loopback' ),
+					'permission_callback' => $permission,
+					'args'                => array(
+						'hook' => array(
+							'type'    => 'string',
+							'default' => '1',
+						),
+					),
+				)
+			);
+
+			// Interrupt the worker after N batches. The job is left orphaned.
+			register_rest_route(
+				self::NAMESPACE_V1,
+				'/test/interrupt-after',
+				array(
+					'methods'             => 'POST',
+					'callback'            => array( $this, 'test_interrupt_after' ),
+					'permission_callback' => $permission,
+					'args'                => array(
+						'count' => array(
+							'type'    => 'integer',
+							'default' => 1,
+						),
+					),
+				)
+			);
+			register_rest_route(
+				self::NAMESPACE_V1,
+				'/test/clear-interrupt',
+				array(
+					'methods'             => 'POST',
+					'callback'            => array( $this, 'test_clear_interrupt' ),
+					'permission_callback' => $permission,
+				)
+			);
+			// Barrier for genuine concurrency proof: sleep without holding lock.
+			register_rest_route(
+				self::NAMESPACE_V1,
+				'/test/sleep',
+				array(
+					'methods'             => 'GET',
+					'callback'            => array( $this, 'test_sleep' ),
+					'permission_callback' => $permission,
+					'args'                => array(
+						'duration' => array(
+							'type'    => 'number',
+							'default' => 1,
+						),
+					),
+				)
+			);
+			// Dedicated recovery tick: side-effect free GET replacement.
+			// Calls Cron::tick + resume/recover without waking via GET side-effect.
+			register_rest_route(
+				self::NAMESPACE_V1,
+				'/test/tick',
+				array(
+					'methods'             => 'POST',
+					'callback'            => array( $this, 'test_tick' ),
+					'permission_callback' => $permission,
+				)
+			);
+		}
+	}
+
+	/**
+	 * POST /test/fail-next-loopback
+	 *
+	 * @param \WP_REST_Request $request Request.
+	 * @return \WP_REST_Response
+	 */
+	public function test_fail_next_loopback( $request ) {
+		$hook = (string) $request->get_param( 'hook' );
+		if ( '' === $hook ) {
+			$hook = '1';
+		}
+		update_option( 'usdtf_test_fail_next_loopback', $hook, false );
+		return rest_ensure_response(
+			array(
+				'ok'   => true,
+				'hook' => $hook,
+			)
+		);
+	}
+
+	/**
+	 * POST /test/interrupt-after
+	 *
+	 * @param \WP_REST_Request $request Request.
+	 * @return \WP_REST_Response
+	 */
+	public function test_interrupt_after( $request ) {
+		$count = (int) $request->get_param( 'count' );
+		if ( $count < 1 ) {
+			$count = 1;
+		}
+		update_option( 'usdtf_test_interrupt_after', $count, false );
+		update_option( 'usdtf_test_interrupt_counter', 0, false );
+		return rest_ensure_response(
+			array(
+				'ok'    => true,
+				'count' => $count,
+			)
+		);
+	}
+
+	/**
+	 * POST /test/clear-interrupt
+	 *
+	 * @return \WP_REST_Response
+	 */
+	public function test_clear_interrupt() {
+		delete_option( 'usdtf_test_interrupt_after' );
+		delete_option( 'usdtf_test_interrupt_counter' );
+		delete_option( 'usdtf_test_fail_next_loopback' );
+		return rest_ensure_response( array( 'ok' => true ) );
+	}
+
+	/**
+	 * GET /test/sleep — barrier for concurrency proof.
+	 *
+	 * @param \WP_REST_Request $request Request.
+	 * @return \WP_REST_Response
+	 */
+	public function test_sleep( $request ) {
+		$duration = (float) $request->get_param( 'duration' );
+		$duration = max( 0, min( 5, $duration ) );
+		if ( $duration > 0 ) {
+			usleep( (int) ( $duration * 1000000 ) );
+		}
+		return rest_ensure_response(
+			array(
+				'ok'       => true,
+				'duration' => $duration,
+				'time'     => microtime( true ),
+				'pid'      => getmypid(),
+			)
+		);
+	}
+
+	/**
+	 * POST /test/tick — dedicated recovery trigger.
+	 *
+	 * Calls resume_orphaned, recover_stale and Cron tick without GET side-effect.
+	 * Gated by test constant.
+	 *
+	 * @return \WP_REST_Response
+	 */
+	public function test_tick() {
+		// phpcs:disable Generic.Formatting.MultipleStatementAlignment,WordPress.Arrays.ArrayIndentation,WordPress.Arrays.MultipleStatementAlignment -- test helper deterministic tick; alignment not relevant.
+		$resumed   = 0;
+		$recovered = 0;
+		$ticked    = false;
+		if ( isset( $this->runner ) ) {
+			$resumed   = $this->runner->resume_orphaned_jobs();
+			$recovered = $this->runner->recover_stale_jobs();
+		}
+		if ( class_exists( '\\USDTF\\Cron' ) ) {
+			$cron   = new \USDTF\Cron();
+			$cron->tick();
+			$ticked = true;
+		}
+		// Run due Action Scheduler actions in-process, exactly as AS's own
+		// wp-cron event (action_scheduler_run_queue) does in production. The
+		// integration environment keeps AS's async runner off the CLI path, and
+		// a queued step whose loopback dispatch failed would otherwise wait for
+		// AS's next cron cycle. Firing the production queue runner here is the
+		// queue leg of recovery; the claim logic still prevents double runs.
+		$queued = 0;
+		if ( class_exists( '\\ActionScheduler' ) && class_exists( '\\ActionScheduler_QueueRunner' ) ) {
+			try {
+				$queued = \ActionScheduler_QueueRunner::instance()->run();
+			} catch ( \Throwable $error ) {
+				unset( $error );
+				$queued = -1;
+			}
+		}
+		return rest_ensure_response(
+			array(
+					'ok' => true,
+				'resumed' => $resumed,
+				'recovered' => $recovered,
+				'ticked' => $ticked,
+				'queued' => $queued,
+				// phpcs:enable Generic.Formatting.MultipleStatementAlignment,WordPress.Arrays.ArrayIndentation,WordPress.Arrays.MultipleStatementAlignment
+			)
+		);
 	}
 
 	/**

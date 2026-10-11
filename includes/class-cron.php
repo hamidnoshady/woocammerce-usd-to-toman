@@ -54,6 +54,13 @@ final class Cron {
 				'display'  => __( 'Every five minutes (USD/Toman pricing maintenance)', 'usd-to-toman-price-sync-for-woocommerce' ),
 			);
 		}
+		// Faster tick for lease recovery: every minute, still keeps five-minute for daily.
+		if ( ! isset( $schedules['usdtf_one_minute'] ) ) {
+			$schedules['usdtf_one_minute'] = array(
+				'interval' => 60, // phpcs:ignore WordPress.WP.CronInterval.CronSchedulesInterval -- Lease recovery needs 60s.
+				'display'  => __( 'Every minute (USD/Toman lease recovery)', 'usd-to-toman-price-sync-for-woocommerce' ),
+			);
+		}
 
 		return $schedules;
 	}
@@ -70,7 +77,14 @@ final class Cron {
 		add_filter( 'cron_schedules', array( __CLASS__, 'add_schedule' ) ); // phpcs:ignore WordPress.WP.CronInterval.CronSchedulesInterval -- Plugin maintenance schedule.
 
 		if ( ! wp_next_scheduled( self::EVENT_TICK ) ) {
-			wp_schedule_event( time() + 120, self::SCHEDULE, self::EVENT_TICK );
+			// Prefer one-minute lease recovery if available, fallback to five-minute.
+			$sched = 'usdtf_one_minute';
+			// Check if the one-minute schedule is actually registered (add_schedule was applied).
+			$schedules = apply_filters( 'cron_schedules', array() ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- WordPress core hook.
+			if ( ! isset( $schedules[ $sched ] ) ) {
+				$sched = self::SCHEDULE;
+			}
+			wp_schedule_event( time() + 60, $sched, self::EVENT_TICK );
 		}
 
 		if ( ! wp_next_scheduled( self::EVENT_DAILY ) ) {
@@ -98,6 +112,30 @@ final class Cron {
 
 		$runner->recover_stale_jobs();
 		$runner->resume_orphaned_jobs();
+
+		// Lease expiry: if a worker claimed a step but died after claim
+		// (client disconnect after unschedule, no heartbeat), requeue exactly
+		// once after TTL (60s). Uses Scheduler lease helpers.
+		if ( class_exists( '\\USDTF\\Scheduler' ) && method_exists( '\\USDTF\\Scheduler', 'is_lease_expired' ) ) {
+			$running = usdtf_plugin()->jobs()->query(
+				array(
+					'status' => \USDTF\Job::STATUS_RUNNING,
+					'limit'  => 20,
+				)
+			);
+			foreach ( $running as $job ) {
+				foreach ( \USDTF\Scheduler::allowed_worker_hooks() as $hook ) {
+					if ( \USDTF\Scheduler::is_lease_expired( $job->id(), $hook, 60 ) ) {
+						// Lease expired: clear and requeue the exact hook for this job.
+						delete_option( 'usdtf_worker_lease_' . $job->id() . '_' . $hook );
+						usdtf_plugin()->jobs()->heartbeat( $job->id() );
+						$runner->resume_orphaned_jobs();
+						break 2;
+					}
+				}
+			}
+			\USDTF\Scheduler::clear_expired_leases();
+		}
 	}
 
 	/**

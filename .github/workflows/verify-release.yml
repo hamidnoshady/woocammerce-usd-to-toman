@@ -46,6 +46,11 @@ concurrency:
 
 env:
   PLUGIN_SLUG: usd-to-toman-price-sync-for-woocommerce
+  # Pinned helper revision: the commit that introduced the canonical helpers
+  # (lib-archive-contract, server lifecycle, verify-archive, router) and is
+  # known to be compatible with tag 1.1.1 expectations. Update when helpers
+  # change; never use origin/main (mutable).
+  PINNED_HELPERS_SHA: 8100b59ddfd0214bec863bb50b21bdc904d1f3e8
   # A release can be published before its archive is uploaded, so the download
   # waits for the asset. 30 attempts x 10s = five minutes, which is longer than
   # the Release workflow needs to build and attach the zip.
@@ -102,13 +107,69 @@ jobs:
           echo "tag=${tag}" >> "$GITHUB_OUTPUT"
           echo "Verifying the archive of ${tag}."
 
+          {
+            echo "### Release resolution"
+            echo
+            req_esc="$(printf '%s' "${REQUESTED_TAG:-latest}" | sed 's/`/\\`/g; s/|/\\|/g')"
+            tag_esc="$(printf '%s' "$tag" | sed 's/`/\\`/g; s/|/\\|/g')"
+            repo_esc="$(printf '%s' "$GH_REPO" | sed 's/`/\\`/g; s/|/\\|/g')"
+            echo "- **Requested**: \`${req_esc}\`"
+            echo "- **Resolved**: \`${tag_esc}\`"
+            echo "- **Repository**: \`${repo_esc}\`"
+            echo
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Check out the suite that shipped with the release
         # A release is verified with the suite of its own tag. Running today's
         # suite against an older archive would fail over changes made after the
         # release, which says nothing about whether the archive works.
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           ref: ${{ steps.release.outputs.tag }}
+          fetch-depth: 0
+
+      - name: Check out pinned helpers (compatible revision)
+        # Helpers are restored from an explicit pinned revision, not from
+        # origin/main, so 1.1.1 keeps passing even after main moves. The SHA
+        # above is the contract; bump it when helpers change. The checkout is
+        # beneath GITHUB_WORKSPACE so every path stays inside the workspace.
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ env.PINNED_HELPERS_SHA }}
+          path: .pinned-helpers
+          fetch-depth: 1
+
+      - name: Restore helpers missing in older releases
+        # 1.1.1 ships no server lifecycle or canonical validator; those helpers
+        # were added after the tag. The suite that shipped with the release
+        # still judges the archive, but the harness that drives it must be
+        # present. When a helper is missing, it is restored from the pinned
+        # helpers checkout above, not from the mutable origin/main.
+        run: |
+          set -euo pipefail
+          missing=0
+          for f in bin/verify-archive.php bin/lib-archive-contract.php tests/integration/setup.sh tests/integration/server.sh tests/integration/ci-run.sh tests/integration/router.php; do
+            if [ ! -f "$f" ]; then
+              echo "::warning::Helper $f missing at ${{ steps.release.outputs.tag }}, restoring from pinned $PINNED_HELPERS_SHA"
+              missing=1
+            fi
+          done
+          if [ "$missing" -eq 1 ]; then
+            for f in bin/verify-archive.php bin/lib-archive-contract.php tests/integration/setup.sh tests/integration/server.sh tests/integration/ci-run.sh tests/integration/router.php; do
+              if [ ! -f "$f" ]; then
+                if [ -f ".pinned-helpers/$f" ]; then
+                  mkdir -p "$(dirname "$f")"
+                  cp ".pinned-helpers/$f" "$f"
+                  echo "Restored $f from pinned $PINNED_HELPERS_SHA"
+                  chmod +x "$f" 2>/dev/null || true
+                else
+                  echo "::error::Helper $f missing at ${{ steps.release.outputs.tag }} and not found at pinned $PINNED_HELPERS_SHA:.pinned-helpers/$f"
+                  exit 1
+                fi
+              fi
+            done
+          fi
+          ls -l bin/verify-archive.php bin/lib-archive-contract.php tests/integration/setup.sh tests/integration/server.sh 2>&1 | head -n 10
 
       - name: Set up PHP
         uses: shivammathur/setup-php@v2
@@ -166,152 +227,116 @@ jobs:
 
           ls -l dist
 
+          {
+            echo "### Download"
+            echo
+            tag_esc="$(printf '%s' "$tag" | sed 's/`/\\`/g; s/|/\\|/g')"
+            zip="$(ls dist/*.zip 2>/dev/null | head -n1 || echo "")"
+            if [ -n "$zip" ]; then
+              zip_base="$(basename "$zip" | sed 's/`/\\`/g; s/|/\\|/g')"
+              zip_size="$(du -h "$zip" 2>/dev/null | cut -f1 | sed 's/`/\\`/g')"
+              echo "- **Tag**: \`${tag_esc}\`"
+              echo "- **Archive**: \`${zip_base}\` (${zip_size})"
+              echo "- **Checksum file**: \`$(basename "$zip.sha256" 2>/dev/null | sed 's/`/\\`/g')\`"
+            else
+              echo "- **Tag**: \`${tag_esc}\`"
+              echo "- **Archive**: not found"
+            fi
+            echo "- **Attempts**: ${attempt}/${ASSET_ATTEMPTS}"
+            echo
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Verify the checksum that was published with the release
         run: |
           set -euo pipefail
           cd dist
           sha256sum -c ./*.zip.sha256
+          {
+            echo "### Checksum"
+            echo
+            cfile="$(ls *.zip.sha256 2>/dev/null | head -n1 | sed 's/`/\\`/g; s/|/\\|/g' || echo "unknown")"
+            cksum="$(cut -d' ' -f1 *.zip.sha256 2>/dev/null | head -c 16 | sed 's/`/\\`/g')"
+            echo "- **File**: \`${cfile}\`"
+            echo "- **Result**: ✅ matches"
+            echo "- **Checksum**: \`${cksum}...\`"
+            echo
+          } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Inspect the archive
+      - name: Inspect the archive (canonical)
+        # Canonical validator replaces the duplicated inline grep chain. It
+        # checks the top-level directory, forbidden files, required runtime
+        # files, language catalogue, version header and JS namespace.
         run: |
           set -euo pipefail
-          version="${{ steps.release.outputs.tag }}"
-          version="${version#v}"
+          tag="${{ steps.release.outputs.tag }}"
+          version="${tag#v}"
           zip_file="$(ls dist/*.zip | head -n1)"
-          listing="$(unzip -Z1 "${zip_file}")"
+          php bin/verify-archive.php --zip="$zip_file" --version="$version"
 
-          echo "${listing}"
-          echo "The archive holds $(echo "${listing}" | wc -l) files."
-
-          # One top level directory, named after the plugin slug.
-          if echo "${listing}" | grep -qv "^${PLUGIN_SLUG}/"; then
-            echo "::error::The archive must contain a single ${PLUGIN_SLUG}/ directory."
-            exit 1
-          fi
-
-          # Every path in the listing starts with the plugin directory, so the
-          # guard has to look at what is inside it: a bare `^tests/` would never
-          # match and the check would quietly pass on a developer archive.
-          forbidden="$(echo "${listing}" \
-            | sed -n "s|^${PLUGIN_SLUG}/||p" \
-            | grep -E '^(tests|bin|\.github|wordpress-org|node_modules)/|^(phpcs\.xml(\.dist)?|composer\.(json|lock)|package(-lock)?\.json|\.distignore|\.gitignore|\.gitattributes|\.editorconfig)$' \
-            || true)"
-
-          if [ -n "${forbidden}" ]; then
-            echo "::error::The published archive contains development files:"
-            echo "${forbidden}"
-            exit 1
-          fi
-
-          for shipped_file in \
-            "includes/admin/class-rest-controller.php" \
-            "includes/class-plugin.php" \
-            "includes/class-sync-runner.php" \
-            "assets/js/admin.js"; do
-            if ! echo "${listing}" | grep -qx "${PLUGIN_SLUG}/${shipped_file}"; then
-              echo "::error::The published archive is missing ${shipped_file}."
-              exit 1
-            fi
-          done
-
-          if ! unzip -p "${zip_file}" "${PLUGIN_SLUG}/assets/js/admin.js" | grep -q 'usdtf/v1'; then
-            echo "::error::The shipped admin script does not address the usdtf/v1 REST namespace."
-            exit 1
-          fi
-
-          header="$(unzip -p "${zip_file}" "${PLUGIN_SLUG}/${PLUGIN_SLUG}.php" | grep -m1 -E '^[ \t\/*#@]*Version:' | sed -E 's/.*Version:[ \t]*//' | tr -d '\r')"
-
-          if [ "${header}" != "${version}" ]; then
-            echo "::error::The archive contains version ${header} but the release is ${version}."
-            exit 1
-          fi
-
-          echo "Version header matches the release: ${version}."
-
-      - name: Download WordPress
-        run: |
-          set -euo pipefail
-          curl -sSL -o wordpress.tar.gz https://wordpress.org/latest.tar.gz
-          tar -xzf wordpress.tar.gz
-          mv wordpress "$WP_PATH"
-          rm wordpress.tar.gz
-
-      - name: Download WooCommerce
-        run: |
-          set -euo pipefail
-          curl -sSL -o woocommerce.zip https://downloads.wordpress.org/plugin/woocommerce.latest-stable.zip
-          unzip -q woocommerce.zip -d "$WP_PATH/wp-content/plugins"
-          rm woocommerce.zip
-
-      - name: Install the SQLite database drop-in
-        run: |
-          set -euo pipefail
-          curl -sSL -o sqlite.zip https://downloads.wordpress.org/plugin/sqlite-database-integration.zip
-          unzip -q sqlite.zip -d "$WP_PATH/wp-content/plugins"
-          rm sqlite.zip
-          cp "$WP_PATH/wp-content/plugins/sqlite-database-integration/db.copy" "$WP_PATH/wp-content/db.php"
-          sed -i "s#{SQLITE_IMPLEMENTATION_FOLDER_PATH}#$WP_PATH/wp-content/plugins/sqlite-database-integration#; s#{SQLITE_PLUGIN}#sqlite-database-integration/load.php#" "$WP_PATH/wp-content/db.php"
-
-      - name: Configure WordPress
-        run: |
-          php tests/integration/make-config.php "$WP_PATH" --url=http://127.0.0.1:8888
-
-      - name: Install the released archive
-        run: |
-          set -euo pipefail
-          php tests/integration/prepare.php "$WP_PATH" --from-zip="$(ls dist/*.zip | head -n1)"
+      - name: Set up the integration environment from the release ZIP
+        # Canonical setup: WordPress + WooCommerce + SQLite + wp-config + plugin from ZIP.
+        run: bash tests/integration/setup.sh "$WP_PATH" --url=http://127.0.0.1:8888 --from-zip="$(ls dist/*.zip | head -n1)"
 
       - name: Start a web server for the real HTTP scenarios
-        # Existing PHP files are served directly (admin-ajax.php, wp-cron.php)
-        # and everything else, /wp-json/ included, goes through index.php. The
-        # suite of an older release may predate the router script, so a tag
-        # without it is served the way its own CI served it.
+        # Canonical lifecycle: PID tracked, health-probed, diagnostics on failure.
+        # The suite of an older release may predate the router script, so a tag
+        # without it is served the way its own CI served it (directly via index.php).
         run: |
           set -euo pipefail
           router="tests/integration/router.php"
-
-          if [ ! -f "${router}" ]; then
-            router="${WP_PATH}/index.php"
+          if [ ! -f "$router" ]; then
+            router="$WP_PATH/index.php"
           fi
-
-          echo "Serving the test site with ${router}."
-          nohup php -S 127.0.0.1:8888 -t "$WP_PATH" "${router}" > /tmp/usdtf-server.log 2>&1 &
-
-          # The built-in server needs a moment, and the first request loads
-          # WordPress, so wait for an answer instead of guessing.
-          for attempt in $(seq 1 15); do
-            if curl -fsS -o /dev/null http://127.0.0.1:8888/; then
-              echo "The test site answers on http://127.0.0.1:8888/."
-              exit 0
-            fi
-
-            sleep 2
-          done
-
-          echo "::error::The test web server did not answer on http://127.0.0.1:8888/ after 30s."
-          tail -n 20 /tmp/usdtf-server.log || true
-          exit 1
+          bash tests/integration/server.sh start "$WP_PATH" "$router" 8888
 
       - name: Run the integration suite against the release
+        id: suite
         run: |
           set -euo pipefail
           log="$(mktemp)"
 
+          # Capture status explicitly for summary.
+          set +e
           bash tests/integration/ci-run.sh "$WP_PATH" published-release 2>&1 | tee "${log}"
+          status=$?
+          set -e
 
-          # A skipped scenario says nothing about the release, and a green check
-          # that proved less than it claims is worse than a red one. The suite
-          # only skips when it cannot reach the web server (or when the
-          # WordPress version has no application passwords), and reaching the
-          # server is the point of verifying a release, so refuse to be green.
           if grep -q '^skip - ' "${log}"; then
             echo "::error::The suite skipped scenarios, so the release is not verified:"
             grep '^skip - ' "${log}" || true
             exit 1
           fi
 
-      - name: Show the debug log when something failed
+          {
+            echo "### Verification"
+            echo
+            # Escape tag for markdown code span.
+            tag_esc="$(printf '%s' "${{ steps.release.outputs.tag }}" | sed 's/`/\\`/g; s/|/\\|/g')"
+            arch="$(basename "$(ls dist/*.zip 2>/dev/null | head -n1 || echo "unknown")" | sed 's/`/\\`/g; s/|/\\|/g')"
+            echo "- **Suite**: \`published-release\` (tag \`${tag_esc}\`)"
+            echo "- **Scenarios**: $(grep -c '^ok - ' "$log" 2>/dev/null || echo 0) passed"
+            if [ "$status" -eq 0 ]; then
+              echo "- **HTTP**: ✅ required and passed"
+            else
+              echo "- **HTTP**: ❌ failed (status ${status})"
+            fi
+            echo "- **Outcome**: \`${{ job.status }}\`"
+            echo "- **Archive**: \`${arch}\`"
+            echo
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit $status
+
+      - name: Stop the web server
+        if: always()
+        run: bash tests/integration/server.sh stop 8888 || true
+
+      - name: Show the debug and server logs when something failed
         if: failure()
         run: |
-          [ -f "$WP_PATH/../debug.log" ] && tail -n 200 "$WP_PATH/../debug.log" || true
-          [ -f /tmp/usdtf-server.log ] && tail -n 50 /tmp/usdtf-server.log || true
+          echo "=== WordPress debug.log (${WP_PATH}/../debug.log) ==="
+          [ -f "$WP_PATH/../debug.log" ] && tail -n 200 "$WP_PATH/../debug.log" || echo "(no debug.log)"
+          echo
+          echo "=== wp-content/debug.log ==="
+          [ -f "$WP_PATH/wp-content/debug.log" ] && tail -n 200 "$WP_PATH/wp-content/debug.log" || echo "(no wp-content/debug.log)"
+          echo
+          bash tests/integration/server.sh status 8888 || true

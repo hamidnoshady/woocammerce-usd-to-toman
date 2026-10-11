@@ -808,5 +808,8 @@ usdtf_it_pass( 'deleting a managed product leaves no orphaned plugin meta' );
 // ---------------------------------------------------------------------------
 // 48. Cross-request workers and real HTTP REST (separate files).
 // ---------------------------------------------------------------------------
+// Assisted (single-thread php -S) via CLI wake; autonomous (passive) requires concurrent server.
 require __DIR__ . '/crossrequest.php';
-require __DIR__ . '/http.php';
+require __DIR__ . '/http.php'; // assisted: usdtf_it_http_wait_job with wake
+require __DIR__ . '/http-autonomous.php'; // passive: usdtf_it_http_wait_job_passive, skips on php -S
+require __DIR__ . '/regression.php';
