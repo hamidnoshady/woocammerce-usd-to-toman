@@ -51,7 +51,7 @@ composer install --no-interaction -q && vendor/bin/phpcs --config-set installed_
 php bin/lint.php && php bin/check-versions.php && php bin/make-pot.php --check && php bin/make-mo.php --check
 ```
 
-The suite stops at the first failed assertion. **From Task 7 on, the legacy scenarios are expected to fail until Task 11 ports them; use `USDTF_IT_ONLY=pegged` for tasks 5 to 10.** Remove `vendor/` before building a zip.
+The suite stops at the first failed assertion. **From Task 3 on, the legacy scenarios are expected to fail until Task 11 ports them; use `USDTF_IT_ONLY=pegged` for tasks 3 to 10.** Remove `vendor/` before building a zip.
 
 ## File structure
 
@@ -65,7 +65,7 @@ The suite stops at the first failed assertion. **From Task 7 on, the legacy scen
 | `includes/class-sync-runner.php`, `class-job*.php`, `class-database.php`, `class-installer.php` | Jobs engine, new statuses/counters/columns, upgrade step. |
 | `includes/class-settings.php`, `class-product-repository.php`, `class-rate-repository.php` | Settings, scopes/counts, impact estimate and rollback. |
 | `includes/admin/*`, `assets/js/admin.js` | REST payloads, product panel, settings/dashboard/jobs/health screens, CSV. |
-| `includes/frontend/*` (deleted) | Old currency override and Toman display. |
+| `includes/frontend/*` (deleted in Task 3) | Old currency override and Toman display. |
 | `tests/integration/pegged.php` (new) | New-model scenarios; legacy files ported in Task 11. |
 
 ---
@@ -98,18 +98,18 @@ The suite stops at the first failed assertion. **From Task 7 on, the legacy scen
 - [ ] **Step 4: Run** `USDTF_IT_ONLY=pegged …` and phpcs on the file. Expected: PASS.
 - [ ] **Step 5: Commit** `feat: USD and store-price maths for the pegged model`.
 
-### Task 3: Store currency
+### Task 3: Store currency, and remove the old currency override
 
-**Files:** Create `includes/class-store-currency.php`; Modify `includes/class-autoloader.php` only if the class map needs it; Test `pegged.php`.
+**Files:** Create `includes/class-store-currency.php`; Delete `includes/frontend/class-currency.php`, `includes/frontend/class-display.php`; Modify `includes/class-plugin.php` (remove `display()`, `currency()` and their `hooks()` calls), `includes/class-autoloader.php` only if it lists them; Test `pegged.php`. (The override must go first: `Frontend\Currency` forces `IRT` while the old mode is Toman, which would make `get_woocommerce_currency()` ignore the store setting these tests switch.)
 
 **Interfaces:**
 - Produces: `final class Store_Currency` with `const UNIT_TOMAN = 'toman'; const UNIT_RIAL = 'rial';` and static `code()` → string (`get_woocommerce_currency()`), `unit()` → `'toman'` for `IRT`, `'rial'` for `IRR`, `''` otherwise, `is_supported()` → bool, `unit_label()` → translated `Toman`/`Rial`/`''`.
 
-- [ ] **Step 1: Write failing scenarios** using `usdtf_it_set_currency`: `IRT` gives unit `toman`, supported, label `Toman`; `IRR` gives `rial`, supported, `Rial`; `USD` gives `''`, not supported, label `''`; removing the filter restores the stored currency.
-- [ ] **Step 2: Run** `USDTF_IT_ONLY=pegged …`. Expected: FAIL (class missing).
-- [ ] **Step 3: Implement** `Store_Currency` (static methods only; no state, so tests can switch currency by filter).
-- [ ] **Step 4: Run** `USDTF_IT_ONLY=pegged …` and phpcs. Expected: PASS.
-- [ ] **Step 5: Commit** `feat: read the store unit from the WooCommerce currency`.
+- [ ] **Step 1: Write failing scenarios** using `usdtf_it_set_currency`: `IRT` gives unit `toman`, supported, label `Toman`; `IRR` gives `rial`, supported, `Rial`; `USD` gives `''`, not supported, label `''`; removing the filter restores the stored currency; `class_exists( '\\USDTF\\Frontend\\Currency' )` and `…\\Display` are false; with `USD` stored `get_woocommerce_currency()` is `USD` (the plugin no longer overrides it); the storefront price HTML of a managed product equals WooCommerce's own `wc_price()` output.
+- [ ] **Step 2: Run** `USDTF_IT_ONLY=pegged …`. Expected: FAIL (class missing, override still active).
+- [ ] **Step 3: Implement** `Store_Currency` (static methods only; no state, so tests can switch currency by filter), then delete the two frontend classes and unwire them in `Plugin`.
+- [ ] **Step 4: Run** `USDTF_IT_ONLY=pegged …`, phpcs and `php bin/lint.php`; `grep -rn "Frontend\\\\\|->display()\|->currency()" includes`. Expected: PASS, no output (legacy tests are fixed in Task 11).
+- [ ] **Step 5: Commit** `feat: read the store unit from the WooCommerce currency; drop the override`.
 
 ### Task 4: Price planner (pure decision unit)
 
@@ -225,15 +225,15 @@ Decision order: `rate <= 0` → skip `no_rate`; `current === ''` and `usd === ''
 - [ ] **Step 4: Run** `USDTF_IT_ONLY=pegged …`, phpcs; `grep -rn "toman_regular\|toman_sale\|currency_mode\|format_toman\|persian_digits\|reference_regular" includes assets`. Expected: PASS, no output.
 - [ ] **Step 5: Commit** `feat: pegged pricing screens, REST payloads and CSV`.
 
-### Task 10: Remove the old currency override and display code
+### Task 10: Remove obsolete calculator code and refresh translations
 
-**Files:** Delete `includes/frontend/class-currency.php`, `includes/frontend/class-display.php`; Modify `includes/class-plugin.php` (remove `display()`, `currency()` and their `hooks()` calls), `includes/class-autoloader.php` if it lists them, `includes/class-calculator.php` (remove `from_toman`, `from_usd`, `parse_toman`, `format_toman`, `to_persian_digits`).
+**Files:** Modify `includes/class-calculator.php` (remove `from_toman`, `from_usd`, `parse_toman`, `format_toman`, `to_persian_digits`), `languages/*.pot|*-fa_IR.po|*.mo`; Test: the Translations check and a `pegged.php` scenario. (Translations come before the test port because the legacy Persian-catalogue scenario compares the template with the catalogue and the suite stops at the first failure.)
 
-- [ ] **Step 1: Write failing scenarios**: `class_exists( '\USDTF\Frontend\Currency' )` and `…\Display` are false; with `IRT` stored, `get_woocommerce_currency()` is `IRT` and with `USD` stored it is `USD` (the plugin no longer overrides it); the storefront price HTML of a managed product equals WooCommerce's own `wc_price()` output.
+- [ ] **Step 1: Write a failing scenario**: none of the five removed `Calculator` methods exists (`method_exists` false), and the Persian catalogue (`languages/…-fa_IR.mo` loaded with `load_textdomain`) translates the new rate-field label `Toman per 1 USD` (Persian text from the catalogue, not the English).
 - [ ] **Step 2: Run** `USDTF_IT_ONLY=pegged …`. Expected: FAIL.
-- [ ] **Step 3: Delete and unwire** as listed.
-- [ ] **Step 4: Run** `USDTF_IT_ONLY=pegged …`, phpcs, `php bin/lint.php`; `grep -rn "Frontend\\\\\|->display()\|->currency()\|parse_toman\|from_toman" includes tests/integration/pegged.php`. Expected: PASS, no output (the legacy test files are fixed in Task 11).
-- [ ] **Step 5: Commit** `refactor: remove the Toman currency override and display layer`.
+- [ ] **Step 3: Remove** the five methods; run `php bin/make-pot.php`; write the Persian entry for every new or changed string in `…-fa_IR.po` (formal Persian in the style of the existing catalogue, "تومان"/"ریال", "پیش‌نمایش"), delete entries the template dropped, then `php bin/make-mo.php`.
+- [ ] **Step 4: Run** `USDTF_IT_ONLY=pegged …`, phpcs, `php bin/make-pot.php --check && php bin/make-mo.php --check`; `grep -rn "from_toman\|parse_toman\|format_toman\|to_persian_digits" includes`. Expected: PASS, no output.
+- [ ] **Step 5: Commit** `refactor: drop the old Toman helpers; refresh the translations`.
 
 ### Task 11: Port the legacy integration suite
 
@@ -254,15 +254,14 @@ Port by keeping every scenario's **name and intent** and changing only the model
 - [ ] **Step 4: Grep** `grep -rn "source_regular\|toman_regular\|currency_mode\|META_SOURCE\|display_toman\|format_toman" tests`. Expected: no output.
 - [ ] **Step 5: Commit** `test: port the integration suite to the pegged model`.
 
-### Task 12: Translations, docs and version
+### Task 12: Docs and version
 
-**Files:** Modify `languages/*.pot|*-fa_IR.po|*.mo`, `readme.txt`, `README.md`, `CHANGELOG.md`, `usd-to-toman-price-sync-for-woocommerce.php`, `uninstall.php`, `readme.txt` FAQ/description; Test: the Translations and archive checks.
+**Files:** Modify `readme.txt`, `README.md`, `CHANGELOG.md`, `usd-to-toman-price-sync-for-woocommerce.php`, `uninstall.php`; Test: the version and archive checks.
 
-- [ ] **Step 1: Run** `php bin/make-pot.php` then `php bin/make-pot.php --check`. Expected: the template now lists the new strings and drops the removed ones.
-- [ ] **Step 2: Write the Persian entry for every new or changed string** in `…-fa_IR.po` (same wording style as the existing catalogue: formal Persian, "تومان"/"ریال", "پیش‌نمایش"), remove entries the template dropped, then `php bin/make-mo.php`. Expected: `php bin/make-mo.php --check` and the integration scenario `the bundled Persian catalogue covers the template and loads` pass.
-- [ ] **Step 3: Update docs**: `readme.txt` (description, FAQ on the dollar-pegged behaviour and the Toman/Rial unit, upgrade notice, changelog `= 1.2.0 =`), `README.md` (feature description, remove the old two-mode text), `CHANGELOG.md` section `## [1.2.0] - <date>`; raise the version to `1.2.0` in the plugin header, `USDTF_VERSION`, `uninstall.php` fallback and the readme `Stable tag`.
-- [ ] **Step 4: Verify** `php bin/check-versions.php && php bin/make-pot.php --check && php bin/make-mo.php --check`, build and verify the archive (`php bin/build-dist.php --output=dist --quiet && php bin/verify-archive.php --zip=dist/usd-to-toman-price-sync-for-woocommerce.1.2.0.zip --version=1.2.0`; remove `dist/` and `vendor/` after). Expected: all `ok`.
-- [ ] **Step 5: Commit** `docs: translations, readme and version 1.2.0 for pegged pricing`.
+- [ ] **Step 1: Update docs**: `readme.txt` (description, FAQ on the dollar-pegged behaviour and the Toman/Rial unit, upgrade notice, changelog `= 1.2.0 =`), `README.md` (feature description, remove the old two-mode text), `CHANGELOG.md` section `## [1.2.0] - <date>`; if any text you wrote is a new translatable string, add its Persian entry and rebuild `.mo`.
+- [ ] **Step 2: Raise the version** to `1.2.0` in the plugin header, `USDTF_VERSION`, the `uninstall.php` fallback and the readme `Stable tag`.
+- [ ] **Step 3: Verify** `php bin/check-versions.php && php bin/make-pot.php --check && php bin/make-mo.php --check`, build and verify the archive (`php bin/build-dist.php --output=dist --quiet && php bin/verify-archive.php --zip=dist/usd-to-toman-price-sync-for-woocommerce.1.2.0.zip --version=1.2.0`; remove `dist/` and `vendor/` afterwards). Expected: all `ok`.
+- [ ] **Step 4: Commit** `docs: readme and version 1.2.0 for pegged pricing`.
 
 ### Task 13: Final verification and hand-over
 
