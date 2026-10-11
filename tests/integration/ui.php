@@ -28,24 +28,10 @@ usdtf_it_assert_same(
 	'the loopback endpoint must only expose the three worker hooks'
 );
 
-// The products of this scenario get their USD price first, through a job whose
-// leftover worker actions are cleared again, so each job below writes a new price.
-$ui_generate = static function ( array $ids ) {
-	$job = usdtf_it_create_job(
-		array(
-			'type'  => \USDTF\Job::TYPE_SYNC,
-			'scope' => array( 'ids' => $ids ),
-		)
-	);
-	usdtf_it_run_job( (int) $job['id'] );
-
-	foreach ( array( \USDTF\Sync_Runner::HOOK_DISCOVER, \USDTF\Sync_Runner::HOOK_PROCESS, \USDTF\Sync_Runner::HOOK_FINALIZE ) as $hook ) {
-		\USDTF\Scheduler::unschedule_all( $hook, array( (int) $job['id'] ) );
-	}
-};
-
+// The products of this scenario get their USD price first (see
+// usdtf_it_generate_usd()), so each job below writes a new price.
 $queue_product = usdtf_it_make_simple_product( 'Queue product', 2700000 );
-$ui_generate( array( $queue_product->get_id() ) );
+usdtf_it_generate_usd( array( $queue_product->get_id() ) );
 $rates->save_rate( 300000 );
 
 $baseline = $scheduler_under_test->pending_count();
@@ -128,7 +114,7 @@ usdtf_it_assert_same( $baseline, $scheduler_under_test->pending_count(), 'unsche
 // An action left over from a job that was cancelled in the meantime must do
 // nothing when it finally runs.
 $cancel_product = usdtf_it_make_simple_product( 'Cancelled queue product', 8100000 );
-$ui_generate( array( $cancel_product->get_id() ) );
+usdtf_it_generate_usd( array( $cancel_product->get_id() ) );
 $rates->save_rate( 330000 );
 
 $cancel_job     = usdtf_it_create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
@@ -146,7 +132,7 @@ usdtf_it_assert_same( '8100000', usdtf_it_price( $cancel_product->get_id() ), 'a
 
 // A paused job, on the other hand, continues where it stopped.
 $pause_queue_product = usdtf_it_make_simple_product( 'Paused queue product', 5400000 );
-$ui_generate( array( $pause_queue_product->get_id() ) );
+usdtf_it_generate_usd( array( $pause_queue_product->get_id() ) );
 $rates->save_rate( 360000 );
 
 $pause_queue_job     = usdtf_it_create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
@@ -452,14 +438,14 @@ $meta_box = (string) ob_get_clean();
 
 usdtf_it_assert( false !== strpos( $meta_box, 'usdtf_mode' ), 'the meta box must offer the pricing mode' );
 usdtf_it_assert( false !== strpos( $meta_box, '5,000,000' ), 'the meta box must show the WooCommerce price it reads' );
-usdtf_it_assert( false === strpos( $meta_box, 'usdtf_source_regular' ), 'the meta box must not offer a price field of its own' );
+usdtf_it_assert( false === strpos( $meta_box, 'usdtf_source' ), 'the meta box must not offer a price field of its own' );
 usdtf_it_assert( false !== strpos( $meta_box, 'usdtf_panel_nonce' ), 'the meta box must carry a nonce' );
 usdtf_it_assert( false !== strpos( $meta_box, '18.52' ), 'the meta box must show the derived USD price' );
 
 // A save without the nonce must not change anything.
 $_POST = array(
 	'usdtf_mode'           => \USDTF\Product_Pricing::MODE_EXCLUDED,
-	'usdtf_source_regular' => '999',
+	'usdtf_regular_price'  => '999',
 );
 
 $panel_object->save_product( $panel_product->get_id() );
@@ -470,9 +456,9 @@ usdtf_it_assert_same( '18.52', usdtf_it_meta( $panel_product->get_id(), \USDTF\P
 // A real save updates the mode; a stray price field is ignored, prices are edited in WooCommerce.
 $_POST = array(
 	'usdtf_panel_nonce'    => wp_create_nonce( $panel::NONCE ),
-	'usdtf_mode'           => \USDTF\Product_Pricing::MODE_EXCLUDED,
-	'usdtf_source_regular' => '5,400,000',
-	'usdtf_source_sale'    => '4,000,000',
+	'usdtf_mode'          => \USDTF\Product_Pricing::MODE_EXCLUDED,
+	'usdtf_regular_price' => '5,400,000',
+	'usdtf_sale_price'    => '4,000,000',
 );
 
 $panel_object->save_product( $panel_product->get_id() );

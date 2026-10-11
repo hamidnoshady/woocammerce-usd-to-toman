@@ -73,6 +73,9 @@ try {
 	for ( $i = 1; $i <= 2; $i++ ) {
 		$auto_products[] = usdtf_it_make_simple_product( 'Autonomous product ' . $i, '5400000' );
 	}
+	// The USD prices are generated first, so the update below writes a new rate.
+	usdtf_it_generate_usd();
+	$rates->save_rate( 300000 );
 	$settings->update( array( 'require_preview' => true ) );
 
 	$preview = usdtf_it_http( 'POST', '/preview', array( 'scope' => array() ), $usdtf_auto_header );
@@ -92,10 +95,11 @@ try {
 	usdtf_it_assert( isset( $update_done['counters']['changed'] ), 'autonomous update must have changed counter' );
 
 	wp_cache_flush();
-	$expected = (string) ceil( 5400000 / 270000 );
+	// 5,400,000 / 270,000 = 20.00 USD, and 20.00 x 300,000 = 6,000,000.
+	$expected = '6000000';
 	foreach ( $auto_products as $p ) {
 		usdtf_it_assert_same( $expected, usdtf_it_price( $p->get_id() ), 'autonomous product price must reflect rate' );
-		usdtf_it_assert_same( '5400000', usdtf_it_meta( $p->get_id(), \USDTF\Product_Pricing::META_SOURCE_REGULAR ), 'autonomous product must preserve Toman source' );
+		usdtf_it_assert_same( '20.00', usdtf_it_meta( $p->get_id(), \USDTF\Product_Pricing::META_USD_REGULAR ), 'autonomous product must preserve its USD price' );
 		usdtf_it_assert( usdtf_plugin()->pricing()->is_managed( $p->get_id() ), 'autonomous product must remain managed after job' );
 	}
 
@@ -148,9 +152,9 @@ try {
 
 	// Cleanup: ensure injection consumed and product still correctly priced.
 	wp_cache_flush();
-	$fb_expected = (string) ceil( 5600000 / 280000 );
 	// Preview doesn't write, so price unchanged, but job counters prove logic.
-	usdtf_it_assert_same( '5600000', usdtf_it_meta( $fb_product->get_id(), \USDTF\Product_Pricing::META_SOURCE_REGULAR ), 'fallback product must preserve source' );
+	usdtf_it_assert_same( '5600000', usdtf_it_price( $fb_product->get_id() ), 'fallback product must preserve its Woo price' );
+	usdtf_it_assert_same( '', usdtf_it_meta( $fb_product->get_id(), \USDTF\Product_Pricing::META_USD_REGULAR ), 'fallback preview must not store a USD price' );
 
 	usdtf_it_pass( 'failed-loopback fallback persists queue and recovers via production fallback' );
 
@@ -205,6 +209,9 @@ try {
 		$interrupt_products[] = usdtf_it_make_simple_product( 'Interrupt product ' . $i, (string) ( 270000 * $i ) );
 	}
 	$settings->update( array( 'require_preview' => false ) );
+	// The USD prices 1.00 to 25.00 are generated first, so the interrupted update writes a new rate.
+	usdtf_it_generate_usd();
+	$rates->save_rate( 300000 );
 
 	// Tell the HTTP worker to crash after the first batch.
 	$intr = usdtf_it_http( 'POST', '/test/interrupt-after', array( 'count' => 1 ), $usdtf_auto_header );
@@ -242,7 +249,7 @@ try {
 	wp_cache_flush();
 	for ( $i = 1; $i <= 25; $i++ ) {
 		$p = $interrupt_products[ $i - 1 ];
-		$expected_price = (string) $i;
+		$expected_price = (string) ( 300000 * $i );
 		usdtf_it_assert_same( $expected_price, usdtf_it_price( $p->get_id() ), 'interrupt product ' . $i . ' price must be ' . $expected_price );
 	}
 	// Ensure the job's items are not duplicated: exactly 25 items final.

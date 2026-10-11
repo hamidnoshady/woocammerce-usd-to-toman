@@ -964,6 +964,36 @@ function usdtf_it_make_variable_product( $name, array $variations, $mode = 'mana
 }
 
 /**
+ * Generate the USD prices of the managed products in this process.
+ *
+ * The first job that sees a product only stores its USD price, so a scenario
+ * that needs a job to write WooCommerce prices runs this first and then saves
+ * a new rate. The worker actions the job queued are cleared again: the job ran
+ * here, and a web server running the queue must not pick them up later.
+ *
+ * @param int[] $ids Product IDs, empty for every managed product.
+ * @return int Job ID.
+ */
+function usdtf_it_generate_usd( array $ids = array() ) {
+	$args = array( 'type' => \USDTF\Job::TYPE_SYNC );
+
+	if ( $ids ) {
+		$args['scope'] = array( 'ids' => array_map( 'intval', $ids ) );
+	}
+
+	$job    = usdtf_it_create_job( $args );
+	$job_id = (int) $job['id'];
+
+	usdtf_it_run_job( $job_id );
+
+	foreach ( array( \USDTF\Sync_Runner::HOOK_DISCOVER, \USDTF\Sync_Runner::HOOK_PROCESS, \USDTF\Sync_Runner::HOOK_FINALIZE ) as $hook ) {
+		\USDTF\Scheduler::unschedule_all( $hook, array( $job_id ) );
+	}
+
+	return $job_id;
+}
+
+/**
  * Get or create a product category term.
  *
  * @param string $name Category name.
