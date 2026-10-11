@@ -157,7 +157,17 @@ the same archive. Deflate output can differ between environments, so a release i
 checking the published checksum and by running the suite against the published archive rather than
 by assuming byte equality.
 
-Publishing a release:
+Every merge to `main` publishes a release automatically. The **Auto release** workflow raises the
+patch version with `php bin/bump-version.php` (plugin header, `USDTF_VERSION`, the `uninstall.php`
+fallback, the readme `Stable tag`, plus `CHANGELOG.md` and the readme changelog, using the pull
+request title as the note), regenerates the translation template and catalogues, commits that as
+`chore(release): X.Y.Z`, tags it and calls the **Release** workflow below. To ship a minor or major
+version, raise the version by hand in the pull request (all four markers and the changelog): a
+merged version that has no tag yet is released as it is. The bump commit and the tag are pushed with
+`GITHUB_TOKEN`, so they do not start CI or a second Release run; WordPress.org deployment stays a
+manual run.
+
+Publishing a release by hand:
 
 1. Update the `Version:` header, the `Stable tag:` in `readme.txt` and `CHANGELOG.md`.
 2. `php bin/make-pot.php` and `php bin/make-mo.php`, then commit the regenerated template and the

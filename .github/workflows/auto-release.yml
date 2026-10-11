@@ -1,0 +1,149 @@
+name: Auto release
+
+# Every merge to main is a fix, so every merge publishes a new patch release:
+#
+#   1. bin/bump-version.php raises the version in every marker (plugin header,
+#      USDTF_VERSION, the uninstall fallback, the readme stable tag) and writes
+#      the pull request title into CHANGELOG.md and readme.txt.
+#   2. The translation template and catalogues are regenerated, the version
+#      markers and sources are checked, and the result is committed to main.
+#   3. The commit is tagged, and the Release workflow is called for that tag:
+#      it builds the zip, publishes the GitHub release and calls Verify release.
+#
+# To ship a minor or major version instead, raise the version by hand in the
+# pull request (all four markers, plus the changelog). When the merged version
+# has no tag yet, it is released as it is and nothing is bumped.
+#
+# The tag is pushed with GITHUB_TOKEN, which does not start the `push: tags`
+# trigger of the Release workflow, so there is no double run and the release is
+# started by the call below. For the same reason the bump commit does not start
+# CI; the Release workflow lints and builds it, and Verify release runs the
+# integration suite against the published archive.
+#
+# Publishing to WordPress.org stays a manual run of the Release workflow.
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: auto-release
+  cancel-in-progress: false
+
+env:
+  PLUGIN_SLUG: usd-to-toman-price-sync-for-woocommerce
+
+jobs:
+  bump:
+    name: Bump the version and tag it
+    runs-on: ubuntu-latest
+    # Never react to the release commit itself.
+    if: ${{ !startsWith(github.event.head_commit.message, 'chore(release):') }}
+    permissions:
+      contents: write
+      pull-requests: read
+    outputs:
+      tag: ${{ steps.bump.outputs.tag }}
+    steps:
+      - name: Check out main with its tags
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          coverage: none
+          extensions: zip
+          tools: none
+
+      - name: Find what was merged
+        id: note
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          GH_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          # The pull request title is the release note. Free text from a pull
+          # request only ever travels through environment variables, and the
+          # bump script reduces it to one safe line.
+          title="$(gh api "repos/${GH_REPO}/commits/${GH_SHA}/pulls" --jq '.[0].title // empty' 2>/dev/null || true)"
+          if [ -z "$title" ]; then
+            title="$(git log -1 --format=%s "$GH_SHA")"
+          fi
+          {
+            echo 'title<<USDTF_NOTE_EOF'
+            printf '%s\n' "$title"
+            echo 'USDTF_NOTE_EOF'
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Bump the version, regenerate translations and tag
+        id: bump
+        env:
+          USDTF_RELEASE_NOTE: ${{ steps.note.outputs.title }}
+        run: |
+          set -euo pipefail
+
+          current="$(php bin/bump-version.php --current)"
+
+          if git rev-parse -q --verify "refs/tags/${current}" >/dev/null \
+            || git rev-parse -q --verify "refs/tags/v${current}" >/dev/null; then
+            version="$(php bin/bump-version.php)"
+            echo "Version ${current} is already released, bumped to ${version}."
+          else
+            version="${current}"
+            echo "Version ${current} has no tag yet, releasing it as merged."
+          fi
+
+          # The template and the compiled catalogues carry the version, and the
+          # Release workflow refuses a release whose template is out of date.
+          php bin/make-pot.php
+          php bin/make-mo.php
+
+          php bin/check-versions.php
+          php bin/lint.php
+          php bin/make-pot.php --check
+          php bin/make-mo.php --check
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
+          git add -A
+          if git diff --cached --quiet; then
+            echo "Nothing to commit, tagging the current main."
+          else
+            git commit -m "chore(release): ${version}"
+            git push origin HEAD:main
+          fi
+
+          git tag "${version}"
+          git push origin "refs/tags/${version}"
+
+          echo "tag=${version}" >> "$GITHUB_OUTPUT"
+
+          {
+            echo "### Auto release"
+            echo
+            echo "- **Version**: \`${version}\`"
+            echo "- **Tag**: \`${version}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  release:
+    name: Build, publish and verify the release
+    needs: bump
+    permissions:
+      contents: write
+    # Calls the Release workflow. `publish` is not passed on purpose: that
+    # workflow publishes whenever it was not started by hand-picking options,
+    # and the WordPress.org deployment stays a manual run.
+    uses: ./.github/workflows/release.yml
+    with:
+      tag: ${{ needs.bump.outputs.tag }}

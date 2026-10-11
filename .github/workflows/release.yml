@@ -15,6 +15,15 @@ on:
     tags:
       - '[0-9]+.[0-9]+.[0-9]+'
       - 'v[0-9]+.[0-9]+.[0-9]+'
+  # Called by the Auto release workflow, which creates the tag itself. Tags
+  # pushed with GITHUB_TOKEN do not start the `push: tags` trigger above, so the
+  # call is what runs the build and publish steps for an automatic release.
+  workflow_call:
+    inputs:
+      tag:
+        description: 'Existing tag to publish (for example 1.0.0).'
+        required: true
+        type: string
   workflow_dispatch:
     inputs:
       tag:
@@ -54,7 +63,7 @@ jobs:
       - name: Check out the tagged source
         uses: actions/checkout@v6
         with:
-          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+          ref: ${{ inputs.tag || github.ref }}
 
       - name: Set up PHP
         uses: shivammathur/setup-php@v2
@@ -66,6 +75,8 @@ jobs:
 
       - name: Read and verify the version
         id: version
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
         run: |
           set -euo pipefail
           version="$(php -r 'preg_match("/Version:\s*([\d.]+)/", file_get_contents("usd-to-toman-price-sync-for-woocommerce.php"), $m); echo $m[1];')"
@@ -75,11 +86,9 @@ jobs:
           # the usual v prefix: the release is published under the tag that was
           # pushed, so 1.1.0 and v1.1.0 both work and the release is never left
           # empty because the archive was named after the other spelling.
-          if [ "${{ github.event_name }}" = 'push' ]; then
-            release_tag="${GITHUB_REF_NAME}"
-          else
-            release_tag="${{ inputs.tag }}"
-          fi
+          # A tag input means a manual run or a call from the Auto release
+          # workflow; without one the run was started by pushing the tag.
+          release_tag="${INPUT_TAG:-${GITHUB_REF_NAME}}"
 
           if [ "${release_tag#v}" != "$version" ]; then
             echo "::error::The tag ${release_tag} does not match the plugin version ${version}."
