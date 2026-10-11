@@ -93,7 +93,12 @@ final class Product_Repository {
 
 		$clean = self::default_scope();
 
-		$clean['mode'] = in_array( $scope['mode'], array( Product_Pricing::MODE_MANAGED, Product_Pricing::MODE_NATIVE, Product_Pricing::MODE_EXCLUDED, 'all' ), true )
+		// A scope saved before the native mode was retired means excluded.
+		if ( 'native' === $scope['mode'] ) {
+			$scope['mode'] = Product_Pricing::MODE_EXCLUDED;
+		}
+
+		$clean['mode'] = in_array( $scope['mode'], array( Product_Pricing::MODE_MANAGED, Product_Pricing::MODE_EXCLUDED, 'all' ), true )
 			? $scope['mode']
 			: Product_Pricing::MODE_MANAGED;
 
@@ -210,11 +215,26 @@ final class Product_Repository {
 
 		$meta_query = array();
 
-		if ( 'all' !== $scope['mode'] ) {
+		if ( Product_Pricing::MODE_MANAGED === $scope['mode'] ) {
+			// A product without a stored mode is managed.
+			$meta_query[] = array(
+				'relation' => 'OR',
+				array(
+					'key'     => Product_Pricing::META_MODE,
+					'compare' => 'NOT EXISTS',
+				),
+				array(
+					'key'     => Product_Pricing::META_MODE,
+					'value'   => Product_Pricing::MODE_MANAGED,
+					'compare' => '=',
+				),
+			);
+		} elseif ( Product_Pricing::MODE_EXCLUDED === $scope['mode'] ) {
+			// The retired native mode is stored by databases not upgraded yet and reads as excluded.
 			$meta_query[] = array(
 				'key'     => Product_Pricing::META_MODE,
-				'value'   => $scope['mode'],
-				'compare' => '=',
+				'value'   => array( Product_Pricing::MODE_EXCLUDED, 'native' ),
+				'compare' => 'IN',
 			);
 		}
 
@@ -249,8 +269,12 @@ final class Product_Repository {
 			$meta_query[] = array(
 				'relation' => 'OR',
 				array(
+					'key'     => Product_Pricing::META_USD_REGULAR,
+					'compare' => 'NOT EXISTS',
+				),
+				array(
 					'key'     => Product_Pricing::META_RATE,
-					'value'   => (string) $rate,
+					'value'   => (string) (float) $rate,
 					'compare' => '!=',
 				),
 				array(
@@ -404,9 +428,7 @@ final class Product_Repository {
 
 		$counts = array(
 			'managed'    => 0,
-			'native'     => 0,
 			'excluded'   => 0,
-			'unset'      => 0,
 			'products'   => 0,
 			'variations' => 0,
 		);
@@ -436,25 +458,6 @@ final class Product_Repository {
 			),
 			'variation'
 		);
-
-		$unset = new \WP_Query(
-			array(
-				'post_type'              => 'product',
-				'post_status'            => self::STATUSES,
-				'fields'                 => 'ids',
-				'posts_per_page'         => 1,
-				'update_post_term_cache' => false,
-				'update_post_meta_cache' => false,
-				'meta_query'             => array( // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query
-					array(
-						'key'     => Product_Pricing::META_MODE,
-						'compare' => 'NOT EXISTS',
-					),
-				),
-			)
-		);
-
-		$counts['unset'] = (int) $unset->found_posts;
 
 		$counts['managed_variations'] = $this->count(
 			array(
@@ -516,9 +519,7 @@ final class Product_Repository {
 			'variations'         => (int) $modes['variations'],
 			'managed'            => (int) $modes['managed'],
 			'managed_variations' => (int) $modes['managed_variations'],
-			'native'             => (int) $modes['native'],
 			'excluded'           => (int) $modes['excluded'],
-			'unset'              => (int) $modes['unset'],
 			'candidates'         => $this->candidate_count( $rate ),
 		);
 

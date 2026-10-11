@@ -386,6 +386,308 @@ usdtf_it_assert_same( $state_after_first, $state_after_second, 'running the upgr
 usdtf_it_assert_same( \USDTF\Database::SCHEMA_VERSION, get_option( \USDTF\Installer::VERSION_OPTION ), 'the schema version stays current after a second upgrade' );
 usdtf_it_pass( 'the upgrade migrates an old database once' );
 
+// ---------------------------------------------------------------------------
+// Product pricing model: the USD anchor, the seen price and the mode.
+// ---------------------------------------------------------------------------
+usdtf_it_set_currency( 'IRT' );
+usdtf_it_reset_plugin_state();
+usdtf_it_delete_products();
+
+$pricing  = usdtf_plugin()->pricing();
+$products = usdtf_plugin()->products();
+
+usdtf_it_assert_same( array( 'managed', 'excluded' ), \USDTF\Product_Pricing::modes(), 'the pricing modes are managed and excluded' );
+usdtf_it_assert_same( '_usdtf_usd_regular', \USDTF\Product_Pricing::META_USD_REGULAR, 'the USD regular meta key' );
+usdtf_it_assert_same( '_usdtf_usd_sale', \USDTF\Product_Pricing::META_USD_SALE, 'the USD sale meta key' );
+usdtf_it_assert_same( '_usdtf_seen_regular', \USDTF\Product_Pricing::META_SEEN_REGULAR, 'the seen regular meta key' );
+usdtf_it_assert_same( '_usdtf_seen_sale', \USDTF\Product_Pricing::META_SEEN_SALE, 'the seen sale meta key' );
+
+foreach ( array( 'MODE_NATIVE', 'META_SOURCE_REGULAR', 'META_SOURCE_SALE', 'META_DERIVED_REGULAR', 'META_DERIVED_SALE', 'META_REVISION', 'META_MODE_SYNCED', 'META_EXTERNAL_SOURCE' ) as $removed_constant ) {
+	usdtf_it_assert( ! defined( '\\USDTF\\Product_Pricing::' . $removed_constant ), 'the constant ' . $removed_constant . ' is gone' );
+}
+
+foreach ( array( 'get_source', 'validate_source_pair', 'set_source', 'source_error_message', 'get_revision', 'bump_revision', 'import_current_price_as_source', 'ingest_woocommerce_prices', 'on_meta_written', 'on_meta_deleted', 'on_admin_process_product', 'on_admin_process_variation' ) as $removed_method ) {
+	usdtf_it_assert( ! method_exists( $pricing, $removed_method ), 'the method ' . $removed_method . ' is gone' );
+}
+
+// A product with no plugin meta at all is managed (amendment A1).
+$unset_product = usdtf_it_make_priced_product( 'Unset mode', 5000000 );
+usdtf_it_assert_same( '', usdtf_it_meta( $unset_product->get_id(), '_usdtf_mode' ), 'the fixture carries no mode meta' );
+usdtf_it_assert_same( 'managed', $pricing->get_mode( $unset_product->get_id() ), 'a product with no mode meta is managed' );
+usdtf_it_assert_same( true, $pricing->is_managed( $unset_product ), 'a product with no mode meta counts as managed' );
+
+$managed_product = usdtf_it_make_priced_product( 'Managed mode', 5000000, '', 'managed' );
+usdtf_it_assert_same( 'managed', $pricing->get_mode( $managed_product ), 'a stored managed mode reads managed' );
+
+$excluded_product = usdtf_it_make_priced_product( 'Excluded mode', 5000000, '', 'excluded' );
+usdtf_it_assert_same( 'excluded', $pricing->get_mode( $excluded_product ), 'a stored excluded mode reads excluded' );
+usdtf_it_assert_same( false, $pricing->is_managed( $excluded_product ), 'an excluded product is not managed' );
+
+$native_product = usdtf_it_make_priced_product( 'Native mode', 5000000, '', 'native' );
+usdtf_it_assert_same( 'excluded', $pricing->get_mode( $native_product ), 'a stored native mode reads excluded' );
+
+usdtf_it_assert_same( true, $pricing->set_mode( $unset_product, 'excluded' ), 'set_mode accepts excluded' );
+usdtf_it_assert_same( 'excluded', usdtf_it_meta( $unset_product->get_id(), '_usdtf_mode' ), 'set_mode stores the mode' );
+usdtf_it_assert_same( false, $pricing->set_mode( $unset_product, 'native' ), 'set_mode refuses the retired native mode' );
+usdtf_it_assert_same( 'excluded', usdtf_it_meta( $unset_product->get_id(), '_usdtf_mode' ), 'a refused mode changes nothing' );
+$pricing->set_mode( $unset_product, 'managed' );
+usdtf_it_assert_same( 'managed', $pricing->get_mode( $unset_product ), 'set_mode can make a product managed again' );
+
+// save_state then get_snapshot round-trips every field.
+$state_product = usdtf_it_make_priced_product( 'State product', 5000000, 4320000 );
+$state_id      = $state_product->get_id();
+
+$pricing->save_state(
+	$state_id,
+	array(
+		'usd_regular'  => '18.52',
+		'usd_sale'     => '16.00',
+		'seen_regular' => '5000000',
+		'seen_sale'    => '4320000',
+		'rate'         => 270000.0,
+		'synced_at'    => 1700000000,
+	)
+);
+
+$snapshot = $pricing->get_snapshot( $state_id );
+usdtf_it_assert_same( $state_id, $snapshot['id'], 'the snapshot carries the product id' );
+usdtf_it_assert_same( 0, $snapshot['parent_id'], 'the snapshot carries the parent id' );
+usdtf_it_assert_same( 'product', $snapshot['object_type'], 'the snapshot carries the object type' );
+usdtf_it_assert_same( 'State product', $snapshot['name'], 'the snapshot carries the name' );
+usdtf_it_assert_same( 'managed', $snapshot['mode'], 'the snapshot carries the mode' );
+usdtf_it_assert_same( true, $snapshot['managed'], 'the snapshot says the product is managed' );
+usdtf_it_assert_same( '5000000', $snapshot['current_regular'], 'the snapshot carries the Woo regular price as a string' );
+usdtf_it_assert_same( '4320000', $snapshot['current_sale'], 'the snapshot carries the Woo sale price as a string' );
+usdtf_it_assert_same( '5000000', $snapshot['seen_regular'], 'seen_regular round-trips' );
+usdtf_it_assert_same( '4320000', $snapshot['seen_sale'], 'seen_sale round-trips' );
+usdtf_it_assert_same( '18.52', $snapshot['usd_regular'], 'usd_regular round-trips as a string' );
+usdtf_it_assert_same( '16.00', $snapshot['usd_sale'], 'usd_sale round-trips as a string' );
+usdtf_it_assert_same( 270000.0, $snapshot['rate'], 'the rate round-trips as a float' );
+usdtf_it_assert_same( 1700000000, $snapshot['synced_at'], 'synced_at round-trips as an int' );
+usdtf_it_assert_same( '', $snapshot['conflict'], 'the snapshot has no conflict' );
+usdtf_it_assert_same( '', $snapshot['last_error'], 'the snapshot has no error' );
+usdtf_it_assert_same( '270000', usdtf_it_meta( $state_id, '_usdtf_rate' ), 'the rate is stored as a float string' );
+usdtf_it_assert_same( '5000000', usdtf_it_price( $state_id ), 'save_state never touches the Woo price' );
+
+foreach ( array( 'source_regular', 'derived_regular', 'revision', 'mode_synced', 'external_source', 'price' ) as $dropped_key ) {
+	usdtf_it_assert( ! array_key_exists( $dropped_key, $snapshot ), 'the snapshot no longer carries ' . $dropped_key );
+}
+
+$pricing->mark_conflict( $state_id, 'edited mid job' );
+$pricing->mark_error( $state_id, 'boom' );
+$snapshot = $pricing->get_snapshot( $state_id );
+usdtf_it_assert_same( 'edited mid job', $snapshot['conflict'], 'the snapshot carries the conflict' );
+usdtf_it_assert_same( 'boom', $snapshot['last_error'], 'the snapshot carries the error' );
+$pricing->clear_conflict( $state_id );
+$pricing->clear_error( $state_id );
+usdtf_it_assert_same( '', $pricing->get_snapshot( $state_id )['conflict'], 'the conflict can be cleared' );
+
+// A partial state writes only the keys it holds; an empty price removes its row.
+$pricing->save_state( $state_id, array( 'usd_sale' => '', 'seen_sale' => '' ) );
+$snapshot = $pricing->get_snapshot( $state_id );
+usdtf_it_assert_same( '', $snapshot['usd_sale'], 'an empty USD sale clears the anchor' );
+usdtf_it_assert_same( '', $snapshot['seen_sale'], 'an empty seen sale clears the seen price' );
+usdtf_it_assert_same( '18.52', $snapshot['usd_regular'], 'a partial state leaves the other keys alone' );
+usdtf_it_assert_same( array(), get_post_meta( $state_id, '_usdtf_usd_sale', false ), 'an empty USD sale leaves no meta row' );
+
+// A product with nothing stored has an empty snapshot state.
+$blank_snapshot = $pricing->get_snapshot( usdtf_it_make_priced_product( 'Blank state', 1000000 ) );
+usdtf_it_assert_same( '', $blank_snapshot['usd_regular'], 'a blank product has no USD anchor' );
+usdtf_it_assert_same( 0.0, $blank_snapshot['rate'], 'a blank product has no rate' );
+usdtf_it_assert_same( 0, $blank_snapshot['synced_at'], 'a blank product was never synced' );
+usdtf_it_assert_same( '', $blank_snapshot['current_sale'], 'a product with no sale has an empty sale string' );
+
+usdtf_it_assert_same( 'excluded', \USDTF\Product_Pricing::MODE_EXCLUDED, 'the excluded mode constant' );
+usdtf_it_pass( 'the product pricing model round-trips the USD anchor and reads a missing mode as managed' );
+
+// ---------------------------------------------------------------------------
+// Scopes: managed, excluded and only_outdated.
+// ---------------------------------------------------------------------------
+usdtf_it_delete_products();
+$products->flush_counts_cache();
+
+$scope_unset    = usdtf_it_make_priced_product( 'Scope unset', 5000000 )->get_id();
+$scope_managed  = usdtf_it_make_priced_product( 'Scope managed', 5000000, '', 'managed' )->get_id();
+$scope_excluded = usdtf_it_make_priced_product( 'Scope excluded', 5000000, '', 'excluded' )->get_id();
+$scope_native   = usdtf_it_make_priced_product( 'Scope native', 5000000, '', 'native' )->get_id();
+$scope_ids      = array( $scope_unset, $scope_managed, $scope_excluded, $scope_native );
+
+$ids_in = function ( $mode, array $extra = array(), $rate = 0 ) use ( $products, $scope_ids ) {
+	$found = $products->get_ids( array_merge( array( 'mode' => $mode, 'ids' => $scope_ids ), $extra ), 1, 100, 'product', 0, $rate );
+	sort( $found );
+
+	return $found;
+};
+
+usdtf_it_assert_same( array( $scope_unset, $scope_managed ), $ids_in( 'managed' ), 'the managed scope holds the unset and the managed product' );
+usdtf_it_assert_same( array( $scope_excluded, $scope_native ), $ids_in( 'excluded' ), 'the excluded scope holds the excluded and the native product' );
+usdtf_it_assert_same( $scope_ids, $ids_in( 'all' ), 'the all scope holds every product' );
+usdtf_it_assert_same( array( $scope_excluded, $scope_native ), $ids_in( 'native' ), 'a scope saved with the retired native mode means excluded' );
+usdtf_it_assert_same( array( $scope_unset, $scope_managed ), $ids_in( 'bogus' ), 'an unknown scope mode falls back to managed' );
+usdtf_it_assert_same( 2, $products->count( array( 'mode' => 'managed', 'ids' => $scope_ids ) ), 'count() agrees with the managed scope' );
+usdtf_it_assert_same( 'managed', $products->normalize_scope( array() )['mode'], 'the default scope is managed' );
+
+// only_outdated: no USD anchor, or a stored rate that differs from the current one.
+usdtf_it_delete_products();
+
+$outdated_none    = usdtf_it_make_priced_product( 'Outdated none', 5000000 )->get_id();
+$outdated_rate    = usdtf_it_make_priced_product( 'Outdated rate', 5000000 )->get_id();
+$outdated_current = usdtf_it_make_priced_product( 'Outdated current', 5000000 )->get_id();
+$outdated_other   = usdtf_it_make_priced_product( 'Outdated excluded', 5000000, '', 'excluded' )->get_id();
+$outdated_ids     = array( $outdated_none, $outdated_rate, $outdated_current, $outdated_other );
+
+$pricing->save_state( $outdated_rate, array( 'usd_regular' => '18.52', 'seen_regular' => '5000000', 'rate' => 260000.0 ) );
+$pricing->save_state( $outdated_current, array( 'usd_regular' => '18.52', 'seen_regular' => '5000000', 'rate' => 270000.0 ) );
+
+$outdated = $products->get_ids( array( 'mode' => 'managed', 'ids' => $outdated_ids, 'only_outdated' => true ), 1, 100, 'product', 0, 270000.0 );
+sort( $outdated );
+usdtf_it_assert_same( array( $outdated_none, $outdated_rate ), $outdated, 'only_outdated holds a product with no USD price and one with another rate, not one at the current rate' );
+
+$everything = $products->get_ids( array( 'mode' => 'managed', 'ids' => $outdated_ids, 'only_outdated' => true ), 1, 100, 'product', 0, 0 );
+sort( $everything );
+usdtf_it_assert_same( array( $outdated_none, $outdated_rate, $outdated_current ), $everything, 'without a rate only_outdated does not filter' );
+usdtf_it_assert_same( 2, $products->count( array( 'mode' => 'managed', 'ids' => $outdated_ids, 'only_outdated' => true ), 'product', 0, 270000.0 ), 'count() agrees with only_outdated' );
+
+// A stored rate with the same value as the current one is current, however it was typed.
+update_post_meta( $outdated_current, '_usdtf_rate', '270000' );
+usdtf_it_assert_same( 2, $products->count( array( 'mode' => 'managed', 'ids' => $outdated_ids, 'only_outdated' => true ), 'product', 0, 270000 ), 'an integer rate matches the stored float string' );
+
+usdtf_it_pass( 'the scopes read a missing mode as managed and native as excluded' );
+
+// ---------------------------------------------------------------------------
+// Mode counts: no native, no unset.
+// ---------------------------------------------------------------------------
+usdtf_it_delete_products();
+$products->flush_counts_cache();
+
+$baseline = $products->mode_counts();
+$products->flush_counts_cache();
+
+usdtf_it_make_priced_product( 'Count unset', 5000000 );
+usdtf_it_make_priced_product( 'Count managed', 5000000, '', 'managed' );
+usdtf_it_make_priced_product( 'Count excluded', 5000000, '', 'excluded' );
+usdtf_it_make_priced_product( 'Count native', 5000000, '', 'native' );
+
+// A variable product whose variations have a mode of their own, independent of the parent.
+$variable = new \WC_Product_Variable();
+$variable->set_name( 'Count variable' );
+$variable->set_status( 'publish' );
+$size = new \WC_Product_Attribute();
+$size->set_name( 'Size' );
+$size->set_options( array( '1', '2', '3' ) );
+$size->set_visible( true );
+$size->set_variation( true );
+$variable->set_attributes( array( $size ) );
+$variable->save();
+usdtf_it_track_product( $variable );
+update_post_meta( $variable->get_id(), '_usdtf_mode', 'excluded' );
+
+$variation_ids = array();
+
+foreach ( array( '1' => '', '2' => 'excluded', '3' => 'native' ) as $size_option => $variation_mode ) {
+	$variation = new \WC_Product_Variation();
+	$variation->set_parent_id( $variable->get_id() );
+	$variation->set_attributes( array( 'size' => (string) $size_option ) );
+	$variation->set_regular_price( '5000000' );
+	$variation->save();
+	usdtf_it_track_product( $variation );
+
+	if ( '' !== $variation_mode ) {
+		update_post_meta( $variation->get_id(), '_usdtf_mode', $variation_mode );
+	}
+
+	$variation_ids[ $size_option ] = $variation->get_id();
+}
+
+usdtf_it_assert_same( 'excluded', $pricing->get_mode( $variable->get_id() ), 'the variable parent is excluded' );
+usdtf_it_assert_same( 'managed', $pricing->get_mode( $variation_ids['1'] ), 'a variation with no mode meta is managed whatever its parent is' );
+usdtf_it_assert_same( 'excluded', $pricing->get_mode( $variation_ids['2'] ), 'an excluded variation reads excluded' );
+usdtf_it_assert_same( 'excluded', $pricing->get_mode( $variation_ids['3'] ), 'a native variation reads excluded' );
+
+$variation_scope = function ( $mode ) use ( $products, $variable ) {
+	$found = $products->get_ids( array( 'mode' => $mode ), 1, 100, 'variation', $variable->get_id() );
+	sort( $found );
+
+	return $found;
+};
+
+usdtf_it_assert_same( array( $variation_ids['1'] ), $variation_scope( 'managed' ), 'the managed variation scope holds the unset variation of an excluded parent' );
+usdtf_it_assert_same( array( $variation_ids['2'], $variation_ids['3'] ), $variation_scope( 'excluded' ), 'the excluded variation scope holds the excluded and the native variation' );
+usdtf_it_assert_same( array_values( $variation_ids ), $variation_scope( 'all' ), 'the all variation scope holds every variation' );
+usdtf_it_assert_same( 3, $products->count_variations( $variable->get_id() ), 'count_variations() counts every variation' );
+
+$mode_counts = $products->mode_counts();
+$count_keys  = array_keys( $mode_counts );
+sort( $count_keys );
+usdtf_it_assert_same( array( 'excluded', 'managed', 'managed_variations', 'products', 'variations' ), $count_keys, 'mode_counts() has no native and no unset key' );
+usdtf_it_assert_same( $baseline['managed'] + 2, $mode_counts['managed'], 'the managed count holds the unset and the managed product' );
+usdtf_it_assert_same( $baseline['excluded'] + 3, $mode_counts['excluded'], 'the excluded count holds excluded, native and the excluded parent' );
+usdtf_it_assert_same( $baseline['products'] + 5, $mode_counts['products'], 'the product count holds every product' );
+usdtf_it_assert_same( $baseline['variations'] + 3, $mode_counts['variations'], 'the variation count holds every variation' );
+usdtf_it_assert_same( $baseline['managed_variations'] + 1, $mode_counts['managed_variations'], 'the managed variation count holds the unset variation' );
+
+$summary = $products->summary( 0 );
+usdtf_it_assert( ! array_key_exists( 'native', $summary ) && ! array_key_exists( 'unset', $summary ), 'the summary has no native and no unset' );
+usdtf_it_assert_same( $mode_counts['managed'], $summary['managed'], 'the summary carries the managed count' );
+usdtf_it_assert_same( $mode_counts['excluded'], $summary['excluded'], 'the summary carries the excluded count' );
+usdtf_it_pass( 'the mode counts carry no native or unset' );
+
+// ---------------------------------------------------------------------------
+// Meta keys: the uninstall purge goes through the list, deletion leaves nothing.
+// ---------------------------------------------------------------------------
+usdtf_it_assert_same(
+	array(
+		'_usdtf_usd_regular',
+		'_usdtf_usd_sale',
+		'_usdtf_seen_regular',
+		'_usdtf_seen_sale',
+		'_usdtf_rate',
+		'_usdtf_mode',
+		'_usdtf_synced_at',
+		'_usdtf_conflict',
+		'_usdtf_last_error',
+		'_usdtf_last_job',
+	),
+	\USDTF\Product_Pricing::meta_keys(),
+	'meta_keys() lists exactly the new key set'
+);
+
+$doomed     = usdtf_it_make_priced_product( 'Doomed product', 5000000, 4320000, 'managed' );
+$doomed_id  = $doomed->get_id();
+
+$pricing->save_state(
+	$doomed_id,
+	array(
+		'usd_regular'  => '18.52',
+		'usd_sale'     => '16.00',
+		'seen_regular' => '5000000',
+		'seen_sale'    => '4320000',
+		'rate'         => 270000.0,
+		'synced_at'    => time(),
+	)
+);
+$pricing->mark_conflict( $doomed_id, 'edited mid job' );
+$pricing->mark_error( $doomed_id, 'boom' );
+update_post_meta( $doomed_id, '_usdtf_last_job', 7 );
+
+foreach ( \USDTF\Product_Pricing::meta_keys() as $doomed_key ) {
+	usdtf_it_assert( '' !== (string) get_post_meta( $doomed_id, $doomed_key, true ), 'the doomed product holds ' . $doomed_key . ' before it is deleted' );
+}
+
+$doomed_variation = $variation_ids['2'];
+$pricing->save_state( $doomed_variation, array( 'usd_regular' => '18.52', 'rate' => 270000.0, 'synced_at' => time() ) );
+
+wp_delete_post( $doomed_id, true );
+wp_delete_post( $doomed_variation, true );
+
+foreach ( array( $doomed_id, $doomed_variation ) as $doomed_post ) {
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+	$remaining = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$wpdb->postmeta} WHERE post_id = %d", $doomed_post ) );
+	usdtf_it_assert_same( 0, $remaining, 'deleting a product leaves no meta rows behind for its id' );
+}
+
+usdtf_it_pass( 'the meta key list is the new key set and deleting a product leaves no plugin meta' );
+
 // Leave nothing behind for the legacy scenarios that follow in a full run.
 usdtf_it_set_currency( null );
 usdtf_it_delete_products();
