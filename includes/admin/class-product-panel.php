@@ -7,7 +7,6 @@
 
 namespace USDTF\Admin;
 
-use USDTF\Calculator;
 use USDTF\Capabilities;
 use USDTF\Job;
 use USDTF\Product_Pricing;
@@ -17,7 +16,7 @@ use USDTF\Settings;
 defined( 'ABSPATH' ) || exit;
 
 /**
- * Adds the Toman pricing panel to products and variations.
+ * Adds the USD pricing panel to products and variations.
  */
 final class Product_Panel {
 
@@ -25,6 +24,11 @@ final class Product_Panel {
 	 * Nonce action for the panel form.
 	 */
 	const NONCE = 'usdtf_product_panel';
+
+	/**
+	 * Key of the product list column.
+	 */
+	const COLUMN = 'usdtf_pricing';
 
 	/**
 	 * Settings.
@@ -161,32 +165,15 @@ final class Product_Panel {
 
 		$mode = isset( $_POST['usdtf_mode'] ) ? sanitize_key( wp_unslash( $_POST['usdtf_mode'] ) ) : '';
 
-		if ( in_array( $mode, Product_Pricing::modes(), true ) ) {
-			$this->pricing->set_mode( $post_id, $mode );
+		if ( '' !== $mode ) {
+			$this->save_mode( $post_id, $mode );
 		}
 
-		if ( Product_Pricing::MODE_MANAGED !== $this->pricing->get_mode( $post_id ) ) {
-			return;
-		}
-
-		// phpcs:disable WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Values are parsed by Calculator::parse_toman().
-		$regular = isset( $_POST['usdtf_source_regular'] ) ? wp_unslash( $_POST['usdtf_source_regular'] ) : '';
-		$sale    = isset( $_POST['usdtf_source_sale'] ) ? wp_unslash( $_POST['usdtf_source_sale'] ) : '';
-		// phpcs:enable WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
-
-		$result = $this->pricing->set_source( $post_id, $regular, $sale );
-
-		if ( is_wp_error( $result ) ) {
-			set_transient( 'usdtf_panel_error_' . get_current_user_id(), $result->get_error_message(), 60 );
-
-			return;
-		}
-
-		$variation_sources = isset( $_POST['usdtf_variation_source'] ) && is_array( $_POST['usdtf_variation_source'] )
-			? wp_unslash( $_POST['usdtf_variation_source'] ) // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Parsed below.
+		$variation_values = isset( $_POST['usdtf_variation'] ) && is_array( $_POST['usdtf_variation'] )
+			? wp_unslash( $_POST['usdtf_variation'] ) // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Parsed below.
 			: array();
 
-		foreach ( $variation_sources as $variation_id => $values ) {
+		foreach ( $variation_values as $variation_id => $values ) {
 			$variation_id = (int) $variation_id;
 
 			if ( $variation_id <= 0 || ! current_user_can( 'edit_product', $variation_id ) ) {
@@ -222,19 +209,19 @@ final class Product_Panel {
 			return;
 		}
 
-		$sources = isset( $_POST['usdtf_variation_source'] ) && is_array( $_POST['usdtf_variation_source'] )
-			? wp_unslash( $_POST['usdtf_variation_source'] ) // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Parsed below.
+		$submitted = isset( $_POST['usdtf_variation'] ) && is_array( $_POST['usdtf_variation'] )
+			? wp_unslash( $_POST['usdtf_variation'] ) // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Parsed below.
 			: array();
 
-		if ( ! isset( $sources[ $variation_id ] ) || ! is_array( $sources[ $variation_id ] ) ) {
+		if ( ! isset( $submitted[ $variation_id ] ) || ! is_array( $submitted[ $variation_id ] ) ) {
 			return;
 		}
 
-		$this->save_variation_values( $variation_id, $sources[ $variation_id ] );
+		$this->save_variation_values( $variation_id, $submitted[ $variation_id ] );
 	}
 
 	/**
-	 * Save the mode and source prices submitted for one variation.
+	 * Save the mode submitted for one variation.
 	 *
 	 * @param int   $variation_id Variation ID.
 	 * @param array $values       Submitted values for the variation.
@@ -248,19 +235,38 @@ final class Product_Panel {
 		}
 
 		// The mode select is a real field of the panel, so switching a single
-		// variation to native or excluded has to survive the save, exactly like
-		// the regular and sale source inputs do.
+		// variation to excluded has to survive the save.
 		$mode = isset( $values['mode'] ) ? sanitize_key( (string) $values['mode'] ) : '';
 
-		if ( in_array( $mode, Product_Pricing::modes(), true ) ) {
-			$this->pricing->set_mode( $variation_id, $mode );
+		if ( '' !== $mode ) {
+			$this->save_mode( $variation_id, $mode );
+		}
+	}
+
+	/**
+	 * Store a submitted pricing mode: only Managed and Excluded are accepted.
+	 *
+	 * Anything else is refused, leaves the stored mode alone and tells the editor.
+	 *
+	 * @param int    $product_id Product or variation ID.
+	 * @param string $mode       Submitted mode.
+	 * @return bool Whether the mode was stored.
+	 */
+	private function save_mode( $product_id, $mode ) {
+		if ( ! in_array( $mode, Product_Pricing::modes(), true ) ) {
+			set_transient(
+				'usdtf_panel_error_' . get_current_user_id(),
+				__( 'The pricing mode was not changed: choose Managed or Excluded.', 'usd-to-toman-price-sync-for-woocommerce' ),
+				60
+			);
+
+			return false;
 		}
 
-		$this->pricing->set_source(
-			$variation_id,
-			isset( $values['regular'] ) ? $values['regular'] : '',
-			isset( $values['sale'] ) ? $values['sale'] : ''
-		);
+		$this->pricing->set_mode( $product_id, $mode );
+		$this->products->flush_counts_cache();
+
+		return true;
 	}
 
 	/**
@@ -274,9 +280,9 @@ final class Product_Panel {
 			return $actions;
 		}
 
-		$actions['usdtf_enable']  = __( 'USD/Toman: enable Toman pricing (import current price)', 'usd-to-toman-price-sync-for-woocommerce' );
-		$actions['usdtf_native']  = __( 'USD/Toman: mark as native USD price', 'usd-to-toman-price-sync-for-woocommerce' );
-		$actions['usdtf_exclude'] = __( 'USD/Toman: exclude from synchronization', 'usd-to-toman-price-sync-for-woocommerce' );
+		$actions['usdtf_enable']      = __( 'USD/Toman: set Managed', 'usd-to-toman-price-sync-for-woocommerce' );
+		$actions['usdtf_exclude']     = __( 'USD/Toman: set Excluded', 'usd-to-toman-price-sync-for-woocommerce' );
+		$actions['usdtf_recalculate'] = __( 'USD/Toman: Recalculate selected', 'usd-to-toman-price-sync-for-woocommerce' );
 
 		return $actions;
 	}
@@ -294,9 +300,12 @@ final class Product_Panel {
 			return $redirect_to;
 		}
 
+		if ( 'usdtf_recalculate' === $action ) {
+			return $this->bulk_recalculate( $redirect_to, $post_ids );
+		}
+
 		$map = array(
 			'usdtf_enable'  => Product_Pricing::MODE_MANAGED,
-			'usdtf_native'  => Product_Pricing::MODE_NATIVE,
 			'usdtf_exclude' => Product_Pricing::MODE_EXCLUDED,
 		);
 
@@ -325,20 +334,8 @@ final class Product_Panel {
 
 			if ( $product->is_type( 'variable' ) ) {
 				foreach ( $this->products->all_variation_ids( $post_id ) as $variation_id ) {
-					$variation = wc_get_product( $variation_id );
-
-					if ( ! $variation ) {
-						continue;
-					}
-
 					$this->pricing->set_mode( $variation_id, $mode );
-
-					if ( Product_Pricing::MODE_MANAGED === $mode ) {
-						$this->pricing->import_current_price_as_source( $variation );
-					}
 				}
-			} elseif ( Product_Pricing::MODE_MANAGED === $mode ) {
-				$this->pricing->import_current_price_as_source( $product );
 			}
 
 			++$count;
@@ -350,7 +347,36 @@ final class Product_Panel {
 	}
 
 	/**
-	 * Add the Toman price column.
+	 * Queue a recalculation job for the selected products.
+	 *
+	 * @param string $redirect_to Redirect URL.
+	 * @param int[]  $post_ids    Selected product IDs.
+	 * @return string
+	 */
+	private function bulk_recalculate( $redirect_to, $post_ids ) {
+		$ids = array();
+
+		foreach ( (array) $post_ids as $post_id ) {
+			$post_id = (int) $post_id;
+
+			if ( $post_id > 0 && current_user_can( 'edit_product', $post_id ) ) {
+				$ids[] = $post_id;
+			}
+		}
+
+		$result = usdtf_plugin()->runner()->recalculate( $ids );
+
+		if ( is_wp_error( $result ) ) {
+			$value = 'error:' . $result->get_error_code();
+		} else {
+			$value = 'queued:' . ( isset( $result['id'] ) ? (int) $result['id'] : 0 );
+		}
+
+		return add_query_arg( 'usdtf_recalc', rawurlencode( $value ), $redirect_to );
+	}
+
+	/**
+	 * Add the USD price column.
 	 *
 	 * @param array $columns Existing columns.
 	 * @return array
@@ -360,20 +386,20 @@ final class Product_Panel {
 			return $columns;
 		}
 
-		$columns['usdtf_toman'] = __( 'Toman price', 'usd-to-toman-price-sync-for-woocommerce' );
+		$columns[ self::COLUMN ] = __( 'USD price', 'usd-to-toman-price-sync-for-woocommerce' );
 
 		return $columns;
 	}
 
 	/**
-	 * Render the Toman price column.
+	 * Render the USD price column.
 	 *
 	 * @param string $column  Column name.
 	 * @param int    $post_id Product ID.
 	 * @return void
 	 */
 	public function render_column( $column, $post_id ) {
-		if ( 'usdtf_toman' !== $column ) {
+		if ( self::COLUMN !== $column ) {
 			return;
 		}
 
@@ -385,11 +411,7 @@ final class Product_Panel {
 
 		$snapshot = $this->pricing->get_snapshot( $product );
 
-		$mode_labels = array(
-			Product_Pricing::MODE_MANAGED  => __( 'Managed', 'usd-to-toman-price-sync-for-woocommerce' ),
-			Product_Pricing::MODE_NATIVE   => __( 'Native USD', 'usd-to-toman-price-sync-for-woocommerce' ),
-			Product_Pricing::MODE_EXCLUDED => __( 'Excluded', 'usd-to-toman-price-sync-for-woocommerce' ),
-		);
+		$mode_labels = self::mode_labels();
 
 		printf(
 			'<span class="usdtf-mode usdtf-mode--%1$s">%2$s</span>',
@@ -397,36 +419,13 @@ final class Product_Panel {
 			esc_html( isset( $mode_labels[ $snapshot['mode'] ] ) ? $mode_labels[ $snapshot['mode'] ] : $snapshot['mode'] )
 		);
 
-		if ( null !== $snapshot['source_regular'] ) {
+		if ( '' !== $snapshot['usd_regular'] ) {
 			printf(
-				'<br /><span class="usdtf-toman-value">%s</span>',
-				esc_html(
-					Calculator::format_toman(
-						$snapshot['source_regular'],
-						array(
-							'persian_digits' => (bool) $this->settings->get( 'persian_digits' ),
-							'with_suffix'    => true,
-							'suffix'         => (string) $this->settings->get( 'toman_suffix' ),
-						)
-					)
-				)
+				'<br /><span class="usdtf-usd-value">%s</span>',
+				esc_html( Admin::format_price_pair( $snapshot['usd_regular'], $snapshot['usd_sale'], 2, '$' ) )
 			);
-		}
-
-		if ( null !== $snapshot['source_sale'] ) {
-			printf(
-				'<br /><span class="usdtf-toman-sale">%s</span>',
-				esc_html(
-					Calculator::format_toman(
-						$snapshot['source_sale'],
-						array(
-							'persian_digits' => (bool) $this->settings->get( 'persian_digits' ),
-							'with_suffix'    => true,
-							'suffix'         => (string) $this->settings->get( 'toman_suffix' ),
-						)
-					)
-				)
-			);
+		} elseif ( $snapshot['managed'] ) {
+			echo '<br /><span class="usdtf-flag">' . esc_html__( 'No USD price yet', 'usd-to-toman-price-sync-for-woocommerce' ) . '</span>';
 		}
 
 		if ( $snapshot['conflict'] ) {
@@ -435,10 +434,18 @@ final class Product_Panel {
 				esc_html__( 'Conflict – recalculate', 'usd-to-toman-price-sync-for-woocommerce' )
 			);
 		}
+	}
 
-		if ( 0 === (int) $snapshot['revision'] && null === $snapshot['source_regular'] ) {
-			echo '<br /><span class="usdtf-flag">' . esc_html__( 'No Toman price yet', 'usd-to-toman-price-sync-for-woocommerce' ) . '</span>';
-		}
+	/**
+	 * Labels of the pricing modes.
+	 *
+	 * @return array<string,string> Mode => label.
+	 */
+	public static function mode_labels() {
+		return array(
+			Product_Pricing::MODE_MANAGED  => __( 'Managed', 'usd-to-toman-price-sync-for-woocommerce' ),
+			Product_Pricing::MODE_EXCLUDED => __( 'Excluded', 'usd-to-toman-price-sync-for-woocommerce' ),
+		);
 	}
 
 	/**
@@ -457,14 +464,7 @@ final class Product_Panel {
 
 		printf( '<select name="usdtf_mode_filter"><option value="">%s</option>', esc_html__( 'All pricing modes', 'usd-to-toman-price-sync-for-woocommerce' ) );
 
-		$labels = array(
-			Product_Pricing::MODE_MANAGED  => __( 'Toman managed', 'usd-to-toman-price-sync-for-woocommerce' ),
-			Product_Pricing::MODE_NATIVE   => __( 'Native USD', 'usd-to-toman-price-sync-for-woocommerce' ),
-			Product_Pricing::MODE_EXCLUDED => __( 'Excluded', 'usd-to-toman-price-sync-for-woocommerce' ),
-			'unset'                        => __( 'No mode set', 'usd-to-toman-price-sync-for-woocommerce' ),
-		);
-
-		foreach ( $labels as $value => $label ) {
+		foreach ( self::mode_labels() as $value => $label ) {
 			printf(
 				'<option value="%s" %s>%s</option>',
 				esc_attr( $value ),
@@ -498,16 +498,28 @@ final class Product_Panel {
 		$meta_query = $query->get( 'meta_query' );
 		$meta_query = is_array( $meta_query ) ? $meta_query : array();
 
-		if ( 'unset' === $filter ) {
+		// A product without a stored mode is managed; a stored "native" is excluded.
+		if ( Product_Pricing::MODE_MANAGED === $filter ) {
+			$meta_query[] = array(
+				'relation' => 'OR',
+				array(
+					'key'     => Product_Pricing::META_MODE,
+					'compare' => 'NOT EXISTS',
+				),
+				array(
+					'key'     => Product_Pricing::META_MODE,
+					'value'   => array( Product_Pricing::MODE_EXCLUDED, 'native' ),
+					'compare' => 'NOT IN',
+				),
+			);
+		} elseif ( Product_Pricing::MODE_EXCLUDED === $filter ) {
 			$meta_query[] = array(
 				'key'     => Product_Pricing::META_MODE,
-				'compare' => 'NOT EXISTS',
+				'value'   => array( Product_Pricing::MODE_EXCLUDED, 'native' ),
+				'compare' => 'IN',
 			);
 		} else {
-			$meta_query[] = array(
-				'key'   => Product_Pricing::META_MODE,
-				'value' => $filter,
-			);
+			return;
 		}
 
 		$query->set( 'meta_query', $meta_query );

@@ -1334,6 +1334,264 @@ usdtf_it_assert_same( true, $pg_typo['saved'], 'a move below the threshold is sa
 usdtf_it_assert_same( 280000.0, $pg_rates->get_rate(), 'the small move becomes active' );
 usdtf_it_pass( 'the rate typo guard asks for confirmation above the threshold only' );
 
+// ---------------------------------------------------------------------------
+// Admin screens, REST payloads and the CSV export.
+// ---------------------------------------------------------------------------
+usdtf_it_set_currency( 'IRT' );
+usdtf_it_reset_plugin_state();
+usdtf_it_delete_products();
+
+require_once ABSPATH . 'wp-admin/includes/screen.php';
+
+$pa_admins = get_users(
+	array(
+		'role'   => 'administrator',
+		'number' => 1,
+		'fields' => 'ID',
+	)
+);
+$pa_user   = $pa_admins ? (int) $pa_admins[0] : 0;
+usdtf_it_assert( $pa_user > 0, 'the test site has an administrator' );
+wp_set_current_user( $pa_user );
+
+$pa_rates = usdtf_plugin()->rates();
+$pa_rates->save_rate( 270000 );
+
+// Run a renderer and fail on any PHP warning, notice or deprecation raised in
+// the plugin's own files: WP_DEBUG_DISPLAY is off, so they never reach the HTML.
+$pa_quiet = static function ( callable $callback, $label ) {
+	$errors = array();
+
+	set_error_handler(
+		static function ( $level, $message, $file, $line ) use ( &$errors ) {
+			if ( false !== strpos( (string) $file, 'usd-to-toman' ) ) {
+				$errors[] = $message . ' in ' . $file . ':' . $line;
+			}
+
+			return false;
+		}
+	);
+
+	ob_start();
+
+	try {
+		call_user_func( $callback );
+	} finally {
+		$html = (string) ob_get_clean();
+		restore_error_handler();
+	}
+
+	usdtf_it_assert_same( array(), $errors, $label . ' raises no PHP warning' );
+
+	return $html;
+};
+
+// Render one tab of the plugin screen and return its HTML.
+$pa_admin  = usdtf_plugin()->admin();
+$pa_render = static function ( $tab, array $query = array() ) use ( $pa_admin, $pa_quiet ) {
+	$previous_get = $_GET;
+	$_GET         = array_merge(
+		array(
+			'page' => 'usdtf',
+			'tab'  => $tab,
+		),
+		$query
+	);
+
+	try {
+		return $pa_quiet( array( $pa_admin, 'render_page' ), 'the ' . $tab . ' tab' );
+	} finally {
+		$_GET = $previous_get;
+	}
+};
+
+// The state payload names the store currency.
+$pa_state = usdtf_it_rest_data( usdtf_it_rest( 'GET', '/state' ) );
+usdtf_it_assert( isset( $pa_state['store_currency'] ), 'the state payload carries the store currency' );
+usdtf_it_assert_same(
+	array(
+		'code'      => 'IRT',
+		'unit'      => 'toman',
+		'label'     => 'Toman',
+		'supported' => true,
+	),
+	$pa_state['store_currency'],
+	'an IRT store is a supported Toman store'
+);
+
+usdtf_it_set_currency( 'USD' );
+$pa_state = usdtf_it_rest_data( usdtf_it_rest( 'GET', '/state' ) );
+usdtf_it_assert_same( false, $pa_state['store_currency']['supported'], 'a USD store is not supported' );
+usdtf_it_assert_same( '', $pa_state['store_currency']['unit'], 'a USD store has no unit' );
+usdtf_it_set_currency( 'IRT' );
+usdtf_it_pass( 'the state payload names the store currency' );
+
+// A job item carries the USD price and no Toman source.
+$pa_product = usdtf_it_make_priced_product( 'Admin pegged', 5000000 )->get_id();
+$pa_job     = usdtf_it_create_job( array( 'scope' => array( 'ids' => array( $pa_product ) ) ) );
+usdtf_it_run_job( (int) $pa_job['id'] );
+
+$pa_detail = usdtf_it_rest_data( usdtf_it_rest( 'GET', '/jobs/' . (int) $pa_job['id'] ) );
+usdtf_it_assert( isset( $pa_detail['items'][0] ), 'the job detail lists its item' );
+$pa_item = $pa_detail['items'][0];
+
+usdtf_it_assert_same( '18.52', $pa_item['usd_regular'], 'the item payload carries the USD regular price' );
+usdtf_it_assert( array_key_exists( 'usd_sale', $pa_item ), 'the item payload carries the USD sale price' );
+usdtf_it_assert( ! array_key_exists( 'toman_regular', $pa_item ), 'the item payload has no Toman regular price' );
+usdtf_it_assert( ! array_key_exists( 'toman_sale', $pa_item ), 'the item payload has no Toman sale price' );
+usdtf_it_assert( ! array_key_exists( 'revision', $pa_item ), 'the item payload has no source revision' );
+foreach ( array( 'old_regular', 'old_sale', 'new_regular', 'new_sale', 'status' ) as $pa_key ) {
+	usdtf_it_assert( array_key_exists( $pa_key, $pa_item ), 'the item payload carries ' . $pa_key );
+}
+usdtf_it_assert_same( 'generated', $pa_item['status'], 'the first run generates the USD price' );
+usdtf_it_assert_same( 1, $pa_detail['counters']['generated'], 'the job payload counts the generated item' );
+usdtf_it_assert_same( 0, $pa_detail['counters']['rebased'], 'the job payload counts re-based items' );
+usdtf_it_pass( 'a job item payload carries the USD price and no Toman source' );
+
+// The CSV export lists the USD price.
+$pa_csv = fopen( 'php://memory', 'w+' );
+$pa_admin->write_items_csv( $pa_csv, usdtf_plugin()->jobs()->get( (int) $pa_job['id'] ) );
+rewind( $pa_csv );
+$pa_lines = explode( "\n", trim( (string) stream_get_contents( $pa_csv ) ) );
+fclose( $pa_csv );
+
+usdtf_it_assert_same( 'product_id,parent_id,object_type,status,usd_regular,usd_sale,old_price,new_price,attempts,message', $pa_lines[0], 'the CSV header names the USD columns' );
+usdtf_it_assert( 0 === strpos( $pa_lines[1], $pa_product . ',0,product,generated,18.52,,5000000,5000000,' ), 'the CSV row carries the USD and Woo prices' );
+usdtf_it_pass( 'the CSV export lists the USD price' );
+
+// Every tab renders cleanly; the jobs detail shows the pegged columns and tabs.
+foreach ( array( 'dashboard', 'jobs', 'health', 'settings' ) as $pa_tab ) {
+	$pa_html = $pa_render( $pa_tab );
+	usdtf_it_assert( false !== strpos( $pa_html, 'usdtf-wrap' ), 'the ' . $pa_tab . ' tab renders' );
+}
+
+$pa_html = $pa_render( 'dashboard' );
+usdtf_it_assert( false !== strpos( $pa_html, 'Toman per 1 USD' ), 'the dashboard labels the rate with the Toman unit' );
+usdtf_it_assert( false === strpos( $pa_html, 'mode B' ), 'the dashboard no longer names a currency mode' );
+
+$pa_html = $pa_render( 'jobs', array( 'job' => (string) (int) $pa_job['id'], 'items_status' => 'generated' ) );
+foreach ( array( 'Current Woo price', 'USD price', 'New Woo price', 'Details', 'USD set', 'Re-based', 'Updated' ) as $pa_text ) {
+	usdtf_it_assert( false !== strpos( $pa_html, $pa_text ), 'the job detail shows ' . $pa_text );
+}
+usdtf_it_assert( false !== strpos( $pa_html, '18.52' ), 'the job detail shows the USD price' );
+usdtf_it_assert( false === strpos( $pa_html, 'Toman source' ), 'the job detail has no Toman source column' );
+
+$pa_html = $pa_render( 'health' );
+usdtf_it_assert( false !== strpos( $pa_html, 'Toman (IRT)' ), 'Diagnostics shows the detected store currency' );
+$pa_check_ids = wp_list_pluck( usdtf_plugin()->health()->checks(), 'id' );
+usdtf_it_assert( in_array( 'store_currency', $pa_check_ids, true ), 'Diagnostics has a store currency check' );
+usdtf_it_assert( ! in_array( 'currency_mode', $pa_check_ids, true ), 'Diagnostics has no currency mode check' );
+usdtf_it_pass( 'every tab renders and the job detail shows the pegged columns' );
+
+// The Settings screen shows the store currency read-only.
+$pa_html = $pa_render( 'settings' );
+usdtf_it_assert( false !== strpos( $pa_html, 'Store currency' ), 'the Settings screen shows the store currency' );
+usdtf_it_assert( false !== strpos( $pa_html, 'Toman (IRT)' ), 'the Settings screen names the Toman unit' );
+usdtf_it_assert( false !== strpos( $pa_html, 'page=wc-settings' ), 'the Settings screen links to the WooCommerce currency setting' );
+foreach ( array( 'currency_mode', 'display_toman', 'persian_digits', 'toman_suffix', '[decimals]', 'auto_manage_new_products' ) as $pa_gone ) {
+	usdtf_it_assert( false === strpos( $pa_html, $pa_gone ), 'the Settings screen has no ' . $pa_gone . ' field' );
+}
+
+usdtf_it_set_currency( 'IRR' );
+$pa_html = $pa_render( 'settings' );
+usdtf_it_assert( false !== strpos( $pa_html, 'Rial (IRR)' ), 'the Settings screen names the Rial unit' );
+usdtf_it_assert( false !== strpos( $pa_html, 'value="100000"' ), 'the Settings screen offers the Rial increments' );
+$pa_html = $pa_render( 'dashboard' );
+usdtf_it_assert( false !== strpos( $pa_html, 'Rial per 1 USD' ), 'the dashboard labels the rate with the Rial unit' );
+usdtf_it_set_currency( 'IRT' );
+usdtf_it_pass( 'the Settings screen shows the store currency read-only and follows the unit' );
+
+// An unsupported store currency is announced and the job buttons are disabled.
+set_current_screen( 'woocommerce_page_usdtf' );
+
+ob_start();
+$pa_admin->render_notices();
+$pa_notices = (string) ob_get_clean();
+usdtf_it_assert( false === strpos( $pa_notices, 'Set the store currency to Iranian Toman or Rial' ), 'a Toman store gets no currency notice' );
+
+usdtf_it_set_currency( 'USD' );
+ob_start();
+$pa_admin->render_notices();
+$pa_notices = (string) ob_get_clean();
+usdtf_it_assert( false !== strpos( $pa_notices, 'Set the store currency to Iranian Toman or Rial' ), 'a USD store gets the currency notice' );
+
+$pa_html = $pa_render( 'dashboard' );
+usdtf_it_assert( 1 === preg_match( '#id="usdtf-start-update"[^>]*disabled#', $pa_html ), 'the update button is disabled in a USD store' );
+usdtf_it_assert( 1 === preg_match( '#id="usdtf-start-preview"[^>]*disabled#', $pa_html ), 'the dry run button is disabled in a USD store' );
+usdtf_it_set_currency( 'IRT' );
+$pa_html = $pa_render( 'dashboard' );
+usdtf_it_assert( 0 === preg_match( '#id="usdtf-start-update"[^>]*disabled#', $pa_html ), 'the update button is enabled in a Toman store' );
+$GLOBALS['current_screen'] = null;
+usdtf_it_pass( 'an unsupported store currency is announced and the job buttons are disabled' );
+
+// The product panel: Managed or Excluded, read-only prices, no reference fields.
+$pa_panel = new \USDTF\Admin\Product_Panel( usdtf_plugin()->settings(), usdtf_plugin()->pricing(), usdtf_plugin()->products() );
+
+$pa_box = $pa_quiet(
+	function () use ( $pa_panel, $pa_product ) {
+		$pa_panel->render_meta_box( get_post( $pa_product ) );
+	},
+	'the product panel'
+);
+
+usdtf_it_assert( false !== strpos( $pa_box, 'name="usdtf_mode"' ), 'the panel offers the pricing mode' );
+usdtf_it_assert( false !== strpos( $pa_box, 'usdtf_panel_nonce' ), 'the panel carries its nonce' );
+usdtf_it_assert( false === strpos( $pa_box, 'usdtf_source' ), 'the panel has no reference price fields' );
+usdtf_it_assert( false === strpos( $pa_box, 'value="native"' ), 'the panel offers no native mode' );
+usdtf_it_assert( false !== strpos( $pa_box, 'value="managed"' ) && false !== strpos( $pa_box, 'value="excluded"' ), 'the panel offers Managed and Excluded' );
+foreach ( array( 'Woo price', 'USD price', 'Rate used', 'Last sync', '18.52', '5,000,000', '270,000' ) as $pa_text ) {
+	usdtf_it_assert( false !== strpos( $pa_box, $pa_text ), 'the panel shows ' . $pa_text );
+}
+
+$_POST = array(
+	'usdtf_panel_nonce' => wp_create_nonce( \USDTF\Admin\Product_Panel::NONCE ),
+	'usdtf_mode'        => 'native',
+);
+$pa_panel->save_product( $pa_product );
+usdtf_it_assert_same( 'managed', usdtf_plugin()->pricing()->get_mode( $pa_product ), 'the panel refuses a mode other than Managed or Excluded' );
+usdtf_it_assert_same( '', usdtf_it_meta( $pa_product, '_usdtf_mode' ), 'a refused mode stores nothing' );
+
+$_POST['usdtf_mode'] = 'excluded';
+$pa_panel->save_product( $pa_product );
+usdtf_it_assert_same( 'excluded', usdtf_plugin()->pricing()->get_mode( $pa_product ), 'the panel accepts Excluded' );
+
+$_POST['usdtf_mode'] = 'managed';
+$pa_panel->save_product( $pa_product );
+usdtf_it_assert_same( 'managed', usdtf_plugin()->pricing()->get_mode( $pa_product ), 'the panel accepts Managed' );
+$_POST = array();
+delete_transient( 'usdtf_panel_error_' . $pa_user );
+
+// Bulk actions: Managed, Excluded and Recalculate selected.
+$pa_actions = $pa_panel->register_bulk_actions( array() );
+usdtf_it_assert( isset( $pa_actions['usdtf_enable'], $pa_actions['usdtf_exclude'], $pa_actions['usdtf_recalculate'] ), 'the three bulk actions are registered' );
+usdtf_it_assert( ! isset( $pa_actions['usdtf_native'] ), 'the native bulk action is gone' );
+
+$pa_panel->handle_bulk_actions( 'edit.php?post_type=product', 'usdtf_exclude', array( $pa_product ) );
+usdtf_it_assert_same( 'excluded', usdtf_plugin()->pricing()->get_mode( $pa_product ), 'the bulk action excludes a product' );
+$pa_panel->handle_bulk_actions( 'edit.php?post_type=product', 'usdtf_enable', array( $pa_product ) );
+usdtf_it_assert_same( 'managed', usdtf_plugin()->pricing()->get_mode( $pa_product ), 'the bulk action manages a product' );
+
+$pa_redirect = $pa_panel->handle_bulk_actions( 'edit.php?post_type=product', 'usdtf_recalculate', array( $pa_product ) );
+usdtf_it_assert( 1 === preg_match( '#usdtf_recalc=queued%3A(\d+)#', $pa_redirect, $pa_match ), 'Recalculate selected queues a job' );
+$pa_recalc = usdtf_plugin()->jobs()->get( (int) $pa_match[1] );
+usdtf_it_assert( $pa_recalc && \USDTF\Job::TYPE_RECALCULATE === $pa_recalc->type(), 'the queued job is a recalculation' );
+usdtf_it_assert_same( array( $pa_product ), array_map( 'intval', $pa_recalc->scope()['ids'] ), 'the recalculation covers the selected products' );
+usdtf_it_run_job( $pa_recalc->id() );
+
+// The list column shows the mode and the USD price.
+$pa_column = $pa_quiet(
+	function () use ( $pa_panel, $pa_product ) {
+		$pa_panel->render_column( \USDTF\Admin\Product_Panel::COLUMN, $pa_product );
+	},
+	'the product list column'
+);
+usdtf_it_assert( false !== strpos( $pa_column, 'Managed' ) && false !== strpos( $pa_column, '18.52' ), 'the list column shows the mode and the USD price' );
+usdtf_it_pass( 'the product panel offers Managed or Excluded, read-only prices and the bulk actions' );
+
+wp_set_current_user( 0 );
+usdtf_it_reset_plugin_state();
+usdtf_it_delete_products();
+
 if ( false === $pg_decimals ) {
 	delete_option( 'woocommerce_price_num_decimals' );
 } else {
