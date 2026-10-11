@@ -39,8 +39,9 @@ keeping the old modes working.
 
 ## 4. Data model
 
-The plugin has not been published to WordPress.org, so there are **no compatibility shims**: obsolete
-data is removed by an upgrade step (section 9).
+Versions 1.0.0 to 1.1.5 were released, so the upgrade carries a store over once (ruling R16, section
+9): an old Toman-mode store keeps the storefront currency the old plugin forced at runtime, the inert
+Toman source and derived prices are kept, and the rest of the obsolete data is removed.
 
 ### 4.1 Product and variation meta
 
@@ -54,8 +55,11 @@ data is removed by an upgrade step (section 9).
 | `_usdtf_mode` | `managed` or `excluded`. A product with no value is **managed** (so an existing catalogue is picked up without per-product work); a stored `native` is treated as `excluded`. |
 | `_usdtf_synced_at`, `_usdtf_last_error`, `_usdtf_last_job`, `_usdtf_conflict` | Unchanged. |
 
-Removed: `_usdtf_source_regular`, `_usdtf_source_sale`, `_usdtf_derived_regular`,
-`_usdtf_derived_sale`, `_usdtf_mode_synced`, `_usdtf_external_source`, `_usdtf_revision`.
+Removed: `_usdtf_mode_synced`, `_usdtf_external_source`, `_usdtf_revision`.
+
+Kept, inert (never read): `_usdtf_source_regular`, `_usdtf_source_sale`, `_usdtf_derived_regular`,
+`_usdtf_derived_sale`. For a store in the removed USD-store mode they are the only copy of its Toman
+prices; only the opt-in "Delete data on uninstall" purge removes them.
 
 ### 4.2 Unit and rate
 
@@ -63,7 +67,14 @@ Removed: `_usdtf_source_regular`, `_usdtf_source_sale`, `_usdtf_derived_regular`
   makes the plugin show an admin notice ("Set the store currency to Iranian Toman or Rial") and
   refuse to start jobs.
 - The rate is entered in the store unit: "Toman per 1 USD" or "Rial per 1 USD". Labels follow the unit.
-- The plugin no longer touches the store currency, its position or its decimals.
+- The unit is stored with the rate (`usdtf_rate_unit`). While the store unit differs from it (the
+  store moved between IRT and IRR after the rate was saved), every job is refused with
+  `usdtf_unit_changed` and the dashboard says so next to the rate; saving the rate again in the new
+  unit clears it, and a rate of the other unit is no previous rate for a rollback. Jobs record their
+  unit (`jobs.unit`) and the unit is part of the dry-run fingerprint.
+- Without WooCommerce loaded the currency is read from the `woocommerce_currency` option.
+- The plugin does not touch the store currency, its position or its decimals, except once on the
+  upgrade of an old Toman-mode store (section 9).
 
 ## 5. Per-product algorithm
 
@@ -97,9 +108,9 @@ If someone then types 6,000,000 in Woo, the next run re-bases: U = 20.00 at the 
 
 - If the computed sale price is greater than the regular price, the item is **failed** with the
   existing "sale above regular" message and nothing is written.
-- Just before saving, the runner re-reads the Woo regular and sale price. If they differ from the
-  values used in the calculation, the item is a **conflict** (the existing status) and nothing is
-  written. This replaces the old revision counter.
+- Just before saving, the runner re-reads the Woo regular and sale price, past the request's meta
+  and product caches. If they differ from the values used in the calculation, the item is a
+  **conflict** (the existing status) and nothing is written. This replaces the old revision counter.
 - Variable products: each variation is processed by these rules (existing slice mechanism); the
   parent price range is recalculated by WooCommerce, as today.
 - Excluded products and variations are never changed.
@@ -153,13 +164,25 @@ fallback, require preview, capability, rate-change threshold, credit line, delet
 
 ## 9. Upgrade and uninstall
 
-- Installer bumps the database version and, once: deletes the removed meta keys and settings
+- Installer bumps the database version (7) and, once: deletes the removed meta keys and settings
   keys, rewrites stored mode `native` to `excluded`, and extends the items and jobs tables (add
-  `usd_*` and the `generated`/`rebased` counters). The obsolete columns stay in place, unused:
-  `dbDelta` never drops columns and the SQLite test driver differs from MySQL. Old job history rows
-  keep their status and message.
-- `uninstall.php` lists the new meta keys. "Delete data on uninstall" behaves as today. The plugin
-  never deletes WooCommerce prices on uninstall.
+  `usd_*`, the `generated`/`rebased` counters and `jobs.unit`). The obsolete columns stay in place,
+  unused: `dbDelta` never drops columns and the SQLite test driver differs from MySQL. Old job
+  history rows keep their status and message.
+- An old install (its settings still hold keys of the old model, or `usdtf_synced_currency_mode`
+  exists) is carried over before the settings keys are dropped (ruling R16). In Toman mode (also when
+  no mode was stored) the old plugin forced `woocommerce_currency` = `IRT`,
+  `woocommerce_price_num_decimals` = `0` and `woocommerce_currency_pos` = `right_space` at runtime
+  only; the upgrade writes those of the three that differ, once, and leaves a one-time notice. In
+  USD-store mode no WooCommerce option changes; the notice says the mode was removed, that the store
+  currency must be set to Toman or Rial and the prices reviewed, and that the old Toman prices are
+  kept in hidden meta. The notice shows on every admin screen to users with the plugin capability
+  until it is dismissed (nonce and capability checked). A fresh install changes nothing.
+- The inert legacy meta of section 4.1 is kept. An existing rate is recorded as a Toman rate (the
+  old plugin's rate was always Toman per 1 USD); a rate saved before the unit was stored adopts the
+  store's current unit.
+- `uninstall.php` lists the new meta keys. "Delete data on uninstall" behaves as today and also
+  purges the inert legacy meta. The plugin never deletes WooCommerce prices on uninstall.
 
 ## 10. Safety
 

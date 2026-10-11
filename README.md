@@ -20,7 +20,13 @@ product: its USD price is recalculated from the edited price at the current rate
 The unit (Toman or Rial) comes from the WooCommerce currency (`IRT` or `IRR`) and is read-only; any
 other currency shows a notice and no job starts. Products are managed by default and can be set to
 **Excluded**. A dry run is required before an update, a rate move above the threshold needs a typed
-confirmation, and the last rate change can be rolled back.
+confirmation, and the last rate change can be rolled back. The rate remembers its unit: after the
+store moves between Toman and Rial, every job is refused until the rate is saved again.
+
+Upgrading from 1.1.x: a store in the old Toman mode keeps its storefront (the upgrade sets the
+WooCommerce currency to Toman, `IRT`, no decimals, once, with a notice). A store in the old USD-store
+mode must set the WooCommerce currency to Toman or Rial and review its prices; its old Toman prices
+are kept in hidden product meta and the plugin starts no job until then. A Rial store keeps Rial.
 
 The design of the pegged model is in
 [docs/superpowers/specs/2026-10-11-usd-pegged-pricing-design.md](docs/superpowers/specs/2026-10-11-usd-pegged-pricing-design.md);

@@ -12,7 +12,8 @@ defined( 'ABSPATH' ) || exit;
 /**
  * Reads the pricing unit (Toman or Rial) from the WooCommerce store currency.
  *
- * The plugin never changes the currency: a store priced in IRT works in Toman,
+ * The plugin does not change the currency (the upgrade of an old Toman-mode
+ * install persists it once, see Installer): a store priced in IRT works in Toman,
  * a store priced in IRR works in Rial, and every other currency is unsupported.
  * Nothing is cached, so the unit follows the currency the moment it changes.
  */

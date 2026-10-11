@@ -37,6 +37,23 @@ shows or forces a currency. See "Changed" and "Removed" before upgrading.
   prices) and nothing is written for it.
 - "Outdated only" means no USD price yet, or a stored rate that differs from the current rate.
 - The Persian translation follows the new wording.
+- Upgrading a 1.1.x store in Toman mode (the default) sets the WooCommerce currency to Toman (`IRT`),
+  0 decimals and the symbol after the price, once and only where it differs: the values the old plugin
+  forced at runtime, so the storefront stays as it was. A one-time admin notice says so. A store in
+  the removed USD-store mode keeps its WooCommerce settings; its notice asks to set the currency to
+  Toman or Rial and to review the prices, and the plugin starts no job until then. A store you set to
+  Rial (`IRR`) stays in Rial.
+- The rate is stored with its unit. After the store moves between Toman and Rial every job (dry run,
+  update, rollback, recalculate) is refused with `usdtf_unit_changed` until the rate is saved again
+  in the new unit; a dry run made in the other unit never unlocks an update.
+
+### Fixed
+
+- The conflict check before a write reads the WooCommerce price again past the request's caches, so
+  a price changed meanwhile by another request or a direct database write is a conflict and is never
+  overwritten.
+- Activating the plugin without WooCommerce (WordPress 6.2 to 6.4 do not enforce "Requires Plugins")
+  no longer fails: the currency is read from the stored WooCommerce option.
 
 ### Removed
 
@@ -47,7 +64,9 @@ shows or forces a currency. See "Changed" and "Removed" before upgrading.
 - The settings `currency_mode`, `display_toman`, `display_toman_cart`, `persian_digits`,
   `toman_suffix`, `decimals` and `auto_manage_new_products`.
 - On upgrade the obsolete settings and product meta are deleted and a stored `native` mode becomes
-  `excluded`. Old job history rows are kept; the plugin never deletes WooCommerce prices.
+  `excluded`. The old Toman source and derived prices (`_usdtf_source_*`, `_usdtf_derived_*`) are
+  kept as inert meta, the only copy of a USD-store-mode store's Toman prices; "Delete data on
+  uninstall" removes them. Old job history rows are kept; the plugin never deletes WooCommerce prices.
 
 ## [1.1.5] - 2026-10-11
 

@@ -2040,7 +2040,7 @@ foreach ( array( 'from_toman', 'from_usd', 'parse_toman', 'format_toman', 'to_pe
 $pg_mo = USDTF_DIR . 'languages/usd-to-toman-price-sync-for-woocommerce-fa_IR.mo';
 usdtf_it_assert( load_textdomain( USDTF_SLUG, $pg_mo ), 'the compiled Persian catalogue loads' );
 
-foreach ( array( 'Toman per 1 USD', 'Rial per 1 USD' ) as $pg_label ) {
+foreach ( array( 'Toman per 1 USD', 'Rial per 1 USD', 'The store currency unit changed from %1$s to %2$s since the rate was saved. Save the rate again in the new unit.', 'The store currency was set to Iranian Toman (IRT, no decimals) to keep the storefront as it was. Earlier versions applied this only while the plugin was active; it is now a normal WooCommerce setting.', 'Dismiss this notice' ) as $pg_label ) {
 	$pg_translated = __( $pg_label, USDTF_SLUG ); // phpcs:ignore WordPress.WP.I18n -- Looking up a catalogue entry in a test.
 	usdtf_it_assert( $pg_translated !== $pg_label, 'the Persian catalogue translates "' . $pg_label . '"' );
 	usdtf_it_assert( 1 === preg_match( '/\p{Arabic}/u', $pg_translated ), 'the translation of "' . $pg_label . '" is Persian text' );

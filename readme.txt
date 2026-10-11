@@ -93,7 +93,11 @@ Nothing is changed. The first update only records a USD price for each product, 
 
 = Which store currencies are supported? =
 
-Iranian Toman (IRT) and Iranian Rial (IRR). The plugin reads the unit from the WooCommerce currency setting, shows it on its settings screen and uses it for the labels and the rounding steps. It never changes the store currency, its position or its decimals. With any other currency it shows a notice and does not start jobs.
+Iranian Toman (IRT) and Iranian Rial (IRR). The plugin reads the unit from the WooCommerce currency setting, shows it on its settings screen and uses it for the labels and the rounding steps. It never changes the store currency, its position or its decimals, except once when a 1.1.x store in Toman mode is upgraded (see "Upgrading from 1.1.x"). With any other currency it shows a notice and does not start jobs. The rate remembers the unit it was saved in: after a move between Toman and Rial, save the rate again before the next job.
+
+= Upgrading from 1.1.x =
+
+In the old Toman mode (the default) the plugin switched WooCommerce to Toman only while it ran. The 1.2.0 upgrade sets the WooCommerce currency to Iranian Toman (IRT, no decimals, symbol after the price) once, so the storefront stays as it was, and shows a notice. In the old USD-store mode no WooCommerce setting is changed: set the store currency to Toman or Rial and review your prices; the plugin starts no job until then, and the old Toman prices stay in hidden product meta. A store you set to Rial (IRR) stays in Rial. If you later move the store between Toman and Rial, save the rate again in the new unit: until then every job is refused.
 
 = Does the plugin show prices in dollars to my customers? =
 
@@ -144,7 +148,11 @@ Yes. Every string uses the `usd-to-toman-price-sync-for-woocommerce` text domain
 * Changed: rounding steps depend on the unit (Toman 1, 100, 1,000, 10,000; Rial 10, 1,000, 10,000, 100,000). Previews, jobs and CSV exports show the current price, the USD price and the new price, with new statuses "Generated" and "Re-based".
 * Added: the plugin requires the store currency to be Toman (IRT) or Rial (IRR) and shows a notice, without starting jobs, otherwise. The detected currency is shown in the settings and the diagnostics.
 * Removed: the Toman-store and USD-store modes, the reference Toman price fields, the currency override, the Toman display on the storefront, the Persian digits and Toman suffix options, and the "manage new products automatically" setting.
-* Removed: the upgrade deletes the obsolete settings and product data. Old job history rows are kept.
+* Changed: upgrading a 1.1.x store in Toman mode sets the WooCommerce currency to Toman (IRT, no decimals, symbol after the price) once, the value the old plugin applied at runtime, and shows a notice. A store in the removed USD-store mode keeps its WooCommerce settings and gets a notice to set the currency to Toman or Rial and review its prices.
+* Added: the rate remembers its unit. After the store moves between Toman and Rial every job is refused until the rate is saved again in the new unit.
+* Fixed: the conflict check reads the price again from the database, so a price changed meanwhile by another request is never overwritten.
+* Fixed: activating the plugin without WooCommerce no longer causes a fatal error.
+* Removed: the upgrade deletes the obsolete settings and product data. The old Toman source prices are kept as hidden product meta (removed by "Delete data on uninstall"). Old job history rows are kept.
 
 = 1.1.5 =
 * Fixed: Declare compatibility with WordPress 7.1
@@ -220,7 +228,7 @@ Production audit release: every finding of the production audit is fixed and cov
 == Upgrade Notice ==
 
 = 1.2.0 =
-Behaviour change: pricing is now dollar-pegged. The plugin no longer shows or forces a currency, the old Toman-store and USD-store modes and the reference Toman price fields are gone, and every product is managed by default. The store currency must be Toman or Rial. The upgrade removes the obsolete settings and product data. The first run only records USD prices and changes no price; run a dry run before your first update.
+Behaviour change: pricing is now dollar-pegged. The old Toman-store and USD-store modes and the reference Toman price fields are gone, and every product is managed by default. A Toman-mode store keeps its storefront: the upgrade sets the WooCommerce currency to Toman (IRT) once and shows a notice. A USD-store-mode store must set the WooCommerce currency to Toman or Rial and review its prices; the old Toman prices are kept in hidden meta and the plugin starts no job until then. The first run only records USD prices and changes no price; run a dry run before your first update.
 
 = 1.1.5 =
 Declare compatibility with WordPress 7.1
