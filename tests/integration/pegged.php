@@ -88,6 +88,65 @@ $managed = usdtf_it_make_priced_product( 'Plain price', 5000000, '', 'managed' )
 usdtf_it_assert_same( wc_price( 5000000 ), $managed->get_price_html(), 'a managed product renders with the plain WooCommerce price HTML' );
 usdtf_it_pass( 'the store currency is read from WooCommerce without an override' );
 
+// ---------------------------------------------------------------------------
+// Price planner: the pure per-field decision.
+// ---------------------------------------------------------------------------
+$plan_round_0 = array(
+	'rounding'  => 'up',
+	'increment' => 1000,
+	'decimals'  => 0,
+);
+$plan_round_2 = array(
+	'rounding'  => 'up',
+	'increment' => 0.01,
+	'decimals'  => 2,
+);
+
+// Each case: label, current, seen, usd, stored rate, rate, rounding, action, code, usd out, price out.
+$plan_cases = array(
+	array( 'generate the anchor from a plain price', '5000000', '', '', 0.0, 270000.0, $plan_round_0, 'generate', '', '18.52', '5000000' ),
+	array( 'unchanged when neither price nor rate moved', '5000000', '5000000', '18.52', 270000.0, 270000.0, $plan_round_0, 'unchanged', '', '18.52', '5000000' ),
+	array( 'update the price when the rate moved', '5000000', '5000000', '18.52', 270000.0, 300000.0, $plan_round_0, 'update', '', '18.52', '5556000' ),
+	array( 'rebase when the price was edited by hand', '6000000', '5556000', '18.52', 300000.0, 300000.0, $plan_round_0, 'rebase', '', '20.00', '6000000' ),
+	array( 'clear the anchor when the price was removed', '', '1000', '3.70', 270000.0, 270000.0, $plan_round_0, 'clear', '', '', '' ),
+	array( 'skip a field with no price and no anchor', '', '', '', 0.0, 270000.0, $plan_round_0, 'skip', 'no_price', null, null ),
+	array( 'skip a non numeric price', 'abc', '', '', 0.0, 270000.0, $plan_round_0, 'skip', 'invalid_price', null, null ),
+	array( 'skip a zero price', '0', '', '', 0.0, 270000.0, $plan_round_0, 'skip', 'invalid_price', null, null ),
+	array( 'skip a negative price', '-5', '', '', 0.0, 270000.0, $plan_round_0, 'skip', 'invalid_price', null, null ),
+	array( 'skip a price below one cent of USD', '1', '', '', 0.0, 270000.0, $plan_round_0, 'skip', 'too_low', null, null ),
+	array( 'skip a hand edit below one cent of USD', '1', '5556000', '18.52', 270000.0, 270000.0, $plan_round_0, 'skip', 'too_low', null, null ),
+	array( 'skip when there is no rate', '5000000', '', '', 0.0, 0.0, $plan_round_0, 'skip', 'no_rate', null, null ),
+	array( 'unchanged with two Woo decimals', '12.50', '12.50', '0.50', 25.0, 25.0, $plan_round_2, 'unchanged', '', '0.50', '12.50' ),
+	array( 'equal prices compare at the Woo decimals', '12.5', '12.50', '0.50', 25.0, 25.0, $plan_round_2, 'unchanged', '', '0.50', '12.50' ),
+	array( 'rates compare at six decimals', '5000000', '5000000', '18.52', 270000.0, 270000.0000001, $plan_round_0, 'unchanged', '', '18.52', '5000000' ),
+	array( 'a rate change beyond six decimals updates', '5000000', '5000000', '18.52', 270000.0, 270000.00001, $plan_round_0, 'update', '', '18.52', '5001000' ),
+);
+
+foreach ( $plan_cases as $plan_case ) {
+	list( $label, $p_current, $p_seen, $p_usd, $p_stored, $p_rate, $p_rounding, $p_action, $p_code, $p_usd_out, $p_price_out ) = $plan_case;
+
+	$plan = \USDTF\Price_Planner::plan( $p_current, $p_seen, $p_usd, $p_stored, $p_rate, $p_rounding );
+
+	usdtf_it_assert_same( $p_action, $plan['action'], 'planner action: ' . $label );
+	usdtf_it_assert_same( $p_code, $plan['code'], 'planner code: ' . $label );
+
+	if ( 'skip' === $p_action ) {
+		continue;
+	}
+
+	usdtf_it_assert_same( $p_usd_out, $plan['usd'], 'planner USD: ' . $label );
+	usdtf_it_assert_same( $p_price_out, $plan['price'], 'planner price: ' . $label );
+	usdtf_it_assert_same( $plan['price'], $plan['seen'], 'planner seen equals price: ' . $label );
+}
+
+usdtf_it_assert_same( 'generate', \USDTF\Price_Planner::ACTION_GENERATE, 'the generate action constant' );
+usdtf_it_assert_same( 'rebase', \USDTF\Price_Planner::ACTION_REBASE, 'the rebase action constant' );
+usdtf_it_assert_same( 'update', \USDTF\Price_Planner::ACTION_UPDATE, 'the update action constant' );
+usdtf_it_assert_same( 'clear', \USDTF\Price_Planner::ACTION_CLEAR, 'the clear action constant' );
+usdtf_it_assert_same( 'unchanged', \USDTF\Price_Planner::ACTION_UNCHANGED, 'the unchanged action constant' );
+usdtf_it_assert_same( 'skip', \USDTF\Price_Planner::ACTION_SKIP, 'the skip action constant' );
+usdtf_it_pass( 'the price planner decides every case' );
+
 // Leave nothing behind for the legacy scenarios that follow in a full run.
 usdtf_it_set_currency( null );
 usdtf_it_delete_products();
