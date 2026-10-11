@@ -1246,6 +1246,94 @@ usdtf_it_assert_same( '15.00', usdtf_it_price( $pg_d ), 'the new decimal price k
 usdtf_it_assert_same( '15.00', usdtf_it_meta( $pg_d, '_usdtf_seen_regular' ), 'the seen decimal price keeps the Woo decimals' );
 usdtf_it_pass( 'Woo prices with decimals round-trip without drifting' );
 
+// 12. The impact estimate counts what a job at the candidate rate would act on.
+update_option( 'woocommerce_price_num_decimals', 0 );
+usdtf_it_reset_plugin_state();
+usdtf_it_delete_products();
+$pg_rates->save_rate( 270000 );
+
+$pg_gen  = usdtf_it_make_priced_product( 'Estimate generated', 5000000 )->get_id();
+$pg_hand = usdtf_it_make_priced_product( 'Estimate hand edited', 5400000 )->get_id();
+$pg_out  = usdtf_it_make_priced_product( 'Estimate excluded', 4000000, '', 'excluded' )->get_id();
+$pg_low  = usdtf_it_make_priced_product( 'Estimate too low', 100 )->get_id();
+$pg_run  = function () {
+	$job = usdtf_it_create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
+	usdtf_it_run_job( (int) $job['id'] );
+
+	return (int) $job['id'];
+};
+
+usdtf_it_assert_same( 2, $pg_rates->estimate_affected( 270000, 1 ), 'products without an anchor are affected, an excluded or too cheap one is not' );
+usdtf_it_assert_same( 0, $pg_rates->estimate_affected( 0, 1 ), 'a zero rate affects nothing' );
+
+$pg_run();
+usdtf_it_assert_same( 0, $pg_rates->estimate_affected( 270000, 1 ), 'synced products at their own rate are not affected' );
+usdtf_it_assert_same( 0, $pg_rates->estimate_affected( 270000.0000001, 1 ), 'rates compare at six decimals' );
+usdtf_it_assert_same( 2, $pg_rates->estimate_affected( 330000, 1 ), 'a rate change affects every synced product' );
+
+$pg_rates->save_rate( 300000 );
+$pg_run();
+usdtf_it_assert_same( '5556000', usdtf_it_price( $pg_gen ), 'the synced product follows the rate' );
+usdtf_it_assert_same( 0, $pg_rates->estimate_affected( 300000, 1 ), 'the estimate for the active rate is 0 for synced products' );
+usdtf_it_assert_same( 2, $pg_rates->estimate_affected( 330000, 1 ), 'the estimate for a new rate is above 0' );
+usdtf_it_assert_same( '4000000', usdtf_it_price( $pg_out ), 'an excluded product keeps its price' );
+usdtf_it_assert_same( '', usdtf_it_meta( $pg_out, '_usdtf_usd_regular' ), 'an excluded product gets no anchor' );
+
+// A hand edit is affected at the rate it was synced with: a job would re-base it.
+$pg_set_woo( $pg_hand, 7000000 );
+usdtf_it_assert_same( 1, $pg_rates->estimate_affected( 300000, 1 ), 'a hand-edited product is affected' );
+
+// The sale price counts too: a removed sale clears its anchor.
+$pg_sale = usdtf_it_make_priced_product( 'Estimate sale', 6000000, 5000000 )->get_id();
+usdtf_it_assert_same( 2, $pg_rates->estimate_affected( 300000, 1 ), 'a new product with a sale price is affected' );
+wp_delete_post( $pg_sale, true );
+
+usdtf_it_set_currency( 'USD' );
+usdtf_it_assert_same( 0, $pg_rates->estimate_affected( 330000, 1 ), 'an unsupported store currency affects nothing' );
+usdtf_it_set_currency( 'IRT' );
+usdtf_it_pass( 'the impact estimate counts the products a job would act on' );
+
+// 13. Rollback runs the previous rate through the normal job path.
+$pg_rollback = $runner->rollback();
+usdtf_it_assert( ! is_wp_error( $pg_rollback ), 'the rollback job is created' );
+usdtf_it_assert_same( \USDTF\Job::TYPE_ROLLBACK, $pg_rollback['type'], 'the rollback is a job of its own type' );
+usdtf_it_run_job( (int) $pg_rollback['id'] );
+$pg_back = (int) $pg_rollback['id'];
+
+usdtf_it_assert_same( 270000.0, $pg_rates->get_rate(), 'the rollback restores the previous rate' );
+usdtf_it_assert_same( 'changed', $pg_status( $pg_back, $pg_gen ), 'the rollback recalculates the product from its USD anchor' );
+usdtf_it_assert( abs( (float) usdtf_it_price( $pg_gen ) - 5000000 ) <= 1000, 'the original price returns within the rounding increment' );
+usdtf_it_assert_same( '270000', usdtf_it_meta( $pg_gen, '_usdtf_rate' ), 'the product carries the restored rate' );
+usdtf_it_assert_same( '18.52', usdtf_it_meta( $pg_gen, '_usdtf_usd_regular' ), 'the rollback keeps the USD anchor' );
+
+usdtf_it_assert_same( 'rebased', $pg_status( $pg_back, $pg_hand ), 'a hand edit re-bases instead of being rolled back' );
+usdtf_it_assert_same( '7000000', usdtf_it_price( $pg_hand ), 'the hand-edited product keeps its edit' );
+usdtf_it_assert_same( '25.93', usdtf_it_meta( $pg_hand, '_usdtf_usd_regular' ), 'the hand edit becomes the anchor at the restored rate' );
+usdtf_it_assert_same( '4000000', usdtf_it_price( $pg_out ), 'the rollback leaves an excluded product alone' );
+usdtf_it_pass( 'rollback restores the previous rate through the job path and keeps hand edits' );
+
+// 14. The rate typo guard: confirmation above the threshold, none below it.
+usdtf_it_reset_plugin_state();
+$pg_rates->save_rate( 270000 );
+
+$pg_typo = $pg_rates->submit_rate( '27000', false );
+usdtf_it_assert( ! is_wp_error( $pg_typo ), 'the large rate is accepted for review' );
+usdtf_it_assert_same( true, ! empty( $pg_typo['requires_confirmation'] ), 'a -90% rate requires confirmation' );
+usdtf_it_assert_same( 270000.0, $pg_rates->get_rate(), 'the active rate does not change before confirmation' );
+usdtf_it_assert( null !== $pg_rates->get_pending(), 'the pending rate is stored' );
+usdtf_it_assert( (int) $pg_typo['affected'] >= 0, 'an estimate of affected products is returned' );
+
+$pg_typo = $pg_rates->submit_rate( '27000', true );
+usdtf_it_assert( ! is_wp_error( $pg_typo ), 'confirming the pending rate succeeds' );
+usdtf_it_assert_same( 27000.0, $pg_rates->get_rate(), 'the confirmed rate becomes active' );
+
+$pg_rates->save_rate( 270000 );
+$pg_typo = $pg_rates->submit_rate( '280000', false );
+usdtf_it_assert_same( false, ! empty( $pg_typo['requires_confirmation'] ), 'a move below the threshold needs no confirmation' );
+usdtf_it_assert_same( true, $pg_typo['saved'], 'a move below the threshold is saved at once' );
+usdtf_it_assert_same( 280000.0, $pg_rates->get_rate(), 'the small move becomes active' );
+usdtf_it_pass( 'the rate typo guard asks for confirmation above the threshold only' );
+
 if ( false === $pg_decimals ) {
 	delete_option( 'woocommerce_price_num_decimals' );
 } else {

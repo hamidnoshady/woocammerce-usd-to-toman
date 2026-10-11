@@ -382,7 +382,10 @@ final class Rate_Repository {
 	}
 
 	/**
-	 * Estimate how many managed products would get a different price.
+	 * Estimate how many managed products a job at the candidate rate would act on.
+	 *
+	 * A product is affected when its regular or sale price would be updated,
+	 * generated, re-based or cleared, as the job planner decides it.
 	 *
 	 * A bounded sample is used so the estimate stays cheap on large catalogs.
 	 *
@@ -393,7 +396,7 @@ final class Rate_Repository {
 	public function estimate_affected( $rate, $sample_ratio = 0.05 ) {
 		$rate = (float) $rate;
 
-		if ( $rate <= 0 ) {
+		if ( $rate <= 0 || ! Store_Currency::is_supported() ) {
 			return 0;
 		}
 
@@ -430,9 +433,15 @@ final class Rate_Repository {
 			return 0;
 		}
 
-		$settings = $this->settings->rounding_args();
+		$rounding = $this->settings->rounding_args();
 		$affected = 0;
 		$checked  = 0;
+		$moving   = array(
+			Price_Planner::ACTION_UPDATE,
+			Price_Planner::ACTION_GENERATE,
+			Price_Planner::ACTION_REBASE,
+			Price_Planner::ACTION_CLEAR,
+		);
 
 		foreach ( $ids as $product_id ) {
 			$product = wc_get_product( $product_id );
@@ -445,17 +454,14 @@ final class Rate_Repository {
 
 			$item = $pricing->get_snapshot( $product );
 
+			if ( ! $item['managed'] ) {
+				continue;
+			}
+
 			foreach ( array( 'regular', 'sale' ) as $which ) {
-				$source = 'regular' === $which ? $item['source_regular'] : $item['source_sale'];
+				$plan = Price_Planner::plan( $item[ 'current_' . $which ], $item[ 'seen_' . $which ], $item[ 'usd_' . $which ], $item['rate'], $rate, $rounding );
 
-				if ( null === $source ) {
-					continue;
-				}
-
-				$new = Calculator::from_toman( $source, $rate, $settings );
-				$old = 'regular' === $which ? $item['derived_regular'] : $item['derived_sale'];
-
-				if ( ! Calculator::prices_equal( $new, $old, (int) $settings['decimals'] ) ) {
+				if ( in_array( $plan['action'], $moving, true ) ) {
 					++$affected;
 					break;
 				}
