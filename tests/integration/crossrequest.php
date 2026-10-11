@@ -86,8 +86,8 @@ $rates->save_rate( 300000 );
 
 // What 18.52, 30.00, 7.41 and 14.81 USD give at 300,000, rounded up to 1,000 Toman.
 $cross_expected = array(
-	$cross_one->get_id()                    => '5556000',
-	$cross_two->get_id()                    => '9000000',
+	$cross_one->get_id()               => '5556000',
+	$cross_two->get_id()               => '9000000',
 	$cross_variable->get_children()[0] => '2223000',
 	$cross_variable->get_children()[1] => '4443000',
 );

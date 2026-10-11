@@ -440,3 +440,59 @@ usdtf_it_assert( \USDTF\Database::table_exists( \USDTF\Database::jobs_table() ),
 usdtf_it_assert( false !== wp_next_scheduled( \USDTF\Cron::EVENT_TICK ), 'activating again must restore the maintenance events' );
 
 usdtf_it_pass( 'uninstall keeps the Toman prices unless the store owner opts in' );
+
+// ---------------------------------------------------------------------------
+// 25b. Seeding the options: a fresh site gets every default, an upgrade keeps
+//      what is stored and backfills the rest.
+// ---------------------------------------------------------------------------
+$seed_defaults = \USDTF\Settings::defaults();
+
+// A brand new site: no settings option at all, then the installer runs.
+delete_option( \USDTF\Settings::OPTION );
+usdtf_it_assert_same( null, get_option( \USDTF\Settings::OPTION, null ), 'a fresh site must start without a settings option' );
+
+\USDTF\Installer::seed_options();
+
+$seed_fresh = get_option( \USDTF\Settings::OPTION, null );
+
+usdtf_it_assert( is_array( $seed_fresh ), 'a fresh install must store a settings option' );
+
+foreach ( $seed_defaults as $seed_key => $seed_value ) {
+	usdtf_it_assert( array_key_exists( $seed_key, $seed_fresh ), 'a fresh install must store the default of ' . $seed_key );
+	usdtf_it_assert_same( $seed_value, $seed_fresh[ $seed_key ], 'a fresh install must restore the default of ' . $seed_key );
+}
+
+usdtf_it_assert_same( 10, $seed_fresh['batch_size'], 'a fresh install must use the default batch size' );
+usdtf_it_assert_same( true, $seed_fresh['require_preview'], 'a fresh install must require a dry run before an update' );
+usdtf_it_assert_same( \USDTF\Calculator::ROUND_UP, $seed_fresh['rounding'], 'a fresh install must round up' );
+
+// An upgrade: a partial stored option keeps its values and gets the rest of the defaults.
+delete_option( \USDTF\Settings::OPTION );
+add_option(
+	\USDTF\Settings::OPTION,
+	array(
+		'rounding'    => \USDTF\Calculator::ROUND_DOWN,
+		'retry_limit' => 5,
+	)
+);
+
+$seed_partial = get_option( \USDTF\Settings::OPTION, null );
+
+usdtf_it_assert_same( array( 'rounding', 'retry_limit' ), array_keys( (array) $seed_partial ), 'the stored option must be partial before the installer runs' );
+
+\USDTF\Installer::seed_options();
+
+$seed_upgraded = get_option( \USDTF\Settings::OPTION, null );
+
+usdtf_it_assert( is_array( $seed_upgraded ), 'an upgrade must keep a settings option' );
+usdtf_it_assert_same( \USDTF\Calculator::ROUND_DOWN, $seed_upgraded['rounding'], 'an upgrade must keep a stored rounding mode' );
+usdtf_it_assert_same( 5, $seed_upgraded['retry_limit'], 'an upgrade must keep a stored retry limit' );
+usdtf_it_assert_same( 10, $seed_upgraded['batch_size'], 'the rest of the defaults must be backfilled into the stored option' );
+usdtf_it_assert_same( true, $seed_upgraded['require_preview'], 'an upgrade must backfill the dry-run-first rule' );
+usdtf_it_assert_same( $seed_defaults['increment'], $seed_upgraded['increment'], 'an upgrade must backfill the rounding increment' );
+usdtf_it_assert_same( array(), array_keys( array_diff_key( $seed_defaults, $seed_upgraded ) ), 'an upgrade must backfill every setting' );
+
+// Put the suite's usual settings back for whatever runs next.
+usdtf_it_reset_plugin_state();
+
+usdtf_it_pass( 'a fresh install restores every default and an upgrade backfills a partial settings option' );

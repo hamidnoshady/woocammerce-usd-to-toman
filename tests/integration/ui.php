@@ -445,7 +445,7 @@ usdtf_it_assert( false !== strpos( $meta_box, '18.52' ), 'the meta box must show
 // A save without the nonce must not change anything.
 $_POST = array(
 	'usdtf_mode'           => \USDTF\Product_Pricing::MODE_EXCLUDED,
-	'usdtf_regular_price'  => '999',
+	'usdtf_source_regular' => '999',
 );
 
 $panel_object->save_product( $panel_product->get_id() );
@@ -456,9 +456,9 @@ usdtf_it_assert_same( '18.52', usdtf_it_meta( $panel_product->get_id(), \USDTF\P
 // A real save updates the mode; a stray price field is ignored, prices are edited in WooCommerce.
 $_POST = array(
 	'usdtf_panel_nonce'    => wp_create_nonce( $panel::NONCE ),
-	'usdtf_mode'          => \USDTF\Product_Pricing::MODE_EXCLUDED,
-	'usdtf_regular_price' => '5,400,000',
-	'usdtf_sale_price'    => '4,000,000',
+	'usdtf_mode'           => \USDTF\Product_Pricing::MODE_EXCLUDED,
+	'usdtf_source_regular' => '5,400,000',
+	'usdtf_source_sale'    => '4,000,000',
 );
 
 $panel_object->save_product( $panel_product->get_id() );

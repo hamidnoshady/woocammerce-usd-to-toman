@@ -192,7 +192,7 @@ try {
 	$guard_before_regular = get_post_meta( $guard_product->get_id(), \USDTF\Product_Pricing::META_USD_REGULAR, true );
 	$guard_before_sale = get_post_meta( $guard_product->get_id(), \USDTF\Product_Pricing::META_USD_SALE, true );
 	$guard_before_price = get_post_meta( $guard_product->get_id(), '_regular_price', true );
-	$guard_before_derived = get_post_meta( $guard_product->get_id(), \USDTF\Product_Pricing::META_SEEN_REGULAR, true );
+	$guard_before_seen = get_post_meta( $guard_product->get_id(), \USDTF\Product_Pricing::META_SEEN_REGULAR, true );
 	$guard_before_rate = get_post_meta( $guard_product->get_id(), \USDTF\Product_Pricing::META_RATE, true );
 	$guard_preview = usdtf_it_http( 'POST', '/preview', array( 'scope' => array() ), $usdtf_regression_header );
 	usdtf_it_assert_same( 200, $guard_preview['code'], 'guard preview must be 200' );
@@ -213,7 +213,7 @@ try {
 	usdtf_it_assert_same( (string) $guard_before_regular, (string) $after, 'guard USD regular price must remain unchanged' );
 	usdtf_it_assert_same( (string) $guard_before_sale, (string) get_post_meta( $guard_product->get_id(), \USDTF\Product_Pricing::META_USD_SALE, true ), 'guard USD sale price must remain unchanged' );
 	usdtf_it_assert_same( (string) $guard_before_price, (string) get_post_meta( $guard_product->get_id(), '_regular_price', true ), 'guard Woo price must remain unchanged' );
-	usdtf_it_assert_same( (string) $guard_before_derived, (string) get_post_meta( $guard_product->get_id(), \USDTF\Product_Pricing::META_SEEN_REGULAR, true ), 'guard seen price must remain unchanged' );
+	usdtf_it_assert_same( (string) $guard_before_seen, (string) get_post_meta( $guard_product->get_id(), \USDTF\Product_Pricing::META_SEEN_REGULAR, true ), 'guard seen price must remain unchanged' );
 	usdtf_it_assert_same( (string) $guard_before_rate, (string) get_post_meta( $guard_product->get_id(), \USDTF\Product_Pricing::META_RATE, true ), 'guard rate must remain unchanged' );
 
 	// Repeated execution: second preview/update must also leave guard untouched.
