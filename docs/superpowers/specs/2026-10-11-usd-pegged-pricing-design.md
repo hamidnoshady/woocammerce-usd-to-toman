@@ -130,7 +130,7 @@ Changed:
 - **Rounding increment**, in the store unit: Toman 1, 100, 1,000, 10,000; Rial 10, 1,000, 10,000,
   100,000. Default 1,000 Toman / 10,000 Rial.
 
-Unchanged: batch size, time budget, retry limit, retention, auto-manage new products, loopback
+Unchanged: batch size, time budget, retry limit, retention, loopback
 fallback, require preview, capability, rate-change threshold, credit line, delete data on uninstall.
 
 ## 8. Screens
