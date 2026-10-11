@@ -70,7 +70,17 @@ final class Store_Currency {
 	 * @return string `Toman`, `Rial`, or an empty string for any other currency.
 	 */
 	public static function unit_label() {
-		switch ( self::unit() ) {
+		return self::label_for( self::unit() );
+	}
+
+	/**
+	 * Translated name of a pricing unit.
+	 *
+	 * @param string $unit `toman` or `rial`.
+	 * @return string `Toman`, `Rial`, or an empty string for anything else.
+	 */
+	public static function label_for( $unit ) {
+		switch ( (string) $unit ) {
 			case self::UNIT_TOMAN:
 				return __( 'Toman', 'usd-to-toman-price-sync-for-woocommerce' );
 

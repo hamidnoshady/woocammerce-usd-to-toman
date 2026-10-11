@@ -594,6 +594,19 @@ final class Admin {
 			);
 		}
 
+		// A rate saved in the other unit refuses every job until it is saved again.
+		$unit_changed = $this->runner->unit_changed_error();
+
+		if ( $unit_changed && ( $on_own_screen || ( $screen && 'product' === $screen->post_type ) ) ) {
+			printf(
+				'<div class="notice notice-error"><p><strong>%s</strong> %s <a href="%s">%s</a></p></div>',
+				esc_html__( 'USD/Toman pricing:', 'usd-to-toman-price-sync-for-woocommerce' ),
+				esc_html( $unit_changed->get_error_message() ),
+				esc_url( admin_url( 'admin.php?page=' . self::PAGE ) ),
+				esc_html__( 'Save the exchange rate', 'usd-to-toman-price-sync-for-woocommerce' )
+			);
+		}
+
 		if ( $on_own_screen && \USDTF\Scheduler::BACKEND_ACTION_SCHEDULER !== $this->scheduler->backend() ) {
 			$health = $this->scheduler->health();
 

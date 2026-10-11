@@ -17,8 +17,10 @@ defined( 'ABSPATH' ) || exit;
 
 $usdtf_rate_label = Admin::rate_label();
 $usdtf_supported  = ! empty( $state['store_currency']['supported'] );
-// Jobs are refused while the store currency is not Toman or Rial.
-$usdtf_disabled   = $usdtf_supported ? '' : ' disabled="disabled"';
+$usdtf_unit_error = isset( $state['unit_changed'] ) ? (string) $state['unit_changed'] : '';
+// Jobs are refused while the store currency is not Toman or Rial, and while
+// the rate was saved in the other unit.
+$usdtf_disabled   = $usdtf_supported && '' === $usdtf_unit_error ? '' : ' disabled="disabled"';
 $usdtf_rate       = (float) $state['rate'];
 $usdtf_pending    = $state['pending_rate'];
 $usdtf_summary    = $state['summary'];
@@ -55,6 +57,10 @@ $usdtf_types = array(
 			</span>
 			<span class="usdtf-rate-unit"><?php echo esc_html( $usdtf_rate_label ); ?></span>
 		</p>
+
+		<?php if ( '' !== $usdtf_unit_error ) : ?>
+			<p class="usdtf-unit-changed notice notice-error inline"><?php echo esc_html( $usdtf_unit_error ); ?></p>
+		<?php endif; ?>
 
 		<p class="usdtf-meta">
 			<?php if ( (float) $state['previous_rate'] > 0 ) : ?>

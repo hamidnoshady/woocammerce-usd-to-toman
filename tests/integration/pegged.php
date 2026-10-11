@@ -375,8 +375,12 @@ $up_toman     = array(
 
 $up_set_store( 'USD', '2', 'left' );
 delete_option( \USDTF\Database::OPTION_UPGRADE_NOTICE );
+update_option( \USDTF\Settings::OPTION_RATE, '270000', false );
+delete_option( \USDTF\Settings::OPTION_RATE_UNIT );
 
 \USDTF\Installer::maybe_upgrade();
+
+usdtf_it_assert_same( 'toman', get_option( \USDTF\Settings::OPTION_RATE_UNIT ), 'the upgrade records the old rate as a Toman rate' );
 
 usdtf_it_assert_same( $up_toman, $up_store(), 'the upgrade of a Toman-mode store persists the currency the old plugin forced at runtime' );
 usdtf_it_assert_same( 'toman', get_option( \USDTF\Database::OPTION_UPGRADE_NOTICE ), 'the upgrade of a Toman-mode store leaves a one-time notice' );
@@ -506,6 +510,17 @@ usdtf_it_assert_same( false, $up_notice, 'a fresh install leaves no upgrade noti
 list( $up_after, $up_notice ) = $up_migrate( \USDTF\Settings::defaults(), null );
 usdtf_it_assert_same( $up_usd, $up_after, 'an install already on the new settings changes no WooCommerce option' );
 usdtf_it_assert_same( false, $up_notice, 'an install already on the new settings leaves no upgrade notice' );
+
+// A rate saved before the unit was stored is adopted in the current unit.
+delete_option( \USDTF\Settings::OPTION_RATE_UNIT );
+\USDTF\Installer::seed_options();
+usdtf_it_assert_same( '', (string) get_option( \USDTF\Settings::OPTION_RATE_UNIT, '' ), 'a rate of an unsupported store gets no unit' );
+$up_set_store( 'IRR', '0', 'right_space' );
+\USDTF\Installer::seed_options();
+usdtf_it_assert_same( 'rial', get_option( \USDTF\Settings::OPTION_RATE_UNIT ), 'an existing rate adopts the current store unit' );
+$up_set_store( 'IRT', '0', 'right_space' );
+\USDTF\Installer::seed_options();
+usdtf_it_assert_same( 'rial', get_option( \USDTF\Settings::OPTION_RATE_UNIT ), 'a stored rate unit is never overwritten by the installer' );
 
 $up_set_store( 'IRT', '0', 'right_space' );
 update_option( 'woocommerce_currency_pos', 'left' );
@@ -1563,6 +1578,101 @@ usdtf_it_assert_same( true, $pg_typo['saved'], 'a move below the threshold is sa
 usdtf_it_assert_same( 280000.0, $pg_rates->get_rate(), 'the small move becomes active' );
 usdtf_it_pass( 'the rate typo guard asks for confirmation above the threshold only' );
 
+// 15. The store unit is stored with the rate: a Toman rate never prices a Rial store.
+usdtf_it_reset_plugin_state();
+usdtf_it_set_currency( 'IRT' );
+$pg_settings->update( array( 'require_preview' => true ) );
+
+$pg_u = usdtf_it_make_priced_product( 'Pegged unit guard', 5000000 )->get_id();
+$pg_rates->save_rate( 250000 );
+$pg_rates->save_rate( 270000 );
+usdtf_it_assert_same( 'toman', $pg_rates->rate_unit(), 'saving a rate records the store unit' );
+
+$pg_u_scope = array( 'ids' => array( $pg_u ) );
+usdtf_it_assert(
+	\USDTF\Sync_Runner::job_fingerprint( 270000, $pg_round, $pg_u_scope, 'toman' ) !== \USDTF\Sync_Runner::job_fingerprint( 270000, $pg_round, $pg_u_scope, 'rial' ),
+	'the job fingerprint differs by store unit'
+);
+usdtf_it_assert_same(
+	\USDTF\Sync_Runner::job_fingerprint( 270000, $pg_round, $pg_u_scope, 'toman' ),
+	\USDTF\Sync_Runner::job_fingerprint( 270000, $pg_round, $pg_u_scope ),
+	'the job fingerprint uses the store unit by default'
+);
+
+$pg_u_preview = $pg_preview( array( $pg_u ) );
+usdtf_it_assert_same( 'toman', $pg_jobs->get( $pg_u_preview )->data['unit'], 'a job records the store unit' );
+
+// The owner switches the store to Rial: every job kind is refused.
+$pg_u_admins = get_users(
+	array(
+		'role'   => 'administrator',
+		'number' => 1,
+		'fields' => 'ID',
+	)
+);
+wp_set_current_user( $pg_u_admins ? (int) $pg_u_admins[0] : 0 );
+usdtf_it_set_currency( 'IRR' );
+$pg_u_jobs  = count( $pg_jobs->query( array( 'limit' => 200 ) ) );
+$pg_u_meta  = get_post_meta( $pg_u );
+$pg_u_tries = array(
+	'preview'     => function () use ( $runner, $pg_u_scope ) {
+		return $runner->preview( array( 'scope' => $pg_u_scope ) );
+	},
+	'update'      => function () use ( $runner, $pg_u_scope ) {
+		return $runner->create_job( array( 'scope' => $pg_u_scope ) );
+	},
+	'recalculate' => function () use ( $runner, $pg_u ) {
+		return $runner->recalculate( array( $pg_u ) );
+	},
+	'rollback'    => function () use ( $runner ) {
+		return $runner->rollback();
+	},
+	'REST update' => function () {
+		$response = usdtf_it_rest( 'POST', '/update', array( 'scope' => array( 'ids' => array() ) ) );
+
+		return $response instanceof \WP_REST_Response && $response->is_error() ? $response->as_error() : $response;
+	},
+);
+
+foreach ( $pg_u_tries as $pg_u_kind => $pg_u_try ) {
+	$pg_refused = $pg_u_try();
+	usdtf_it_assert( is_wp_error( $pg_refused ), 'a ' . $pg_u_kind . ' is refused after the store unit changed' );
+	usdtf_it_assert_same( 'usdtf_unit_changed', $pg_refused->get_error_code(), 'a ' . $pg_u_kind . ' names the unit change' );
+	usdtf_it_assert_same( 400, $pg_refused->get_error_data()['status'], 'the ' . $pg_u_kind . ' refusal is a 400' );
+	usdtf_it_assert( false !== strpos( $pg_refused->get_error_message(), 'from Toman to Rial' ), 'the ' . $pg_u_kind . ' refusal says which units' );
+}
+
+usdtf_it_assert_same( 270000.0, $pg_rates->get_rate(), 'a refused rollback does not restore the previous rate' );
+usdtf_it_assert_same( 'toman', $pg_rates->rate_unit(), 'a refused rollback keeps the stored unit' );
+usdtf_it_assert_same( $pg_u_jobs, count( $pg_jobs->query( array( 'limit' => 200 ) ) ), 'a refused job leaves no job row' );
+usdtf_it_assert_same( $pg_u_meta, get_post_meta( $pg_u ), 'a refused job writes nothing' );
+
+$pg_u_state = usdtf_it_rest_data( usdtf_it_rest( 'GET', '/state' ) );
+usdtf_it_assert( false !== strpos( (string) $pg_u_state['unit_changed'], 'from Toman to Rial' ), 'the state payload announces the unit change' );
+
+// The same number saved again in Rial: jobs run, but the Toman dry run does not count.
+$pg_rates->save_rate( 270000 );
+usdtf_it_assert_same( 'rial', $pg_rates->rate_unit(), 'saving the rate again records the new unit' );
+usdtf_it_assert_same( '', usdtf_it_rest_data( usdtf_it_rest( 'GET', '/state' ) )['unit_changed'], 'saving the rate again clears the unit change' );
+usdtf_it_assert_same( 0.0, $pg_rates->previous_rate(), 'a rate of the other unit is no previous rate to roll back to' );
+usdtf_it_assert_same( 'usdtf_no_previous_rate', $runner->rollback()->get_error_code(), 'a rollback cannot restore a rate of the other unit' );
+
+$pg_refused = $runner->create_job( array( 'scope' => $pg_u_scope ) );
+usdtf_it_assert_same( 'usdtf_preview_required', is_wp_error( $pg_refused ) ? $pg_refused->get_error_code() : '', 'a Toman dry run never unlocks a Rial update' );
+
+$pg_u_job = $pg_sync( array( $pg_u ) );
+usdtf_it_assert_same( 'rial', $pg_jobs->get( $pg_u_job )->data['unit'], 'the Rial update records the Rial unit' );
+usdtf_it_assert_same( 'generated', $pg_status( $pg_u_job, $pg_u ), 'saving the rate again in the new unit re-enables jobs' );
+
+$pg_rates->save_rate( 280000 );
+usdtf_it_assert_same( 270000.0, $pg_rates->previous_rate(), 'a later rate in the same unit can be rolled back to' );
+
+wp_set_current_user( 0 );
+usdtf_it_set_currency( 'IRT' );
+$pg_settings->update( array( 'require_preview' => false ) );
+usdtf_it_reset_plugin_state();
+usdtf_it_pass( 'a store unit change after the rate was saved refuses every job until the rate is saved again' );
+
 // ---------------------------------------------------------------------------
 // Admin screens, REST payloads and the CSV export.
 // ---------------------------------------------------------------------------
@@ -1747,7 +1857,24 @@ usdtf_it_assert( false !== strpos( $pa_notices, 'Set the store currency to Irani
 $pa_html = $pa_render( 'dashboard' );
 usdtf_it_assert( 1 === preg_match( '#id="usdtf-start-update"[^>]*disabled#', $pa_html ), 'the update button is disabled in a USD store' );
 usdtf_it_assert( 1 === preg_match( '#id="usdtf-start-preview"[^>]*disabled#', $pa_html ), 'the dry run button is disabled in a USD store' );
+
+// The same for a store unit that changed after the rate was saved.
+usdtf_it_set_currency( 'IRR' );
+ob_start();
+$pa_admin->render_notices();
+$pa_notices = (string) ob_get_clean();
+usdtf_it_assert( false !== strpos( $pa_notices, 'The store currency unit changed from Toman to Rial' ), 'a unit change is announced in an admin notice' );
+
+$pa_html = $pa_render( 'dashboard' );
+usdtf_it_assert( 1 === preg_match( '#usdtf-card--rate.*The store currency unit changed from Toman to Rial.*id="usdtf-rate-form"#s', $pa_html ), 'the dashboard announces the unit change next to the rate' );
+usdtf_it_assert( 1 === preg_match( '#id="usdtf-start-update"[^>]*disabled#', $pa_html ), 'the update button is disabled after a unit change' );
+usdtf_it_assert( 1 === preg_match( '#id="usdtf-preview-rate"[^>]*disabled#', $pa_html ), 'the rate preview button is disabled after a unit change' );
+usdtf_it_assert( 0 === preg_match( '#id="usdtf-save-rate"[^>]*disabled#', $pa_html ), 'the rate can still be saved after a unit change' );
+
 usdtf_it_set_currency( 'IRT' );
+ob_start();
+$pa_admin->render_notices();
+usdtf_it_assert( false === strpos( (string) ob_get_clean(), 'unit changed' ), 'a store in the unit of its rate gets no unit notice' );
 $pa_html = $pa_render( 'dashboard' );
 usdtf_it_assert( 0 === preg_match( '#id="usdtf-start-update"[^>]*disabled#', $pa_html ), 'the update button is enabled in a Toman store' );
 $GLOBALS['current_screen'] = null;

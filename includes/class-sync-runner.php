@@ -185,6 +185,12 @@ final class Sync_Runner {
 			);
 		}
 
+		$unit_changed = $this->unit_changed_error();
+
+		if ( $unit_changed ) {
+			return $unit_changed;
+		}
+
 		$args = wp_parse_args(
 			$args,
 			array(
@@ -435,7 +441,8 @@ final class Sync_Runner {
 					'increment' => (float) $candidate->data['increment'],
 					'decimals'  => (int) $candidate->data['decimals'],
 				),
-				$this->products->normalize_scope( $candidate->scope() )
+				$this->products->normalize_scope( $candidate->scope() ),
+				isset( $candidate->data['unit'] ) ? (string) $candidate->data['unit'] : ''
 			);
 
 			if ( $preview_fingerprint === $fingerprint ) {
@@ -454,14 +461,44 @@ final class Sync_Runner {
 	}
 
 	/**
+	 * The refusal every job gets while the store unit differs from the unit
+	 * the rate was saved in.
+	 *
+	 * A Toman rate applied to a Rial store (or the other way round) would set
+	 * every price ten times off. Saving the rate again records the new unit.
+	 *
+	 * @return \WP_Error|null Null when the units match or one of them is not known.
+	 */
+	public function unit_changed_error() {
+		$saved   = $this->rates->rate_unit();
+		$current = Store_Currency::unit();
+
+		if ( '' === $saved || '' === $current || $saved === $current ) {
+			return null;
+		}
+
+		return new \WP_Error(
+			'usdtf_unit_changed',
+			sprintf(
+				/* translators: 1: unit the rate was saved in (Toman or Rial), 2: unit of the store currency now (Toman or Rial). */
+				__( 'The store currency unit changed from %1$s to %2$s since the rate was saved. Save the rate again in the new unit.', 'usd-to-toman-price-sync-for-woocommerce' ),
+				Store_Currency::label_for( $saved ),
+				Store_Currency::label_for( $current )
+			),
+			array( 'status' => 400 )
+		);
+	}
+
+	/**
 	 * Fingerprint of what a job would do, used to match a preview to an update.
 	 *
-	 * @param float $rate     Rate.
-	 * @param array $rounding Rounding arguments: rounding, increment, decimals.
-	 * @param array $scope    Normalized scope.
+	 * @param float       $rate     Rate.
+	 * @param array       $rounding Rounding arguments: rounding, increment, decimals.
+	 * @param array       $scope    Normalized scope.
+	 * @param string|null $unit     Store unit the job prices in; null for the current one.
 	 * @return string
 	 */
-	public static function job_fingerprint( $rate, array $rounding, array $scope ) {
+	public static function job_fingerprint( $rate, array $rounding, array $scope, $unit = null ) {
 		unset( $scope['label'] );
 
 		ksort( $scope );
@@ -469,6 +506,7 @@ final class Sync_Runner {
 		return md5(
 			wp_json_encode(
 				array(
+					'unit'      => null === $unit ? Store_Currency::unit() : (string) $unit,
 					'rate'      => round( (float) $rate, 6 ),
 					'rounding'  => (string) $rounding['rounding'],
 					'increment' => (float) $rounding['increment'],
@@ -1730,6 +1768,14 @@ final class Sync_Runner {
 	 * @return array|\WP_Error
 	 */
 	public function rollback() {
+		// Checked before the previous rate is saved: saving it would record the
+		// new unit and clear the guard with a rate of the old one.
+		$unit_changed = $this->unit_changed_error();
+
+		if ( $unit_changed ) {
+			return $unit_changed;
+		}
+
 		$previous = $this->rates->previous_rate();
 
 		if ( $previous <= 0 ) {
@@ -1962,6 +2008,7 @@ final class Sync_Runner {
 
 		$preview_required = (bool) $this->settings->get( 'require_preview' );
 		$preview_ok       = false;
+		$unit_changed     = $this->unit_changed_error();
 
 		$rounding = $this->settings->rounding_args();
 
@@ -1982,7 +2029,8 @@ final class Sync_Runner {
 						'increment' => (float) $candidate->data['increment'],
 						'decimals'  => (int) $candidate->data['decimals'],
 					),
-					$this->products->normalize_scope( $candidate->scope() )
+					$this->products->normalize_scope( $candidate->scope() ),
+					isset( $candidate->data['unit'] ) ? (string) $candidate->data['unit'] : ''
 				);
 
 				if ( $candidate_fingerprint === $fingerprint ) {
@@ -2009,6 +2057,7 @@ final class Sync_Runner {
 			'last_preview_job' => $preview_job ? $preview_job->to_array() : null,
 			'preview_required' => $preview_required,
 			'preview_ok'       => $preview_ok,
+			'unit_changed'     => $unit_changed ? $unit_changed->get_error_message() : '',
 			'lock'             => $this->lock->status(),
 			'scheduler'        => $this->scheduler->health(),
 			'settings'         => array(

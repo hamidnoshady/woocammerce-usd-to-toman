@@ -190,6 +190,19 @@
 		return ! state.store_currency || !! state.store_currency.supported;
 	}
 
+	/**
+	 * Why no job can start right now, or an empty string when one can: the
+	 * store currency is not Toman or Rial, or the rate was saved in the other
+	 * unit (the server sends the translated message).
+	 */
+	function jobBlocker() {
+		if ( ! currencySupported() ) {
+			return __( 'Set the store currency to Iranian Toman or Rial', 'usd-to-toman-price-sync-for-woocommerce' );
+		}
+
+		return state.unit_changed ? String( state.unit_changed ) : '';
+	}
+
 	function statusLabel( status ) {
 		var map = {
 			changed: __( 'Updated', 'usd-to-toman-price-sync-for-woocommerce' ),
@@ -456,8 +469,8 @@
 	function startJob( path, extra ) {
 		var payload = { scope: collectScope() };
 
-		if ( ! currencySupported() ) {
-			toast( __( 'Set the store currency to Iranian Toman or Rial', 'usd-to-toman-price-sync-for-woocommerce' ), true );
+		if ( jobBlocker() ) {
+			toast( jobBlocker(), true );
 
 			return Promise.resolve( null );
 		}
@@ -838,12 +851,13 @@
 	}
 
 	/**
-	 * Jobs are refused while the store currency is not Toman or Rial, so the
-	 * buttons that start one stay disabled. The server renders them disabled
-	 * too; this also covers the rate form's preview button.
+	 * Jobs are refused while the store currency is not Toman or Rial, or while
+	 * the rate was saved in the other unit, so the buttons that start one stay
+	 * disabled. The server renders them disabled too; this also covers the
+	 * rate form's preview button.
 	 */
 	function initCurrencyGuard() {
-		if ( currencySupported() ) {
+		if ( ! jobBlocker() ) {
 			return;
 		}
 

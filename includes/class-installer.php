@@ -161,6 +161,11 @@ final class Installer {
 			return;
 		}
 
+		// The old plugin's rate was always Toman per 1 USD, in either mode.
+		if ( (float) get_option( Settings::OPTION_RATE, 0 ) > 0 ) {
+			update_option( Settings::OPTION_RATE_UNIT, Store_Currency::UNIT_TOMAN, false );
+		}
+
 		// The old sanitizer kept only `usd` and `toman` and read anything else,
 		// a missing key included, as Toman.
 		$mode = isset( $stored['currency_mode'] ) && 'usd' === $stored['currency_mode'] ? 'usd' : 'toman';
@@ -217,6 +222,7 @@ final class Installer {
 			rounding varchar(12) NOT NULL DEFAULT 'up',
 			increment decimal(20,4) NOT NULL DEFAULT 1,
 			decimals smallint(3) NOT NULL DEFAULT 0,
+			unit varchar(8) NOT NULL DEFAULT '',
 			total_items bigint(20) unsigned NOT NULL DEFAULT 0,
 			processed bigint(20) unsigned NOT NULL DEFAULT 0,
 			`generated` bigint(20) unsigned NOT NULL DEFAULT 0,
@@ -333,6 +339,12 @@ final class Installer {
 			update_option( Settings::OPTION_RATE, '0', false );
 		}
 
+		// A rate saved before the unit was stored with it is taken to be in the
+		// store's current unit, so the unit change guard does not lock it out.
+		if ( (float) get_option( Settings::OPTION_RATE, 0 ) > 0 && '' === (string) get_option( Settings::OPTION_RATE_UNIT, '' ) && Store_Currency::is_supported() ) {
+			update_option( Settings::OPTION_RATE_UNIT, Store_Currency::unit(), false );
+		}
+
 		Scheduler::ensure_token();
 	}
 
@@ -366,6 +378,7 @@ final class Installer {
 			Settings::OPTION,
 			Settings::OPTION_RATE,
 			Settings::OPTION_PENDING_RATE,
+			Settings::OPTION_RATE_UNIT,
 			self::VERSION_OPTION,
 			Lock::OPTION,
 			Scheduler::TOKEN_OPTION,

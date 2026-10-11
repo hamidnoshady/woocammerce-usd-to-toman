@@ -30,6 +30,11 @@ final class Settings {
 	const OPTION_PENDING_RATE = 'usdtf_pending_rate';
 
 	/**
+	 * Option holding the store unit (`toman` or `rial`) the saved rate is in.
+	 */
+	const OPTION_RATE_UNIT = 'usdtf_rate_unit';
+
+	/**
 	 * Cached settings array.
 	 *
 	 * @var array|null

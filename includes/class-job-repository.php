@@ -121,6 +121,7 @@ final class Job_Repository {
 				'rounding'      => Calculator::ROUND_UP,
 				'increment'     => 1,
 				'decimals'      => 0,
+				'unit'          => Store_Currency::unit(),
 				'user_id'       => get_current_user_id(),
 				'phase'         => Job::PHASE_DISCOVER,
 			)
@@ -139,12 +140,13 @@ final class Job_Repository {
 				'rounding'      => (string) $args['rounding'],
 				'increment'     => (float) $args['increment'],
 				'decimals'      => (int) $args['decimals'],
+				'unit'          => (string) $args['unit'],
 				'phase'         => (string) $args['phase'],
 				'user_id'       => (int) $args['user_id'],
 				'created_at'    => $now,
 				'updated_at'    => $now,
 			),
-			array( '%s', '%s', '%s', '%f', '%f', '%s', '%f', '%d', '%s', '%d', '%s', '%s' )
+			array( '%s', '%s', '%s', '%f', '%f', '%s', '%f', '%d', '%s', '%s', '%d', '%s', '%s' )
 		);
 	}
 
