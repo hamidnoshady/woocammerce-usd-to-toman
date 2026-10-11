@@ -288,6 +288,8 @@ final class Job {
 		return array(
 			'total'                => (int) $this->data['total_items'],
 			'processed'            => (int) $this->data['processed'],
+			'generated'            => (int) $this->data['generated'],
+			'rebased'              => (int) $this->data['rebased'],
 			'changed'              => (int) $this->data['changed'],
 			'unchanged'            => (int) $this->data['unchanged'],
 			'skipped'              => (int) $this->data['skipped'],
@@ -314,7 +316,6 @@ final class Job {
 			'phase'         => $this->phase(),
 			'rate'          => $this->rate(),
 			'previous_rate' => isset( $this->data['previous_rate'] ) && '' !== $this->data['previous_rate'] ? (float) $this->data['previous_rate'] : null,
-			'currency_mode' => (string) $this->data['currency_mode'],
 			'rounding'      => (string) $this->data['rounding'],
 			'increment'     => (float) $this->data['increment'],
 			'decimals'      => (int) $this->data['decimals'],

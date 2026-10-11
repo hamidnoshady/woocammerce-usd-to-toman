@@ -20,7 +20,22 @@ final class Database {
 	/**
 	 * Current schema version.
 	 */
-	const SCHEMA_VERSION = '5';
+	const SCHEMA_VERSION = '7';
+
+	/**
+	 * Options from earlier versions that the upgrade step and the uninstall
+	 * routine remove.
+	 *
+	 * @var string[]
+	 */
+	const OBSOLETE_OPTIONS = array( 'usdtf_synced_currency_mode' );
+
+	/**
+	 * Option holding the one-time notice the 1.2.0 upgrade leaves for the
+	 * store owner: `toman`, `toman_review` or `usd`, after the old currency
+	 * mode. Removed when the notice is dismissed and on uninstall.
+	 */
+	const OPTION_UPGRADE_NOTICE = 'usdtf_upgrade_notice';
 
 	/**
 	 * Fully qualified table name.

@@ -7,7 +7,9 @@
 
 namespace USDTF\Admin;
 
+use USDTF\Calculator;
 use USDTF\Capabilities;
+use USDTF\Database;
 use USDTF\Health;
 use USDTF\Job;
 use USDTF\Job_Repository;
@@ -17,6 +19,7 @@ use USDTF\Product_Repository;
 use USDTF\Rate_Repository;
 use USDTF\Scheduler;
 use USDTF\Settings;
+use USDTF\Store_Currency;
 use USDTF\Sync_Runner;
 
 defined( 'ABSPATH' ) || exit;
@@ -35,6 +38,16 @@ final class Admin {
 	 * Option group used by the settings screen.
 	 */
 	const OPTION_GROUP = 'usdtf_settings_group';
+
+	/**
+	 * Action of the admin-post request and its nonce that dismiss the upgrade notice.
+	 */
+	const DISMISS_UPGRADE_NOTICE = 'usdtf_dismiss_upgrade_notice';
+
+	/**
+	 * Header of the job items CSV export.
+	 */
+	const ITEMS_CSV_HEADER = array( 'product_id', 'parent_id', 'object_type', 'status', 'usd_regular', 'usd_sale', 'old_price', 'new_price', 'attempts', 'message' );
 
 	/**
 	 * Settings.
@@ -144,6 +157,7 @@ final class Admin {
 		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_assets' ) );
 		add_action( 'admin_notices', array( $this, 'render_notices' ) );
 		add_action( 'admin_post_usdtf_export', array( $this, 'export_csv' ) );
+		add_action( 'admin_post_' . self::DISMISS_UPGRADE_NOTICE, array( $this, 'dismiss_upgrade_notice' ) );
 
 		add_filter(
 			'plugin_action_links_' . USDTF_BASENAME,
@@ -254,7 +268,7 @@ final class Admin {
 
 		$job_id = isset( $_GET['job'] ) ? (int) $_GET['job'] : 0; // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read only display parameter.
 
-		$state = $this->runner->state();
+		$state = $this->state();
 
 		$state['preview_scope'] = $this->preview_scope();
 
@@ -269,7 +283,6 @@ final class Admin {
 				'nonce'         => wp_create_nonce( 'wp_rest' ),
 				'jobId'         => $job_id,
 				'state'         => $state,
-				'currencyMode'  => (string) $this->settings->get( 'currency_mode' ),
 				// JavaScript translation JSON is not guaranteed to be generated or
 				// installed with a custom plugin. Ship every dynamic admin string
 				// through PHP as well, so the bundled MO catalogue translates the
@@ -286,7 +299,7 @@ final class Admin {
 					'unknownProduct'  => __( 'Unknown product', 'usd-to-toman-price-sync-for-woocommerce' ),
 					'currentProduct'  => __( 'Currently processing', 'usd-to-toman-price-sync-for-woocommerce' ),
 					'lastProduct'     => __( 'Last product', 'usd-to-toman-price-sync-for-woocommerce' ),
-					'rateSuffix'      => __( 'Toman / USD', 'usd-to-toman-price-sync-for-woocommerce' ),
+					'rateSuffix'      => self::rate_label(),
 					'alreadyRunning'  => __( 'Another price update is already running. Showing it instead.', 'usd-to-toman-price-sync-for-woocommerce' ),
 				),
 			)
@@ -305,11 +318,12 @@ final class Admin {
 	 */
 	private function javascript_strings() {
 		$messages = array(
-			'A dry run with the same rate, transaction currency, rounding settings and scope is required first.',
+			'A dry run with the same rate, rounding settings and scope is required first.',
 			'Another price update is already running. Showing it instead.',
+			'Attempts: %d',
 			'Cancel',
 			'Cancel this job? Prices that were already written are kept.',
-			'Changed',
+			'Conflict',
 			'Conflicts',
 			'Currently processing',
 			'Done.',
@@ -320,22 +334,29 @@ final class Admin {
 			'Failed',
 			'Job #%1$d finished: %2$s',
 			'Last product',
+			'No items match this filter.',
 			'OK',
 			'Pause',
+			'Product #%d',
 			'Rate %1$s → %2$s (%3$s%%). Managed products that would be affected: about %4$s.',
+			'Re-based',
 			'Remove',
 			'Restore the previous exchange rate and recalculate all managed products?',
 			'Resume',
 			'Select at least one product first.',
+			'Set the store currency to Iranian Toman or Rial',
 			'Skipped',
 			'Something went wrong. Please check the log for details.',
 			'Start the background price update now?',
 			'The background job was queued.',
 			'The REST route %s was not found on this site. Open the Diagnostics tab to see which routes are missing, then resave the permalink settings or reinstall the plugin.',
-			'Toman / USD',
 			'Unchanged',
 			'Unknown product',
+			'Updated',
+			'USD set',
+			'variation',
 			'Variations',
+			'Variations processed: %1$d / %2$d',
 			'View details',
 			'Working…',
 		);
@@ -364,6 +385,135 @@ final class Admin {
 	}
 
 	/**
+	 * The engine state plus the store currency, as the screens and the script use it.
+	 *
+	 * @return array
+	 */
+	private function state() {
+		$state = $this->runner->state();
+
+		$state['store_currency'] = self::store_currency();
+
+		return $state;
+	}
+
+	/**
+	 * The store currency as the REST state and the screens describe it.
+	 *
+	 * @return array{code:string, unit:string, label:string, supported:bool}
+	 */
+	public static function store_currency() {
+		return array(
+			'code'      => Store_Currency::code(),
+			'unit'      => Store_Currency::unit(),
+			'label'     => Store_Currency::unit_label(),
+			'supported' => Store_Currency::is_supported(),
+		);
+	}
+
+	/**
+	 * Name of the store currency with its code, such as "Toman (IRT)".
+	 *
+	 * @return string The bare currency code when the currency is not supported.
+	 */
+	public static function currency_label() {
+		if ( ! Store_Currency::is_supported() ) {
+			return Store_Currency::code();
+		}
+
+		return sprintf(
+			/* translators: 1: unit name (Toman or Rial), 2: WooCommerce currency code (IRT or IRR). */
+			__( '%1$s (%2$s)', 'usd-to-toman-price-sync-for-woocommerce' ),
+			Store_Currency::unit_label(),
+			Store_Currency::code()
+		);
+	}
+
+	/**
+	 * Unit of the exchange rate: "Toman per 1 USD" or "Rial per 1 USD".
+	 *
+	 * @return string
+	 */
+	public static function rate_label() {
+		if ( Store_Currency::UNIT_RIAL === Store_Currency::unit() ) {
+			return __( 'Rial per 1 USD', 'usd-to-toman-price-sync-for-woocommerce' );
+		}
+
+		return __( 'Toman per 1 USD', 'usd-to-toman-price-sync-for-woocommerce' );
+	}
+
+	/**
+	 * Filter tabs of a job's items: item status => label.
+	 *
+	 * @return array<string,string>
+	 */
+	public static function item_status_tabs() {
+		return array(
+			Job_Repository::ITEM_CHANGED   => __( 'Updated', 'usd-to-toman-price-sync-for-woocommerce' ),
+			Job_Repository::ITEM_GENERATED => __( 'USD set', 'usd-to-toman-price-sync-for-woocommerce' ),
+			Job_Repository::ITEM_REBASED   => __( 'Re-based', 'usd-to-toman-price-sync-for-woocommerce' ),
+			Job_Repository::ITEM_UNCHANGED => __( 'Unchanged', 'usd-to-toman-price-sync-for-woocommerce' ),
+			Job_Repository::ITEM_SKIPPED   => __( 'Skipped', 'usd-to-toman-price-sync-for-woocommerce' ),
+			Job_Repository::ITEM_FAILED    => __( 'Failed', 'usd-to-toman-price-sync-for-woocommerce' ),
+			Job_Repository::ITEM_CONFLICT  => __( 'Conflicts', 'usd-to-toman-price-sync-for-woocommerce' ),
+		);
+	}
+
+	/**
+	 * Job counters shown in the progress cards: counter key => label.
+	 *
+	 * @return array<string,string>
+	 */
+	public static function counter_labels() {
+		return array(
+			'changed'   => __( 'Updated', 'usd-to-toman-price-sync-for-woocommerce' ),
+			'generated' => __( 'USD set', 'usd-to-toman-price-sync-for-woocommerce' ),
+			'rebased'   => __( 'Re-based', 'usd-to-toman-price-sync-for-woocommerce' ),
+			'unchanged' => __( 'Unchanged', 'usd-to-toman-price-sync-for-woocommerce' ),
+			'skipped'   => __( 'Skipped', 'usd-to-toman-price-sync-for-woocommerce' ),
+			'failed'    => __( 'Failed', 'usd-to-toman-price-sync-for-woocommerce' ),
+			'conflicts' => __( 'Conflicts', 'usd-to-toman-price-sync-for-woocommerce' ),
+		);
+	}
+
+	/**
+	 * Label of one item status, as shown in a row of the items table.
+	 *
+	 * @param string $status Item status.
+	 * @return string
+	 */
+	public static function item_status_label( $status ) {
+		if ( Job_Repository::ITEM_CONFLICT === $status ) {
+			return __( 'Conflict', 'usd-to-toman-price-sync-for-woocommerce' );
+		}
+
+		$tabs = self::item_status_tabs();
+
+		return isset( $tabs[ $status ] ) ? $tabs[ $status ] : (string) $status;
+	}
+
+	/**
+	 * A regular price and its sale price as display text, "regular / sale".
+	 *
+	 * @param mixed  $regular  Regular price, null or empty for none.
+	 * @param mixed  $sale     Sale price, null or empty for none.
+	 * @param int    $decimals Decimal places.
+	 * @param string $prefix   Text put before each amount, such as "$".
+	 * @return string An em dash when there is no price at all.
+	 */
+	public static function format_price_pair( $regular, $sale, $decimals, $prefix = '' ) {
+		$parts = array();
+
+		foreach ( array( $regular, $sale ) as $amount ) {
+			if ( null !== $amount && '' !== $amount ) {
+				$parts[] = $prefix . Calculator::format_price( $amount, $decimals );
+			}
+		}
+
+		return $parts ? implode( ' / ', $parts ) : '—';
+	}
+
+	/**
 	 * Render the plugin screen.
 	 *
 	 * @return void
@@ -380,7 +530,7 @@ final class Admin {
 		}
 
 		$page        = self::PAGE;
-		$state       = $this->runner->state();
+		$state       = $this->state();
 		$rates       = $this->rates;
 		$jobs        = $this->jobs;
 		$products    = $this->products;
@@ -427,16 +577,33 @@ final class Admin {
 			return;
 		}
 
+		$this->render_upgrade_notice();
+
 		$screen        = function_exists( 'get_current_screen' ) ? get_current_screen() : null;
 		$on_own_screen = $screen && false !== strpos( (string) $screen->id, self::PAGE );
 
-		if ( $this->settings->currency_mode_is_stale() && ( $on_own_screen || ( $screen && 'product' === $screen->post_type ) ) ) {
+		// The plugin prices in the WooCommerce currency and refuses every job
+		// unless that is Toman or Rial: say so where its screens are used.
+		if ( ! Store_Currency::is_supported() && ( $on_own_screen || ( $screen && 'product' === $screen->post_type ) ) ) {
 			printf(
-				'<div class="notice notice-warning"><p><strong>%s</strong> %s <a href="%s">%s</a></p></div>',
+				'<div class="notice notice-error"><p><strong>%s</strong> %s <a href="%s">%s</a></p></div>',
 				esc_html__( 'USD/Toman pricing:', 'usd-to-toman-price-sync-for-woocommerce' ),
-				esc_html__( 'the transaction currency changed after the last full update, so the stored price fields no longer match. Run a full update to rewrite them.', 'usd-to-toman-price-sync-for-woocommerce' ),
+				esc_html__( 'Set the store currency to Iranian Toman or Rial', 'usd-to-toman-price-sync-for-woocommerce' ),
+				esc_url( admin_url( 'admin.php?page=wc-settings' ) ),
+				esc_html__( 'Open the WooCommerce currency settings', 'usd-to-toman-price-sync-for-woocommerce' )
+			);
+		}
+
+		// A rate saved in the other unit refuses every job until it is saved again.
+		$unit_changed = $this->runner->unit_changed_error();
+
+		if ( $unit_changed && ( $on_own_screen || ( $screen && 'product' === $screen->post_type ) ) ) {
+			printf(
+				'<div class="notice notice-error"><p><strong>%s</strong> %s <a href="%s">%s</a></p></div>',
+				esc_html__( 'USD/Toman pricing:', 'usd-to-toman-price-sync-for-woocommerce' ),
+				esc_html( $unit_changed->get_error_message() ),
 				esc_url( admin_url( 'admin.php?page=' . self::PAGE ) ),
-				esc_html__( 'Run the update', 'usd-to-toman-price-sync-for-woocommerce' )
+				esc_html__( 'Save the exchange rate', 'usd-to-toman-price-sync-for-woocommerce' )
 			);
 		}
 
@@ -451,18 +618,69 @@ final class Admin {
 				);
 			}
 		}
+	}
 
-		$override = get_transient( 'usdtf_manual_override_' . get_current_user_id() );
+	/**
+	 * The one-time notice the 1.2.0 upgrade left, until it is dismissed.
+	 *
+	 * Shown on every admin screen to the users who run the plugin. The caller
+	 * has checked the capability.
+	 *
+	 * @return void
+	 */
+	private function render_upgrade_notice() {
+		$kind = (string) get_option( Database::OPTION_UPGRADE_NOTICE, '' );
 
-		if ( $override ) {
-			delete_transient( 'usdtf_manual_override_' . get_current_user_id() );
+		switch ( $kind ) {
+			case 'toman':
+			case 'toman_review':
+				$class   = 'notice-warning';
+				$message = __( 'The store currency was set to Iranian Toman (IRT, no decimals) to keep the storefront as it was. Earlier versions applied this only while the plugin was active; it is now a normal WooCommerce setting.', 'usd-to-toman-price-sync-for-woocommerce' );
 
-			printf(
-				'<div class="notice notice-warning is-dismissible"><p><strong>%s</strong> %s</p></div>',
-				esc_html__( 'USD/Toman pricing:', 'usd-to-toman-price-sync-for-woocommerce' ),
-				esc_html__( 'a manual price change on a managed product was reverted, because in USD mode the price fields are calculated from the Toman source price. Edit the Toman price instead, or switch the product to “Native USD”.', 'usd-to-toman-price-sync-for-woocommerce' )
-			);
+				if ( 'toman_review' === $kind ) {
+					$message .= ' ' . __( 'Your prices were last written for the removed USD-store mode, so review them before you run an update. The Toman prices are kept in hidden product meta (_usdtf_source_regular and _usdtf_source_sale).', 'usd-to-toman-price-sync-for-woocommerce' );
+				}
+				break;
+
+			case 'usd':
+				$class   = 'notice-error';
+				$message = __( 'The USD-store mode was removed. Set the WooCommerce store currency to Iranian Toman or Rial and review your prices; the plugin does not update prices until then. The old Toman prices are kept in hidden product meta (_usdtf_source_regular and _usdtf_source_sale).', 'usd-to-toman-price-sync-for-woocommerce' );
+				break;
+
+			default:
+				return;
 		}
+
+		printf(
+			'<div class="notice %1$s"><p><strong>%2$s</strong> %3$s</p><p><a href="%4$s">%5$s</a> | <a href="%6$s">%7$s</a></p></div>',
+			esc_attr( $class ),
+			esc_html__( 'USD/Toman pricing:', 'usd-to-toman-price-sync-for-woocommerce' ),
+			esc_html( $message ),
+			esc_url( admin_url( 'admin.php?page=wc-settings' ) ),
+			esc_html__( 'Open the WooCommerce currency settings', 'usd-to-toman-price-sync-for-woocommerce' ),
+			esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=' . self::DISMISS_UPGRADE_NOTICE ), self::DISMISS_UPGRADE_NOTICE ) ),
+			esc_html__( 'Dismiss this notice', 'usd-to-toman-price-sync-for-woocommerce' )
+		);
+	}
+
+	/**
+	 * Dismiss the upgrade notice for good, then go back where the user was.
+	 *
+	 * @return void
+	 */
+	public function dismiss_upgrade_notice() {
+		if ( ! Capabilities::current_user_can() ) {
+			wp_die( esc_html__( 'You are not allowed to manage USD/Toman pricing.', 'usd-to-toman-price-sync-for-woocommerce' ), 403 );
+		}
+
+		check_admin_referer( self::DISMISS_UPGRADE_NOTICE );
+
+		delete_option( Database::OPTION_UPGRADE_NOTICE );
+
+		$back = wp_get_referer();
+
+		wp_safe_redirect( $back ? $back : admin_url() );
+		exit;
 	}
 
 	/**
@@ -531,10 +749,23 @@ final class Admin {
 			wp_die( esc_html__( 'The job could not be found.', 'usd-to-toman-price-sync-for-woocommerce' ), 404 );
 		}
 
-		fputcsv( $output, array( 'product_id', 'parent_id', 'object_type', 'status', 'toman_regular', 'toman_sale', 'old_price', 'new_price', 'attempts', 'message' ) );
+		$this->write_items_csv( $output, $job );
 
-		$page  = 1;
-		$found = 0;
+		fclose( $output ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose -- Streaming a CSV download.
+		exit;
+	}
+
+	/**
+	 * Write the items of a job as CSV rows, header first.
+	 *
+	 * @param resource $output Writable stream.
+	 * @param Job      $job    Job.
+	 * @return void
+	 */
+	public function write_items_csv( $output, Job $job ) {
+		fputcsv( $output, self::ITEMS_CSV_HEADER );
+
+		$page = 1;
 
 		do {
 			$items = $this->jobs->items(
@@ -554,8 +785,8 @@ final class Admin {
 						$item['parent_id'],
 						$item['object_type'],
 						$item['status'],
-						$item['toman_regular'],
-						$item['toman_sale'],
+						$item['usd_regular'],
+						$item['usd_sale'],
 						$this->csv_price_pair( $item['old_regular'], $item['old_sale'] ),
 						$this->csv_price_pair( $item['new_regular'], $item['new_sale'] ),
 						$item['attempts'],
@@ -566,9 +797,6 @@ final class Admin {
 
 			++$page;
 		} while ( 500 === $found );
-
-		fclose( $output ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose -- Streaming a CSV download.
-		exit;
 	}
 
 	/**

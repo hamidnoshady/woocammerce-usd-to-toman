@@ -9,12 +9,18 @@
  * @var array $page    Page slug.
  */
 
+use USDTF\Admin\Admin;
 use USDTF\Calculator;
+use USDTF\Job_Repository;
 
 defined( 'ABSPATH' ) || exit;
 
-$usdtf_suffix     = (string) $settings->get( 'toman_suffix' );
-$usdtf_persian    = (bool) $settings->get( 'persian_digits' );
+$usdtf_rate_label = Admin::rate_label();
+$usdtf_supported  = ! empty( $state['store_currency']['supported'] );
+$usdtf_unit_error = isset( $state['unit_changed'] ) ? (string) $state['unit_changed'] : '';
+// Jobs are refused while the store currency is not Toman or Rial, and while
+// the rate was saved in the other unit.
+$usdtf_disabled   = $usdtf_supported && '' === $usdtf_unit_error ? '' : ' disabled="disabled"';
 $usdtf_rate       = (float) $state['rate'];
 $usdtf_pending    = $state['pending_rate'];
 $usdtf_summary    = $state['summary'];
@@ -47,10 +53,14 @@ $usdtf_types = array(
 
 		<p class="usdtf-rate-current">
 			<span class="usdtf-rate-value" id="usdtf-rate-value">
-				<?php echo esc_html( $usdtf_rate > 0 ? Calculator::format_toman( $usdtf_rate, array( 'persian_digits' => $usdtf_persian ) ) : '—' ); ?>
+				<?php echo esc_html( $usdtf_rate > 0 ? Calculator::format_price( $usdtf_rate ) : '—' ); ?>
 			</span>
-			<span class="usdtf-rate-unit"><?php esc_html_e( 'Toman per 1 USD', 'usd-to-toman-price-sync-for-woocommerce' ); ?></span>
+			<span class="usdtf-rate-unit"><?php echo esc_html( $usdtf_rate_label ); ?></span>
 		</p>
+
+		<?php if ( '' !== $usdtf_unit_error ) : ?>
+			<p class="usdtf-unit-changed notice notice-error inline"><?php echo esc_html( $usdtf_unit_error ); ?></p>
+		<?php endif; ?>
 
 		<p class="usdtf-meta">
 			<?php if ( (float) $state['previous_rate'] > 0 ) : ?>
@@ -58,7 +68,7 @@ $usdtf_types = array(
 				printf(
 					/* translators: %s: previous rate. */
 					esc_html__( 'Previous rate: %s', 'usd-to-toman-price-sync-for-woocommerce' ),
-					esc_html( Calculator::format_toman( (float) $state['previous_rate'], array( 'persian_digits' => $usdtf_persian ) ) )
+					esc_html( Calculator::format_price( (float) $state['previous_rate'] ) )
 				);
 				?>
 			<?php else : ?>
@@ -68,7 +78,15 @@ $usdtf_types = array(
 
 		<form id="usdtf-rate-form" class="usdtf-form">
 			<label class="usdtf-field">
-				<span><?php esc_html_e( 'New rate (Toman per 1 USD)', 'usd-to-toman-price-sync-for-woocommerce' ); ?></span>
+				<span>
+					<?php
+					printf(
+						/* translators: %s: unit of the rate, "Toman per 1 USD" or "Rial per 1 USD". */
+						esc_html__( 'New rate (%s)', 'usd-to-toman-price-sync-for-woocommerce' ),
+						esc_html( $usdtf_rate_label )
+					);
+					?>
+				</span>
 				<input
 					type="text"
 					id="usdtf-rate-input"
@@ -94,7 +112,7 @@ $usdtf_types = array(
 				<button type="submit" class="button button-primary" id="usdtf-save-rate">
 					<?php esc_html_e( 'Save rate', 'usd-to-toman-price-sync-for-woocommerce' ); ?>
 				</button>
-				<button type="button" class="button" id="usdtf-preview-rate">
+				<button type="button" class="button" id="usdtf-preview-rate"<?php echo $usdtf_disabled; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Fixed attribute. ?>>
 					<?php esc_html_e( 'Preview changes', 'usd-to-toman-price-sync-for-woocommerce' ); ?>
 				</button>
 			</p>
@@ -130,9 +148,9 @@ $usdtf_types = array(
 					<strong><?php esc_html_e( 'A rate is waiting for confirmation:', 'usd-to-toman-price-sync-for-woocommerce' ); ?></strong>
 					<?php
 					printf(
-						/* translators: 1: rate, 2: percentage change, 3: user name. */
-						esc_html__( '%1$s Toman (%2$s%% change) submitted by %3$s.', 'usd-to-toman-price-sync-for-woocommerce' ),
-						esc_html( Calculator::format_toman( (float) $usdtf_pending['rate'], array( 'persian_digits' => $usdtf_persian ) ) ),
+						/* translators: 1: rate with its unit, 2: percentage change, 3: user name. */
+						esc_html__( '%1$s (%2$s%% change) submitted by %3$s.', 'usd-to-toman-price-sync-for-woocommerce' ),
+						esc_html( Calculator::format_price( (float) $usdtf_pending['rate'] ) . ' ' . $usdtf_rate_label ),
 						esc_html( null === $usdtf_pending['change_percent'] ? '—' : number_format_i18n( (float) $usdtf_pending['change_percent'], 2 ) ),
 						esc_html( $usdtf_pending['user'] )
 					);
@@ -143,19 +161,19 @@ $usdtf_types = array(
 
 		<?php if ( ! empty( $state['preview_required'] ) && empty( $state['preview_ok'] ) ) : ?>
 			<p class="description">
-				<?php esc_html_e( 'Dry run first: this store only starts a price update after a completed dry run that used the same exchange rate, transaction currency, rounding settings and scope.', 'usd-to-toman-price-sync-for-woocommerce' ); ?>
+				<?php esc_html_e( 'Dry run first: this store only starts a price update after a completed dry run that used the same exchange rate, rounding settings and scope.', 'usd-to-toman-price-sync-for-woocommerce' ); ?>
 			</p>
 		<?php endif; ?>
 
 		<p class="usdtf-actions usdtf-actions--secondary">
-			<button type="button" class="button button-primary" id="usdtf-start-update">
+			<button type="button" class="button button-primary" id="usdtf-start-update"<?php echo $usdtf_disabled; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Fixed attribute. ?>>
 				<?php esc_html_e( 'Update prices now', 'usd-to-toman-price-sync-for-woocommerce' ); ?>
 			</button>
-			<button type="button" class="button" id="usdtf-start-preview">
+			<button type="button" class="button" id="usdtf-start-preview"<?php echo $usdtf_disabled; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Fixed attribute. ?>>
 				<?php esc_html_e( 'Dry run', 'usd-to-toman-price-sync-for-woocommerce' ); ?>
 			</button>
 			<?php if ( ! empty( $state['can']['rollback'] ) ) : ?>
-				<button type="button" class="button" id="usdtf-rollback">
+				<button type="button" class="button" id="usdtf-rollback"<?php echo $usdtf_disabled; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Fixed attribute. ?>>
 					<?php esc_html_e( 'Roll back last rate change', 'usd-to-toman-price-sync-for-woocommerce' ); ?>
 				</button>
 			<?php endif; ?>
@@ -179,29 +197,21 @@ $usdtf_types = array(
 				<span class="usdtf-stat-label"><?php esc_html_e( 'May need an update', 'usd-to-toman-price-sync-for-woocommerce' ); ?></span>
 			</li>
 			<li>
-				<span class="usdtf-stat-value"><?php echo esc_html( number_format_i18n( (int) $usdtf_summary['native'] ) ); ?></span>
-				<span class="usdtf-stat-label"><?php esc_html_e( 'Native USD products', 'usd-to-toman-price-sync-for-woocommerce' ); ?></span>
-			</li>
-			<li>
 				<span class="usdtf-stat-value"><?php echo esc_html( number_format_i18n( (int) $usdtf_summary['excluded'] ) ); ?></span>
 				<span class="usdtf-stat-label"><?php esc_html_e( 'Excluded products', 'usd-to-toman-price-sync-for-woocommerce' ); ?></span>
-			</li>
-			<li>
-				<span class="usdtf-stat-value"><?php echo esc_html( number_format_i18n( (int) $usdtf_summary['unset'] ) ); ?></span>
-				<span class="usdtf-stat-label"><?php esc_html_e( 'No mode chosen yet', 'usd-to-toman-price-sync-for-woocommerce' ); ?></span>
 			</li>
 		</ul>
 
 		<p class="description">
-			<?php esc_html_e( '“May need an update” counts managed products whose stored rate is not the current rate. The exact number of price changes is calculated by the dry run.', 'usd-to-toman-price-sync-for-woocommerce' ); ?>
+			<?php esc_html_e( '“May need an update” counts managed products without a USD price or whose stored rate is not the current rate. The exact number of price changes is calculated by the dry run.', 'usd-to-toman-price-sync-for-woocommerce' ); ?>
 		</p>
 
 		<p class="usdtf-meta">
 			<?php
 			printf(
-				/* translators: 1: transaction currency mode, 2: product count. */
-				esc_html__( 'Transaction currency mode: %1$s. Products in the catalog: %2$s.', 'usd-to-toman-price-sync-for-woocommerce' ),
-				esc_html( 'toman' === $state['currency_mode'] ? __( 'Toman (mode B)', 'usd-to-toman-price-sync-for-woocommerce' ) : __( 'USD with Toman display (mode A)', 'usd-to-toman-price-sync-for-woocommerce' ) ),
+				/* translators: 1: store currency, such as "Toman (IRT)", 2: product count. */
+				esc_html__( 'Store currency: %1$s. Products in the catalog: %2$s.', 'usd-to-toman-price-sync-for-woocommerce' ),
+				esc_html( Admin::currency_label() ),
 				esc_html( number_format_i18n( (int) $usdtf_summary['products'] ) )
 			);
 			?>
@@ -282,11 +292,9 @@ $usdtf_types = array(
 					?>
 				</p>
 				<ul class="usdtf-counters">
-					<li><?php esc_html_e( 'Changed', 'usd-to-toman-price-sync-for-woocommerce' ); ?>: <strong><?php echo esc_html( number_format_i18n( (int) $usdtf_active['counters']['changed'] ) ); ?></strong></li>
-					<li><?php esc_html_e( 'Unchanged', 'usd-to-toman-price-sync-for-woocommerce' ); ?>: <strong><?php echo esc_html( number_format_i18n( (int) $usdtf_active['counters']['unchanged'] ) ); ?></strong></li>
-					<li><?php esc_html_e( 'Skipped', 'usd-to-toman-price-sync-for-woocommerce' ); ?>: <strong><?php echo esc_html( number_format_i18n( (int) $usdtf_active['counters']['skipped'] ) ); ?></strong></li>
-					<li><?php esc_html_e( 'Failed', 'usd-to-toman-price-sync-for-woocommerce' ); ?>: <strong><?php echo esc_html( number_format_i18n( (int) $usdtf_active['counters']['failed'] ) ); ?></strong></li>
-					<li><?php esc_html_e( 'Conflicts', 'usd-to-toman-price-sync-for-woocommerce' ); ?>: <strong><?php echo esc_html( number_format_i18n( (int) $usdtf_active['counters']['conflicts'] ) ); ?></strong></li>
+					<?php foreach ( Admin::counter_labels() as $usdtf_counter => $usdtf_counter_label ) : ?>
+						<li><?php echo esc_html( $usdtf_counter_label ); ?>: <strong><?php echo esc_html( number_format_i18n( (int) $usdtf_active['counters'][ $usdtf_counter ] ) ); ?></strong></li>
+					<?php endforeach; ?>
 					<li><?php esc_html_e( 'Variations', 'usd-to-toman-price-sync-for-woocommerce' ); ?>: <strong><?php echo esc_html( number_format_i18n( (int) $usdtf_active['counters']['variations_processed'] ) ); ?></strong></li>
 				</ul>
 
@@ -335,20 +343,32 @@ $usdtf_types = array(
 	<section class="usdtf-card usdtf-card--preview">
 		<h2><?php esc_html_e( 'Last dry run', 'usd-to-toman-price-sync-for-woocommerce' ); ?></h2>
 		<?php
-		$usdtf_preview_items = $jobs->items(
-			(int) $usdtf_preview['id'],
-			array(
-				'status' => \USDTF\Job_Repository::ITEM_CHANGED,
-				'limit'  => 20,
-			)
-		);
+		// The items the dry run would act on: price updates first, then new and re-based USD prices.
+		$usdtf_preview_items = array();
+
+		foreach ( array( Job_Repository::ITEM_CHANGED, Job_Repository::ITEM_GENERATED, Job_Repository::ITEM_REBASED ) as $usdtf_preview_status ) {
+			$usdtf_preview_items = array_merge(
+				$usdtf_preview_items,
+				$jobs->items(
+					(int) $usdtf_preview['id'],
+					array(
+						'status' => $usdtf_preview_status,
+						'limit'  => 20,
+					)
+				)
+			);
+		}
+
+		$usdtf_preview_items = array_slice( $usdtf_preview_items, 0, 20 );
 		?>
 		<p>
 			<?php
 			printf(
-				/* translators: 1: changed, 2: unchanged, 3: skipped, 4: failed, 5: conflicts. */
-				esc_html__( 'Would change: %1$s · unchanged: %2$s · skipped: %3$s · failed: %4$s · conflicts: %5$s', 'usd-to-toman-price-sync-for-woocommerce' ),
+				/* translators: 1: updated, 2: USD set, 3: re-based, 4: unchanged, 5: skipped, 6: failed, 7: conflicts. */
+				esc_html__( 'Would update: %1$s · USD set: %2$s · re-based: %3$s · unchanged: %4$s · skipped: %5$s · failed: %6$s · conflicts: %7$s', 'usd-to-toman-price-sync-for-woocommerce' ),
 				esc_html( number_format_i18n( (int) $usdtf_preview['counters']['changed'] ) ),
+				esc_html( number_format_i18n( (int) $usdtf_preview['counters']['generated'] ) ),
+				esc_html( number_format_i18n( (int) $usdtf_preview['counters']['rebased'] ) ),
 				esc_html( number_format_i18n( (int) $usdtf_preview['counters']['unchanged'] ) ),
 				esc_html( number_format_i18n( (int) $usdtf_preview['counters']['skipped'] ) ),
 				esc_html( number_format_i18n( (int) $usdtf_preview['counters']['failed'] ) ),
@@ -358,55 +378,11 @@ $usdtf_types = array(
 		</p>
 
 		<?php if ( $usdtf_preview_items ) : ?>
-			<table class="widefat striped usdtf-table">
-				<thead>
-					<tr>
-						<th><?php esc_html_e( 'Product', 'usd-to-toman-price-sync-for-woocommerce' ); ?></th>
-						<th><?php esc_html_e( 'Toman source', 'usd-to-toman-price-sync-for-woocommerce' ); ?></th>
-						<th><?php esc_html_e( 'Current price', 'usd-to-toman-price-sync-for-woocommerce' ); ?></th>
-						<th><?php esc_html_e( 'New price', 'usd-to-toman-price-sync-for-woocommerce' ); ?></th>
-						<th><?php esc_html_e( 'Note', 'usd-to-toman-price-sync-for-woocommerce' ); ?></th>
-					</tr>
-				</thead>
-				<tbody>
-					<?php foreach ( $usdtf_preview_items as $usdtf_item ) : ?>
-						<?php $usdtf_product = wc_get_product( (int) $usdtf_item['object_id'] ); ?>
-						<tr>
-							<td>
-								<?php if ( $usdtf_product ) : ?>
-									<a href="<?php echo esc_url( (string) get_edit_post_link( $usdtf_item['object_id'], 'raw' ) ); ?>">
-										<?php echo esc_html( $usdtf_product->get_name() ); ?>
-									</a>
-								<?php else : ?>
-									<?php
-									printf(
-										/* translators: %d: product ID. */
-										esc_html__( 'Product #%d', 'usd-to-toman-price-sync-for-woocommerce' ),
-										(int) $usdtf_item['object_id']
-									);
-									?>
-								<?php endif; ?>
-							</td>
-							<td>
-							<?php
-							echo esc_html(
-								Calculator::format_toman(
-									(float) $usdtf_item['toman_regular'],
-									array(
-										'with_suffix'    => false,
-										'persian_digits' => $usdtf_persian,
-									)
-								)
-							);
-							?>
-								</td>
-							<td><?php echo esc_html( (string) $usdtf_item['old_regular'] ); ?></td>
-							<td><strong><?php echo esc_html( (string) $usdtf_item['new_regular'] ); ?></strong></td>
-							<td><?php echo esc_html( (string) $usdtf_item['message'] ); ?></td>
-						</tr>
-					<?php endforeach; ?>
-				</tbody>
-			</table>
+			<?php
+			$usdtf_table_items = $usdtf_preview_items;
+			$usdtf_table_job   = (int) $usdtf_preview['id'];
+			include USDTF_DIR . 'includes/admin/views/items-table.php';
+			?>
 			<p class="description"><?php esc_html_e( 'Showing up to 20 products. The full report is available in the job details, including a CSV download.', 'usd-to-toman-price-sync-for-woocommerce' ); ?></p>
 		<?php endif; ?>
 
@@ -433,7 +409,7 @@ $usdtf_types = array(
 						<th><?php esc_html_e( 'ID', 'usd-to-toman-price-sync-for-woocommerce' ); ?></th>
 						<th><?php esc_html_e( 'Type', 'usd-to-toman-price-sync-for-woocommerce' ); ?></th>
 						<th><?php esc_html_e( 'Status', 'usd-to-toman-price-sync-for-woocommerce' ); ?></th>
-						<th><?php esc_html_e( 'Changed', 'usd-to-toman-price-sync-for-woocommerce' ); ?></th>
+						<th><?php esc_html_e( 'Updated', 'usd-to-toman-price-sync-for-woocommerce' ); ?></th>
 						<th><?php esc_html_e( 'Started', 'usd-to-toman-price-sync-for-woocommerce' ); ?></th>
 					</tr>
 				</thead>
@@ -470,7 +446,7 @@ $usdtf_types = array(
 				<tbody>
 					<?php foreach ( array_slice( $history, 0, 5 ) as $usdtf_row ) : ?>
 						<tr>
-							<td><?php echo esc_html( Calculator::format_toman( (float) $usdtf_row['rate'], array( 'persian_digits' => $usdtf_persian ) ) ); ?></td>
+							<td><?php echo esc_html( Calculator::format_price( (float) $usdtf_row['rate'] ) ); ?></td>
 							<td>
 								<?php
 								echo esc_html(

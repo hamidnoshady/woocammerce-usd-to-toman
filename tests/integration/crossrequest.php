@@ -74,9 +74,23 @@ usdtf_it_delete_products();
 
 $rates->save_rate( 270000 );
 
-usdtf_it_make_simple_product( 'Cross request one', '5000000' );
-usdtf_it_make_simple_product( 'Cross request two', '8100000' );
-usdtf_it_make_variable_product( 'Cross request variable', array( array( '2000000' ), array( '4000000' ) ) );
+$cross_one      = usdtf_it_make_simple_product( 'Cross request one', '5000000' );
+$cross_two      = usdtf_it_make_simple_product( 'Cross request two', '8100000' );
+$cross_variable = usdtf_it_make_variable_product( 'Cross request variable', array( array( '2000000' ), array( '4000000' ) ) );
+
+// The USD prices are generated in this process first; the job across the
+// processes then writes the Woo prices of a new rate.
+$cross_generate = usdtf_it_create_job( array( 'type' => Job::TYPE_SYNC ) );
+usdtf_it_run_job( (int) $cross_generate['id'] );
+$rates->save_rate( 300000 );
+
+// What 18.52, 30.00, 7.41 and 14.81 USD give at 300,000, rounded up to 1,000 Toman.
+$cross_expected = array(
+	$cross_one->get_id()               => '5556000',
+	$cross_two->get_id()               => '9000000',
+	$cross_variable->get_children()[0] => '2223000',
+	$cross_variable->get_children()[1] => '4443000',
+);
 
 $cross_job = usdtf_it_create_job( array( 'type' => Job::TYPE_SYNC ) );
 usdtf_it_assert( ! is_wp_error( $cross_job ) && ! empty( $cross_job['id'] ), 'the cross request job must be created' );
@@ -126,8 +140,8 @@ usdtf_it_assert( false === usdtf_it_lease_fresh(), 'the lease must be released o
 
 usdtf_it_forget_cached_products();
 
-// The prices were really written: both simple products carry their derived
-// USD price, and the variable product did it through its variations.
+// The prices were really written: both simple products carry the Woo price of
+// the new rate, and the variable product did it through its variations.
 $cross_items = $wpdb->get_results( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 	$wpdb->prepare( 'SELECT object_id, status FROM ' . \USDTF\Database::items_table() . ' WHERE job_id = %d', $cross_id ),
 	ARRAY_A
@@ -141,17 +155,26 @@ foreach ( $cross_items as $cross_item ) {
 
 	if ( $cross_item_product && $cross_item_product->is_type( 'variable' ) ) {
 		foreach ( $cross_item_product->get_children() as $cross_child_id ) {
-			usdtf_it_assert( '' !== usdtf_it_price( $cross_child_id ), 'the variation ' . $cross_child_id . ' must have a price after the cross request job' );
+			usdtf_it_assert_same( $cross_expected[ (int) $cross_child_id ], usdtf_it_price( $cross_child_id ), 'the variation ' . $cross_child_id . ' must have its new price after the cross request job' );
 		}
 
 		continue;
 	}
 
-	usdtf_it_assert( '' !== usdtf_it_price( (int) $cross_item['object_id'] ), 'the product ' . $cross_item['object_id'] . ' must have a price after the cross request job' );
+	usdtf_it_assert_same( $cross_expected[ (int) $cross_item['object_id'] ], usdtf_it_price( (int) $cross_item['object_id'] ), 'the product ' . $cross_item['object_id'] . ' must have its new price after the cross request job' );
 }
 
 // A paused job can be resumed from a different process as well.
-$resume_product = usdtf_it_make_simple_product( 'Cross request resumed', '2700000' );
+$resume_product  = usdtf_it_make_simple_product( 'Cross request resumed', '2700000' );
+$resume_generate = usdtf_it_create_job(
+	array(
+		'type'  => Job::TYPE_SYNC,
+		'scope' => array( 'ids' => array( $resume_product->get_id() ) ),
+	)
+);
+usdtf_it_run_job( (int) $resume_generate['id'] );
+$rates->save_rate( 330000 );
+
 $resume_job     = usdtf_it_create_job( array( 'type' => Job::TYPE_SYNC ) );
 usdtf_it_assert( ! is_wp_error( $resume_job ) && ! empty( $resume_job['id'] ), 'the resume job must be created' );
 
@@ -184,6 +207,6 @@ usdtf_it_assert_same( Job::STATUS_COMPLETED, $finished_resume->status(), 'a job 
 
 usdtf_it_forget_cached_products();
 
-usdtf_it_assert_same( '10', usdtf_it_price( $resume_product->get_id() ), 'the resumed job must write its price' );
+usdtf_it_assert_same( '2970000', usdtf_it_price( $resume_product->get_id() ), 'the resumed job must write its price (2,700,000 / 300,000 = 9.00 USD x 330,000)' );
 
 usdtf_it_pass( 'the worker phases run across independent PHP requests' );

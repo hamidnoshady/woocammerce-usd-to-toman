@@ -41,12 +41,30 @@ final class Rate_Repository {
 	}
 
 	/**
-	 * The active manual rate (Toman per 1 USD).
+	 * The active manual rate (store unit per 1 USD).
 	 *
 	 * @return float 0 when no rate is configured yet.
 	 */
 	public function get_rate() {
 		return (float) get_option( Settings::OPTION_RATE, 0 );
+	}
+
+	/**
+	 * The store unit the active rate was saved in.
+	 *
+	 * @return string `toman`, `rial`, or an empty string when it is not known.
+	 */
+	public function rate_unit() {
+		return (string) get_option( Settings::OPTION_RATE_UNIT, '' );
+	}
+
+	/**
+	 * The unit a rate saved now is in: the unit the screens label it with.
+	 *
+	 * @return string `toman` or `rial`.
+	 */
+	private static function current_rate_unit() {
+		return Store_Currency::UNIT_RIAL === Store_Currency::unit() ? Store_Currency::UNIT_RIAL : Store_Currency::UNIT_TOMAN;
 	}
 
 	/**
@@ -123,11 +141,14 @@ final class Rate_Repository {
 			return 0.0;
 		}
 
-		// Only real rate changes carry a previous rate. Job summaries are stored
-		// in the same table for the audit trail, so they must be ignored here.
+		// The previous rate of the latest rate change. Job summaries are stored
+		// in the same table for the audit trail (always with a job id), so they
+		// are ignored here. A change without a previous rate (the first rate, or
+		// the first one saved after the store unit changed) leaves nothing to
+		// roll back to: an older rate of another unit would misprice the store.
 		$value = Database::get_var(
 			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Table name is internal and the query has no user input.
-			"SELECT previous_rate FROM `{$table}` WHERE previous_rate IS NOT NULL AND previous_rate > 0 ORDER BY id DESC LIMIT 1"
+			"SELECT previous_rate FROM `{$table}` WHERE job_id = 0 ORDER BY id DESC LIMIT 1"
 		);
 
 		return null === $value ? 0.0 : (float) $value;
@@ -158,8 +179,15 @@ final class Rate_Repository {
 
 		$previous = $this->get_rate();
 		$rate     = (float) $rate;
+		$unit     = self::current_rate_unit();
+
+		// A rate of another unit is no previous rate of this one.
+		if ( '' !== $this->rate_unit() && $unit !== $this->rate_unit() ) {
+			$previous = 0.0;
+		}
 
 		update_option( Settings::OPTION_RATE, (string) $rate, false );
+		update_option( Settings::OPTION_RATE_UNIT, $unit, false );
 		$this->clear_pending();
 
 		$change = $previous > 0 ? Calculator::percent_change( $previous, $rate ) : null;
@@ -382,7 +410,10 @@ final class Rate_Repository {
 	}
 
 	/**
-	 * Estimate how many managed products would get a different price.
+	 * Estimate how many managed products a job at the candidate rate would act on.
+	 *
+	 * A product is affected when its regular or sale price would be updated,
+	 * generated, re-based or cleared, as the job planner decides it.
 	 *
 	 * A bounded sample is used so the estimate stays cheap on large catalogs.
 	 *
@@ -393,7 +424,7 @@ final class Rate_Repository {
 	public function estimate_affected( $rate, $sample_ratio = 0.05 ) {
 		$rate = (float) $rate;
 
-		if ( $rate <= 0 ) {
+		if ( $rate <= 0 || ! Store_Currency::is_supported() ) {
 			return 0;
 		}
 
@@ -430,9 +461,15 @@ final class Rate_Repository {
 			return 0;
 		}
 
-		$settings = $this->settings->rounding_args();
+		$rounding = $this->settings->rounding_args();
 		$affected = 0;
 		$checked  = 0;
+		$moving   = array(
+			Price_Planner::ACTION_UPDATE,
+			Price_Planner::ACTION_GENERATE,
+			Price_Planner::ACTION_REBASE,
+			Price_Planner::ACTION_CLEAR,
+		);
 
 		foreach ( $ids as $product_id ) {
 			$product = wc_get_product( $product_id );
@@ -445,17 +482,14 @@ final class Rate_Repository {
 
 			$item = $pricing->get_snapshot( $product );
 
+			if ( ! $item['managed'] ) {
+				continue;
+			}
+
 			foreach ( array( 'regular', 'sale' ) as $which ) {
-				$source = 'regular' === $which ? $item['source_regular'] : $item['source_sale'];
+				$plan = Price_Planner::plan( $item[ 'current_' . $which ], $item[ 'seen_' . $which ], $item[ 'usd_' . $which ], $item['rate'], $rate, $rounding );
 
-				if ( null === $source ) {
-					continue;
-				}
-
-				$new = Calculator::from_toman( $source, $rate, $settings );
-				$old = 'regular' === $which ? $item['derived_regular'] : $item['derived_sale'];
-
-				if ( ! Calculator::prices_equal( $new, $old, (int) $settings['decimals'] ) ) {
+				if ( in_array( $plan['action'], $moving, true ) ) {
 					++$affected;
 					break;
 				}

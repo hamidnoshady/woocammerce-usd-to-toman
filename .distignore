@@ -26,6 +26,7 @@
 /node_modules
 
 # Documentation for developers (readme.txt is the store readme and stays in).
+/docs
 /README.md
 /CHANGELOG.md
 /*.md

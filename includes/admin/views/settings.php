@@ -7,46 +7,35 @@
  * @var \USDTF\Settings $settings Settings.
  */
 
+use USDTF\Admin\Admin;
 use USDTF\Calculator;
 use USDTF\Capabilities;
 use USDTF\Settings;
+use USDTF\Store_Currency;
 
 defined( 'ABSPATH' ) || exit;
 
 $usdtf_options = $settings->all();
+$usdtf_unit    = Store_Currency::unit_label();
 ?>
 <form method="post" action="options.php" class="usdtf-card usdtf-settings">
 	<?php settings_fields( \USDTF\Admin\Admin::OPTION_GROUP ); ?>
 
-	<h2><?php esc_html_e( 'Checkout and transaction currency', 'usd-to-toman-price-sync-for-woocommerce' ); ?></h2>
-
-	<fieldset class="usdtf-fieldset">
-		<legend class="screen-reader-text"><?php esc_html_e( 'Transaction currency mode', 'usd-to-toman-price-sync-for-woocommerce' ); ?></legend>
-
-		<label class="usdtf-radio">
-			<input type="radio" name="<?php echo esc_attr( Settings::OPTION ); ?>[currency_mode]" value="<?php echo esc_attr( Settings::MODE_USD ); ?>" <?php checked( $usdtf_options['currency_mode'], Settings::MODE_USD ); ?> />
-			<span>
-				<strong><?php esc_html_e( 'Mode A — USD transaction, Toman display', 'usd-to-toman-price-sync-for-woocommerce' ); ?></strong><br />
-				<?php esc_html_e( 'WooCommerce stores and charges the derived USD price. The storefront shows the canonical Toman price from this plugin.', 'usd-to-toman-price-sync-for-woocommerce' ); ?>
-			</span>
-		</label>
-
-		<label class="usdtf-radio">
-			<input type="radio" name="<?php echo esc_attr( Settings::OPTION ); ?>[currency_mode]" value="<?php echo esc_attr( Settings::MODE_TOMAN ); ?>" <?php checked( $usdtf_options['currency_mode'], Settings::MODE_TOMAN ); ?> />
-			<span>
-				<strong><?php esc_html_e( 'Mode B — Toman transaction, USD reference', 'usd-to-toman-price-sync-for-woocommerce' ); ?></strong><br />
-				<?php esc_html_e( 'WooCommerce stores and charges the canonical Toman price. The derived USD price is kept as an internal reference for reporting. This is usually the safer choice for Iranian payment gateways.', 'usd-to-toman-price-sync-for-woocommerce' ); ?>
-			</span>
-		</label>
-
-		<p class="description">
-			<?php esc_html_e( 'Switching the mode changes the currency the price fields hold. After a switch, run a full price update: the plugin blocks partial updates until the whole catalog is rewritten.', 'usd-to-toman-price-sync-for-woocommerce' ); ?>
-		</p>
-	</fieldset>
-
 	<h2><?php esc_html_e( 'Conversion', 'usd-to-toman-price-sync-for-woocommerce' ); ?></h2>
 
 	<table class="form-table" role="presentation">
+		<tr>
+			<th scope="row"><?php esc_html_e( 'Store currency', 'usd-to-toman-price-sync-for-woocommerce' ); ?></th>
+			<td>
+				<strong class="usdtf-store-currency"><?php echo esc_html( Admin::currency_label() ); ?></strong>
+				<a href="<?php echo esc_url( admin_url( 'admin.php?page=wc-settings' ) ); ?>"><?php esc_html_e( 'Change it in WooCommerce → Settings → General', 'usd-to-toman-price-sync-for-woocommerce' ); ?></a>
+				<?php if ( ! Store_Currency::is_supported() ) : ?>
+					<p class="description usdtf-flag--error"><?php esc_html_e( 'Set the store currency to Iranian Toman or Rial', 'usd-to-toman-price-sync-for-woocommerce' ); ?></p>
+				<?php else : ?>
+					<p class="description"><?php esc_html_e( 'Read from WooCommerce. Store prices, the exchange rate and the rounding increment use this unit.', 'usd-to-toman-price-sync-for-woocommerce' ); ?></p>
+				<?php endif; ?>
+			</td>
+		</tr>
 		<tr>
 			<th scope="row"><label for="usdtf-rounding"><?php esc_html_e( 'Rounding', 'usd-to-toman-price-sync-for-woocommerce' ); ?></label></th>
 			<td>
@@ -55,7 +44,7 @@ $usdtf_options = $settings->all();
 					<option value="<?php echo esc_attr( Calculator::ROUND_NEAREST ); ?>" <?php selected( $usdtf_options['rounding'], Calculator::ROUND_NEAREST ); ?>><?php esc_html_e( 'Round to nearest', 'usd-to-toman-price-sync-for-woocommerce' ); ?></option>
 					<option value="<?php echo esc_attr( Calculator::ROUND_DOWN ); ?>" <?php selected( $usdtf_options['rounding'], Calculator::ROUND_DOWN ); ?>><?php esc_html_e( 'Round down', 'usd-to-toman-price-sync-for-woocommerce' ); ?></option>
 				</select>
-				<p class="description"><?php esc_html_e( 'The formula is USD = Toman ÷ rate, then rounded. Rounding up protects your margin and never loses cents.', 'usd-to-toman-price-sync-for-woocommerce' ); ?></p>
+				<p class="description"><?php esc_html_e( 'A new store price is the USD price × the exchange rate, rounded to the increment below. Rounding up protects your margin.', 'usd-to-toman-price-sync-for-woocommerce' ); ?></p>
 			</td>
 		</tr>
 		<tr>
@@ -63,24 +52,19 @@ $usdtf_options = $settings->all();
 			<td>
 				<select name="<?php echo esc_attr( Settings::OPTION ); ?>[increment]" id="usdtf-increment">
 					<?php foreach ( Settings::allowed_increments() as $usdtf_increment ) : ?>
-						<option value="<?php echo esc_attr( (string) $usdtf_increment ); ?>" <?php selected( (float) $usdtf_options['increment'], $usdtf_increment ); ?>>
+						<option value="<?php echo esc_attr( (string) (int) $usdtf_increment ); ?>" <?php selected( (float) $usdtf_options['increment'], $usdtf_increment ); ?>>
 							<?php
 							printf(
-								/* translators: %s: increment value. */
-								esc_html__( '%s USD', 'usd-to-toman-price-sync-for-woocommerce' ),
-								esc_html( number_format_i18n( $usdtf_increment ) )
+								/* translators: 1: increment value, 2: unit name (Toman or Rial). */
+								esc_html__( '%1$s %2$s', 'usd-to-toman-price-sync-for-woocommerce' ),
+								esc_html( number_format_i18n( $usdtf_increment ) ),
+								esc_html( $usdtf_unit )
 							);
 							?>
 						</option>
 					<?php endforeach; ?>
 				</select>
-			</td>
-		</tr>
-		<tr>
-			<th scope="row"><label for="usdtf-decimals"><?php esc_html_e( 'Stored decimals', 'usd-to-toman-price-sync-for-woocommerce' ); ?></label></th>
-			<td>
-				<input type="number" min="0" max="6" step="1" id="usdtf-decimals" name="<?php echo esc_attr( Settings::OPTION ); ?>[decimals]" value="<?php echo esc_attr( (string) (int) $usdtf_options['decimals'] ); ?>" class="small-text" />
-				<p class="description"><?php esc_html_e( 'The safe default is 0: whole USD prices. Keep in mind that the WooCommerce currency still controls its own decimal setting.', 'usd-to-toman-price-sync-for-woocommerce' ); ?></p>
+				<p class="description"><?php esc_html_e( 'Store prices are rounded to a multiple of this amount. The WooCommerce decimals setting controls the decimals of the price fields.', 'usd-to-toman-price-sync-for-woocommerce' ); ?></p>
 			</td>
 		</tr>
 	</table>
@@ -135,16 +119,6 @@ $usdtf_options = $settings->all();
 			</td>
 		</tr>
 		<tr>
-			<th scope="row"><?php esc_html_e( 'New products', 'usd-to-toman-price-sync-for-woocommerce' ); ?></th>
-			<td>
-				<label class="usdtf-checkbox">
-					<input type="hidden" name="<?php echo esc_attr( Settings::OPTION ); ?>[auto_manage_new_products]" value="0" />
-					<input type="checkbox" name="<?php echo esc_attr( Settings::OPTION ); ?>[auto_manage_new_products]" value="1" <?php checked( ! empty( $usdtf_options['auto_manage_new_products'] ) ); ?> />
-					<?php esc_html_e( 'Automatically manage new products and import their first price as the Toman source', 'usd-to-toman-price-sync-for-woocommerce' ); ?>
-				</label>
-			</td>
-		</tr>
-		<tr>
 			<th scope="row"><?php esc_html_e( 'Background fallback', 'usd-to-toman-price-sync-for-woocommerce' ); ?></th>
 			<td>
 				<label class="usdtf-checkbox">
@@ -164,7 +138,7 @@ $usdtf_options = $settings->all();
 						</option>
 					<?php endforeach; ?>
 				</select>
-				<p class="description"><?php esc_html_e( 'Default: manage_woocommerce. Everything this plugin does — changing the rate, running updates, editing Toman prices — requires this capability plus, for products, the normal WordPress edit permission. Only these two capabilities are offered; weaker setups are possible for developers through the usdtf_required_capability filter.', 'usd-to-toman-price-sync-for-woocommerce' ); ?></p>
+				<p class="description"><?php esc_html_e( 'Default: manage_woocommerce. Everything this plugin does — changing the rate, running updates, setting product pricing modes — requires this capability plus, for products, the normal WordPress edit permission. Only these two capabilities are offered; weaker setups are possible for developers through the usdtf_required_capability filter.', 'usd-to-toman-price-sync-for-woocommerce' ); ?></p>
 			</td>
 		</tr>
 		<tr>
@@ -173,43 +147,9 @@ $usdtf_options = $settings->all();
 				<label class="usdtf-checkbox">
 					<input type="hidden" name="<?php echo esc_attr( Settings::OPTION ); ?>[require_preview]" value="0" />
 					<input type="checkbox" name="<?php echo esc_attr( Settings::OPTION ); ?>[require_preview]" value="1" <?php checked( ! empty( $usdtf_options['require_preview'] ) ); ?> />
-					<?php esc_html_e( 'Only start a price update after a completed dry run with the same exchange rate, transaction currency, rounding settings and scope', 'usd-to-toman-price-sync-for-woocommerce' ); ?>
+					<?php esc_html_e( 'Only start a price update after a completed dry run with the same exchange rate, rounding settings and scope', 'usd-to-toman-price-sync-for-woocommerce' ); ?>
 				</label>
 				<p class="description"><?php esc_html_e( 'Recommended. When enabled, the update button refuses to run until the dry run on the dashboard has previewed exactly the same change, so nothing can rewrite the catalog unseen.', 'usd-to-toman-price-sync-for-woocommerce' ); ?></p>
-			</td>
-		</tr>
-	</table>
-
-	<h2><?php esc_html_e( 'Storefront display', 'usd-to-toman-price-sync-for-woocommerce' ); ?></h2>
-
-	<table class="form-table" role="presentation">
-		<tr>
-			<th scope="row"><?php esc_html_e( 'Toman prices', 'usd-to-toman-price-sync-for-woocommerce' ); ?></th>
-			<td>
-				<label class="usdtf-checkbox">
-					<input type="hidden" name="<?php echo esc_attr( Settings::OPTION ); ?>[display_toman]" value="0" />
-					<input type="checkbox" name="<?php echo esc_attr( Settings::OPTION ); ?>[display_toman]" value="1" <?php checked( ! empty( $usdtf_options['display_toman'] ) ); ?> />
-					<?php esc_html_e( 'Show the canonical Toman price on shop, category, single product, related and cross-sell prices', 'usd-to-toman-price-sync-for-woocommerce' ); ?>
-				</label>
-				<br />
-				<label class="usdtf-checkbox">
-					<input type="hidden" name="<?php echo esc_attr( Settings::OPTION ); ?>[display_toman_cart]" value="0" />
-					<input type="checkbox" name="<?php echo esc_attr( Settings::OPTION ); ?>[display_toman_cart]" value="1" <?php checked( ! empty( $usdtf_options['display_toman_cart'] ) ); ?> />
-					<?php esc_html_e( 'Show Toman prices for cart, checkout and mini-cart line items (mode A only, totals stay in the transaction currency)', 'usd-to-toman-price-sync-for-woocommerce' ); ?>
-				</label>
-				<br />
-				<label class="usdtf-checkbox">
-					<input type="hidden" name="<?php echo esc_attr( Settings::OPTION ); ?>[persian_digits]" value="0" />
-					<input type="checkbox" name="<?php echo esc_attr( Settings::OPTION ); ?>[persian_digits]" value="1" <?php checked( ! empty( $usdtf_options['persian_digits'] ) ); ?> />
-					<?php esc_html_e( 'Use Persian digits', 'usd-to-toman-price-sync-for-woocommerce' ); ?>
-				</label>
-				<p class="description"><?php esc_html_e( 'The displayed value is always the stored Toman source price, never a value reconstructed from the rounded USD price.', 'usd-to-toman-price-sync-for-woocommerce' ); ?></p>
-			</td>
-		</tr>
-		<tr>
-			<th scope="row"><label for="usdtf-suffix"><?php esc_html_e( 'Currency label', 'usd-to-toman-price-sync-for-woocommerce' ); ?></label></th>
-			<td>
-				<input type="text" id="usdtf-suffix" name="<?php echo esc_attr( Settings::OPTION ); ?>[toman_suffix]" value="<?php echo esc_attr( (string) $usdtf_options['toman_suffix'] ); ?>" class="regular-text" />
 			</td>
 		</tr>
 	</table>
@@ -223,9 +163,9 @@ $usdtf_options = $settings->all();
 				<label class="usdtf-checkbox">
 					<input type="hidden" name="<?php echo esc_attr( Settings::OPTION ); ?>[delete_data_on_uninstall]" value="0" />
 					<input type="checkbox" name="<?php echo esc_attr( Settings::OPTION ); ?>[delete_data_on_uninstall]" value="1" <?php checked( ! empty( $usdtf_options['delete_data_on_uninstall'] ) ); ?> />
-					<?php esc_html_e( 'Remove all plugin data on uninstall, including the Toman source prices stored on products', 'usd-to-toman-price-sync-for-woocommerce' ); ?>
+					<?php esc_html_e( 'Remove all plugin data on uninstall, including the USD prices stored on products', 'usd-to-toman-price-sync-for-woocommerce' ); ?>
 				</label>
-				<p class="description"><?php esc_html_e( 'Left unchecked, uninstalling keeps your Toman prices so a reinstall can pick them up again. Settings and job tables are always removed.', 'usd-to-toman-price-sync-for-woocommerce' ); ?></p>
+				<p class="description"><?php esc_html_e( 'Left unchecked, uninstalling keeps the USD prices so a reinstall can pick them up again. Settings and job tables are always removed. WooCommerce prices are never deleted.', 'usd-to-toman-price-sync-for-woocommerce' ); ?></p>
 			</td>
 		</tr>
 	</table>

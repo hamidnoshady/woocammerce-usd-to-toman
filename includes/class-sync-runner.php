@@ -55,7 +55,7 @@ final class Sync_Runner {
 	 *
 	 * @var string[]
 	 */
-	const ATTENTION_CODES = array( 'invalid_source', 'empty_target', 'sale_above_regular' );
+	const ATTENTION_CODES = array( 'invalid_price', 'too_low', 'sale_above_regular', 'zero_price' );
 
 	/**
 	 * Settings.
@@ -175,6 +175,18 @@ final class Sync_Runner {
 	 * @return array|\WP_Error Job data or an error, including the blocking job.
 	 */
 	public function create_job( array $args = array() ) {
+		// Prices are pegged in Toman or Rial only: any other store currency would
+		// turn a rate into a nonsense price, so nothing is even queued.
+		if ( ! Store_Currency::is_supported() ) {
+			return $this->unsupported_currency_error();
+		}
+
+		$unit_changed = $this->unit_changed_error();
+
+		if ( $unit_changed ) {
+			return $unit_changed;
+		}
+
 		$args = wp_parse_args(
 			$args,
 			array(
@@ -220,16 +232,8 @@ final class Sync_Runner {
 
 		$scope = $this->products->normalize_scope( $args['scope'] );
 
-		// A currency mode change always requires a full recalculation of the price fields.
-		// A dry run has to preview that same full recalculation, so its scope is
-		// forced as well: otherwise the update could never match its preview.
-		if ( $this->settings->currency_mode_is_stale() && in_array( $type, array( Job::TYPE_SYNC, Job::TYPE_PREVIEW ), true ) ) {
-			$scope          = Product_Repository::default_scope();
-			$scope['label'] = __( 'Every managed product (currency mode change)', 'usd-to-toman-price-sync-for-woocommerce' );
-		}
-
 		// Dry run first: a real update needs a completed preview that was made
-		// with the very same rate, currency mode, rounding and scope.
+		// with the very same rate, rounding and scope.
 		if ( Job::TYPE_SYNC === $type && $this->settings->get( 'require_preview' ) ) {
 			$preview_check = $this->check_preview( $rate, $scope, (int) $args['preview'] );
 
@@ -255,7 +259,6 @@ final class Sync_Runner {
 				'status'        => Job::STATUS_QUEUED,
 				'job_type'      => $type,
 				'scope'         => $scope,
-				'currency_mode' => (string) $this->settings->get( 'currency_mode' ),
 				'rate'          => $rate,
 				'previous_rate' => $args['previous_rate'],
 				'rounding'      => $rounding['rounding'],
@@ -319,7 +322,6 @@ final class Sync_Runner {
 				'status'        => Job::STATUS_QUEUED,
 				'job_type'      => $type,
 				'scope'         => $scope,
-				'currency_mode' => (string) $this->settings->get( 'currency_mode' ),
 				'rate'          => $rate,
 				'previous_rate' => $args['previous_rate'],
 				'rounding'      => $rounding['rounding'],
@@ -346,10 +348,9 @@ final class Sync_Runner {
 			$is_variation = $product->get_parent_id() > 0;
 
 			$items[] = array(
-				'object_id'         => (int) $object_id,
-				'parent_id'         => (int) $product->get_parent_id(),
-				'object_type'       => $is_variation ? 'variation' : 'product',
-				'expected_revision' => $this->pricing->get_revision( $object_id ),
+				'object_id'   => (int) $object_id,
+				'parent_id'   => (int) $product->get_parent_id(),
+				'object_type' => $is_variation ? 'variation' : 'product',
 			);
 		}
 
@@ -389,10 +390,10 @@ final class Sync_Runner {
 	/**
 	 * Whether a completed dry run exists that matches the requested update.
 	 *
-	 * The dry run and the update must agree on the rate, the transaction
-	 * currency, the rounding settings and the normalized scope. Without a
-	 * matching dry run the update is refused, so nobody can rewrite the
-	 * catalog without having seen what would happen.
+	 * The dry run and the update must agree on the rate, the rounding settings
+	 * and the normalized scope. Without a matching dry run the update is
+	 * refused, so nobody can rewrite the catalog without having seen what
+	 * would happen.
 	 *
 	 * @param float $rate       Rate the update would use.
 	 * @param array $scope      Normalized scope the update would use.
@@ -400,12 +401,7 @@ final class Sync_Runner {
 	 * @return true|\WP_Error True when a matching completed preview exists.
 	 */
 	private function check_preview( $rate, array $scope, $preview_id = 0 ) {
-		$fingerprint = self::job_fingerprint(
-			$rate,
-			(string) $this->settings->get( 'currency_mode' ),
-			$this->settings->rounding_args(),
-			$scope
-		);
+		$fingerprint = self::job_fingerprint( $rate, $this->settings->rounding_args(), $scope );
 
 		if ( $preview_id > 0 ) {
 			$preview = $this->jobs->get( $preview_id );
@@ -436,13 +432,13 @@ final class Sync_Runner {
 
 			$preview_fingerprint = self::job_fingerprint(
 				$candidate->rate(),
-				(string) $candidate->data['currency_mode'],
 				array(
 					'rounding'  => (string) $candidate->data['rounding'],
 					'increment' => (float) $candidate->data['increment'],
 					'decimals'  => (int) $candidate->data['decimals'],
 				),
-				$this->products->normalize_scope( $candidate->scope() )
+				$this->products->normalize_scope( $candidate->scope() ),
+				isset( $candidate->data['unit'] ) ? (string) $candidate->data['unit'] : ''
 			);
 
 			if ( $preview_fingerprint === $fingerprint ) {
@@ -452,7 +448,7 @@ final class Sync_Runner {
 
 		return new \WP_Error(
 			'usdtf_preview_required',
-			__( 'Run a dry run first: an update may only start after a completed dry run that used the same exchange rate, transaction currency, rounding settings and scope.', 'usd-to-toman-price-sync-for-woocommerce' ),
+			__( 'Run a dry run first: an update may only start after a completed dry run that used the same exchange rate, rounding settings and scope.', 'usd-to-toman-price-sync-for-woocommerce' ),
 			array(
 				'status'      => 428,
 				'fingerprint' => $fingerprint,
@@ -461,15 +457,57 @@ final class Sync_Runner {
 	}
 
 	/**
+	 * The refusal for a store currency other than Toman or Rial.
+	 *
+	 * @return \WP_Error
+	 */
+	private function unsupported_currency_error() {
+		return new \WP_Error(
+			'usdtf_unsupported_currency',
+			__( 'Set the store currency to Iranian Toman or Rial before updating prices.', 'usd-to-toman-price-sync-for-woocommerce' ),
+			array( 'status' => 400 )
+		);
+	}
+
+	/**
+	 * The refusal every job gets while the store unit differs from the unit
+	 * the rate was saved in.
+	 *
+	 * A Toman rate applied to a Rial store (or the other way round) would set
+	 * every price ten times off. Saving the rate again records the new unit.
+	 *
+	 * @return \WP_Error|null Null when the units match or one of them is not known.
+	 */
+	public function unit_changed_error() {
+		$saved   = $this->rates->rate_unit();
+		$current = Store_Currency::unit();
+
+		if ( '' === $saved || '' === $current || $saved === $current ) {
+			return null;
+		}
+
+		return new \WP_Error(
+			'usdtf_unit_changed',
+			sprintf(
+				/* translators: 1: unit the rate was saved in (Toman or Rial), 2: unit of the store currency now (Toman or Rial). */
+				__( 'The store currency unit changed from %1$s to %2$s since the rate was saved. Save the rate again in the new unit.', 'usd-to-toman-price-sync-for-woocommerce' ),
+				Store_Currency::label_for( $saved ),
+				Store_Currency::label_for( $current )
+			),
+			array( 'status' => 400 )
+		);
+	}
+
+	/**
 	 * Fingerprint of what a job would do, used to match a preview to an update.
 	 *
-	 * @param float  $rate          Rate.
-	 * @param string $currency_mode Transaction currency mode.
-	 * @param array  $rounding      Rounding arguments: rounding, increment, decimals.
-	 * @param array  $scope         Normalized scope.
+	 * @param float       $rate     Rate.
+	 * @param array       $rounding Rounding arguments: rounding, increment, decimals.
+	 * @param array       $scope    Normalized scope.
+	 * @param string|null $unit     Store unit the job prices in; null for the current one.
 	 * @return string
 	 */
-	public static function job_fingerprint( $rate, $currency_mode, array $rounding, array $scope ) {
+	public static function job_fingerprint( $rate, array $rounding, array $scope, $unit = null ) {
 		unset( $scope['label'] );
 
 		ksort( $scope );
@@ -477,12 +515,12 @@ final class Sync_Runner {
 		return md5(
 			wp_json_encode(
 				array(
-					'rate'          => round( (float) $rate, 6 ),
-					'currency_mode' => (string) $currency_mode,
-					'rounding'      => (string) $rounding['rounding'],
-					'increment'     => (float) $rounding['increment'],
-					'decimals'      => (int) $rounding['decimals'],
-					'scope'         => $scope,
+					'unit'      => null === $unit ? Store_Currency::unit() : (string) $unit,
+					'rate'      => round( (float) $rate, 6 ),
+					'rounding'  => (string) $rounding['rounding'],
+					'increment' => (float) $rounding['increment'],
+					'decimals'  => (int) $rounding['decimals'],
+					'scope'     => $scope,
 				)
 			)
 		);
@@ -757,10 +795,9 @@ final class Sync_Runner {
 			}
 
 			$items[] = array(
-				'object_id'         => (int) $product_id,
-				'parent_id'         => (int) $product->get_parent_id(),
-				'object_type'       => $product->get_parent_id() > 0 ? 'variation' : 'product',
-				'expected_revision' => $this->pricing->get_revision( $product_id ),
+				'object_id'   => (int) $product_id,
+				'parent_id'   => (int) $product->get_parent_id(),
+				'object_type' => $product->get_parent_id() > 0 ? 'variation' : 'product',
 			);
 		}
 
@@ -858,10 +895,9 @@ final class Sync_Runner {
 			}
 
 			$items[] = array(
-				'object_id'         => (int) $variation_id,
-				'parent_id'         => $parent_id,
-				'object_type'       => 'variation',
-				'expected_revision' => $this->pricing->get_revision( $variation_id ),
+				'object_id'   => (int) $variation_id,
+				'parent_id'   => $parent_id,
+				'object_type' => 'variation',
 			);
 		}
 
@@ -1028,7 +1064,10 @@ final class Sync_Runner {
 			return;
 		}
 
-		$result = $this->jobs->parents_for_finalize( $job_id, Job_Repository::ITEM_CHANGED, self::PARENT_SLICE );
+		// A dry run wrote no variation price, so no parent range moved.
+		$result = $job->is_write_job()
+			? $this->jobs->parents_for_finalize( $job_id, Job_Repository::ITEM_CHANGED, self::PARENT_SLICE )
+			: array( 'parents' => array() );
 
 		if ( $result['parents'] ) {
 			foreach ( $result['parents'] as $parent_id ) {
@@ -1072,6 +1111,8 @@ final class Sync_Runner {
 		$totals = $this->jobs->item_totals( $job->id() );
 
 		$statuses = array(
+			Job_Repository::ITEM_GENERATED,
+			Job_Repository::ITEM_REBASED,
 			Job_Repository::ITEM_CHANGED,
 			Job_Repository::ITEM_UNCHANGED,
 			Job_Repository::ITEM_SKIPPED,
@@ -1089,6 +1130,8 @@ final class Sync_Runner {
 		$this->jobs->update(
 			$job->id(),
 			array(
+				'generated' => isset( $totals[ Job_Repository::ITEM_GENERATED ] ) ? (int) $totals[ Job_Repository::ITEM_GENERATED ] : 0,
+				'rebased'   => isset( $totals[ Job_Repository::ITEM_REBASED ] ) ? (int) $totals[ Job_Repository::ITEM_REBASED ] : 0,
 				'changed'   => isset( $totals[ Job_Repository::ITEM_CHANGED ] ) ? (int) $totals[ Job_Repository::ITEM_CHANGED ] : 0,
 				'unchanged' => isset( $totals[ Job_Repository::ITEM_UNCHANGED ] ) ? (int) $totals[ Job_Repository::ITEM_UNCHANGED ] : 0,
 				'skipped'   => isset( $totals[ Job_Repository::ITEM_SKIPPED ] ) ? (int) $totals[ Job_Repository::ITEM_SKIPPED ] : 0,
@@ -1149,9 +1192,7 @@ final class Sync_Runner {
 			return;
 		}
 
-		$result = $this->calculate_and_write( $job, $item, $product, null );
-
-		$this->complete_item( $item, $result );
+		$this->complete_item( $item, $this->calculate_and_write( $job, $product ) );
 	}
 
 	/**
@@ -1221,6 +1262,8 @@ final class Sync_Runner {
 			is_array( $stats ) ? $stats : array(),
 			array(
 				'changed'   => 0,
+				'generated' => 0,
+				'rebased'   => 0,
 				'unchanged' => 0,
 				'skipped'   => 0,
 				'failed'    => 0,
@@ -1243,25 +1286,13 @@ final class Sync_Runner {
 				continue;
 			}
 
-			$revision_before = $this->pricing->get_revision( $variation_id );
-			$result          = $this->calculate_and_write( $job, $item, $variation, $revision_before );
+			$result = $this->calculate_and_write( $job, $variation );
+			$status = $result['status'];
 
 			if ( ! empty( $result['code'] ) && in_array( $result['code'], self::ATTENTION_CODES, true ) ) {
-				// An invalid variation source is an error worth reporting even
+				// Invalid variation price data is an error worth reporting even
 				// when the rest of the slices finish cleanly.
 				$slice_stats['attention'] = 1;
-			}
-
-			if ( ! $job->is_write_job() ) {
-				// A dry run never writes, so a concurrent edit is not a conflict.
-				$status = $result['status'];
-			} elseif ( ! empty( $result['wrote'] ) && $this->pricing->get_revision( $variation_id ) !== $revision_before ) {
-				$status            = Job_Repository::ITEM_CONFLICT;
-				$result['code']    = 'conflict';
-				$result['message'] = __( 'The Toman price of this variation was edited while it was being synchronized. It is reported for recalculation.', 'usd-to-toman-price-sync-for-woocommerce' );
-				$this->pricing->mark_conflict( $variation_id, $result['message'] );
-			} else {
-				$status = $result['status'];
 			}
 
 			if ( array_key_exists( $status, $slice_stats ) ) {
@@ -1277,11 +1308,13 @@ final class Sync_Runner {
 		$stats     = $slice_stats;
 
 		$summary = sprintf(
-			/* translators: 1: processed variations, 2: total variations, 3: changed, 4: unchanged, 5: skipped, 6: failed. */
-			__( 'Variations %1$d/%2$d — changed: %3$d, unchanged: %4$d, skipped: %5$d, failed: %6$d.', 'usd-to-toman-price-sync-for-woocommerce' ),
+			/* translators: 1: processed variations, 2: total variations, 3: updated, 4: USD price set, 5: re-based, 6: unchanged, 7: skipped, 8: failed. */
+			__( 'Variations %1$d/%2$d — updated: %3$d, USD price set: %4$d, re-based: %5$d, unchanged: %6$d, skipped: %7$d, failed: %8$d.', 'usd-to-toman-price-sync-for-woocommerce' ),
 			$processed,
 			$total,
 			$stats['changed'],
+			$stats['generated'],
+			$stats['rebased'],
 			$stats['unchanged'],
 			$stats['skipped'],
 			$stats['failed']
@@ -1316,8 +1349,10 @@ final class Sync_Runner {
 			return;
 		}
 
-		// Last slice: make sure the parent price range is correct.
-		$this->recorder->sync_parent( $parent_id );
+		// Last slice: a written variation price moves the parent price range.
+		if ( $job->is_write_job() && $stats['changed'] > 0 ) {
+			$this->recorder->sync_parent( $parent_id );
+		}
 
 		$status = Job_Repository::ITEM_UNCHANGED;
 
@@ -1327,6 +1362,10 @@ final class Sync_Runner {
 			$status = Job_Repository::ITEM_CONFLICT;
 		} elseif ( $stats['changed'] > 0 ) {
 			$status = Job_Repository::ITEM_CHANGED;
+		} elseif ( $stats['generated'] > 0 ) {
+			$status = Job_Repository::ITEM_GENERATED;
+		} elseif ( $stats['rebased'] > 0 ) {
+			$status = Job_Repository::ITEM_REBASED;
 		} elseif ( $stats['skipped'] >= $total ) {
 			$status = Job_Repository::ITEM_SKIPPED;
 		}
@@ -1347,57 +1386,27 @@ final class Sync_Runner {
 	}
 
 	/**
-	 * Convert and write one product or variation.
+	 * Plan and apply the pegged price of one product or variation.
 	 *
-	 * @param Job         $job      Job.
-	 * @param array       $item     Item row.
-	 * @param \WC_Product $product  Product or variation.
-	 * @param int|null    $revision Expected revision override.
+	 * @param Job         $job     Job.
+	 * @param \WC_Product $product Product or variation.
 	 * @return array Recorder result.
 	 */
-	private function calculate_and_write( Job $job, array $item, $product, $revision = null ) {
-		$rounding = array(
-			'rounding'  => (string) $job->data['rounding'],
-			'increment' => (float) $job->data['increment'],
-			'decimals'  => (int) $job->data['decimals'],
-		);
-
-		$snapshot = $this->pricing->get_snapshot( $product );
-
-		$source = array(
-			'regular' => $snapshot['source_regular'],
-			'sale'    => $snapshot['source_sale'],
-		);
-
-		$rate = $job->rate();
-
-		$target = array(
-			'regular' => null === $source['regular'] ? null : Calculator::from_toman( $source['regular'], $rate, $rounding ),
-			'sale'    => null === $source['sale'] ? null : Calculator::from_toman( $source['sale'], $rate, $rounding ),
-		);
-
-		if ( null === $revision ) {
-			$revision = (int) $item['expected_revision'];
-		}
-
-		$result = $this->recorder->apply(
+	private function calculate_and_write( Job $job, $product ) {
+		return $this->recorder->apply(
 			$product,
-			$source,
-			$target,
 			array(
-				'dry_run'           => ! $job->is_write_job(),
-				'rate'              => $rate,
-				'currency_mode'     => (string) $job->data['currency_mode'],
-				'job_id'            => $job->id(),
-				'expected_revision' => $revision,
-				'sync_parent'       => false,
+				'dry_run'     => ! $job->is_write_job(),
+				'rate'        => $job->rate(),
+				'rounding'    => array(
+					'rounding'  => (string) $job->data['rounding'],
+					'increment' => (float) $job->data['increment'],
+					'decimals'  => (int) $job->data['decimals'],
+				),
+				'job_id'      => $job->id(),
+				'sync_parent' => false,
 			)
 		);
-
-		$result['source'] = $source;
-		$result['target'] = $target;
-
-		return $result;
 	}
 
 	/**
@@ -1441,19 +1450,12 @@ final class Sync_Runner {
 			'attention' => in_array( $code, self::ATTENTION_CODES, true ) ? 1 : 0,
 		);
 
-		if ( isset( $result['old'] ) ) {
-			$data['old_regular'] = Calculator::to_price_string( $result['old']['regular'], 6 );
-			$data['old_sale']    = Calculator::to_price_string( $result['old']['sale'], 6 );
-		}
-
-		if ( isset( $result['new'] ) ) {
-			$data['new_regular'] = Calculator::to_price_string( $result['new']['regular'], 6 );
-			$data['new_sale']    = Calculator::to_price_string( $result['new']['sale'], 6 );
-		}
-
-		if ( isset( $result['source'] ) ) {
-			$data['toman_regular'] = Calculator::to_price_string( $result['source']['regular'], 0 );
-			$data['toman_sale']    = Calculator::to_price_string( $result['source']['sale'], 0 );
+		// Woo price strings and USD anchors are stored as the recorder reports them.
+		foreach ( array( 'old', 'new', 'usd' ) as $pair ) {
+			if ( isset( $result[ $pair ] ) ) {
+				$data[ $pair . '_regular' ] = $result[ $pair ]['regular'];
+				$data[ $pair . '_sale' ]    = $result[ $pair ]['sale'];
+			}
 		}
 
 		$attempts = (int) $item['attempts'];
@@ -1502,8 +1504,6 @@ final class Sync_Runner {
 
 		$counters = $job->counters();
 
-		$this->mark_mode_synced( $job, $status );
-
 		$this->logger->info(
 			'Job finished.',
 			array(
@@ -1519,10 +1519,6 @@ final class Sync_Runner {
 			$this->rates->log_job_summary( $job, $status, $message );
 		}
 
-		if ( Job::TYPE_PREVIEW !== $job->type() && ! $this->settings->currency_mode_is_stale() && count( $job->scope() ) ) {
-			$this->settings->set_synced_currency_mode( (string) $this->settings->get( 'currency_mode' ) );
-		}
-
 		delete_option( 'usdtf_stale_resumes' );
 
 		$this->products->flush_counts_cache();
@@ -1534,45 +1530,6 @@ final class Sync_Runner {
 		 * @param string $status Terminal status.
 		 */
 		do_action( 'usdtf_job_finished', $job, $status );
-	}
-
-	/**
-	 * Remember that the price fields match the active transaction currency.
-	 *
-	 * The "currency mode changed" warning may only be cleared by a full catalog
-	 * update that wrote every item, so partial scopes and jobs with failures or
-	 * conflicts keep it visible.
-	 *
-	 * @param Job    $job    Finished job.
-	 * @param string $status Terminal status.
-	 * @return void
-	 */
-	private function mark_mode_synced( Job $job, $status ) {
-		if ( ! $job->is_write_job() ) {
-			return;
-		}
-
-		if ( ! in_array( $status, array( Job::STATUS_COMPLETED, Job::STATUS_COMPLETED_WITH_ERRORS ), true ) ) {
-			return;
-		}
-
-		$counters = $job->counters();
-
-		if ( $counters['failed'] > 0 || $counters['conflicts'] > 0 ) {
-			return;
-		}
-
-		$scope          = $this->products->normalize_scope( $job->scope() );
-		$full           = $this->products->normalize_scope( Product_Repository::default_scope() );
-		$scope['label'] = '';
-		$full['label']  = '';
-
-		if ( $scope !== $full ) {
-			return;
-		}
-
-		$this->settings->set_synced_currency_mode( (string) $job->data['currency_mode'] );
-		$this->products->flush_counts_cache();
 	}
 
 	/**
@@ -1767,7 +1724,10 @@ final class Sync_Runner {
 	}
 
 	/**
-	 * Queue conflicting products for another attempt with a fresh revision.
+	 * Queue conflicting products for another attempt.
+	 *
+	 * The next attempt plans from the Woo price as it is now, so an edit that
+	 * caused the conflict is re-based instead of overwritten.
 	 *
 	 * @param int $job_id Job ID.
 	 * @return int Number of conflicting items queued again.
@@ -1784,16 +1744,13 @@ final class Sync_Runner {
 		$count = 0;
 
 		foreach ( $items as $item ) {
-			$revision = $this->pricing->get_revision( (int) $item['object_id'] );
-
 			$this->jobs->update_item(
 				$item['id'],
 				array(
-					'status'            => Job_Repository::ITEM_PENDING,
-					'attempts'          => 0,
-					'retry_after'       => null,
-					'expected_revision' => $revision,
-					'message'           => __( 'Queued again after a conflict review.', 'usd-to-toman-price-sync-for-woocommerce' ),
+					'status'      => Job_Repository::ITEM_PENDING,
+					'attempts'    => 0,
+					'retry_after' => null,
+					'message'     => __( 'Queued again after a conflict review.', 'usd-to-toman-price-sync-for-woocommerce' ),
 				)
 			);
 
@@ -1820,6 +1777,19 @@ final class Sync_Runner {
 	 * @return array|\WP_Error
 	 */
 	public function rollback() {
+		// Both guards run before the previous rate is saved: a refused rollback
+		// never changes the stored rate. Saving it would also record the new
+		// unit and clear the unit guard with a rate of the old one.
+		if ( ! Store_Currency::is_supported() ) {
+			return $this->unsupported_currency_error();
+		}
+
+		$unit_changed = $this->unit_changed_error();
+
+		if ( $unit_changed ) {
+			return $unit_changed;
+		}
+
 		$previous = $this->rates->previous_rate();
 
 		if ( $previous <= 0 ) {
@@ -2052,14 +2022,12 @@ final class Sync_Runner {
 
 		$preview_required = (bool) $this->settings->get( 'require_preview' );
 		$preview_ok       = false;
+		$unit_changed     = $this->unit_changed_error();
+
+		$rounding = $this->settings->rounding_args();
 
 		if ( $rate > 0 ) {
-			$fingerprint = self::job_fingerprint(
-				$rate,
-				(string) $this->settings->get( 'currency_mode' ),
-				$this->settings->rounding_args(),
-				$scope
-			);
+			$fingerprint = self::job_fingerprint( $rate, $rounding, $scope );
 
 			foreach ( $this->jobs->query(
 				array(
@@ -2070,13 +2038,13 @@ final class Sync_Runner {
 			) as $candidate ) {
 				$candidate_fingerprint = self::job_fingerprint(
 					$candidate->rate(),
-					(string) $candidate->data['currency_mode'],
 					array(
 						'rounding'  => (string) $candidate->data['rounding'],
 						'increment' => (float) $candidate->data['increment'],
 						'decimals'  => (int) $candidate->data['decimals'],
 					),
-					$this->products->normalize_scope( $candidate->scope() )
+					$this->products->normalize_scope( $candidate->scope() ),
+					isset( $candidate->data['unit'] ) ? (string) $candidate->data['unit'] : ''
 				);
 
 				if ( $candidate_fingerprint === $fingerprint ) {
@@ -2087,40 +2055,34 @@ final class Sync_Runner {
 		}
 
 		return array(
-			'rate'                => $rate,
-			'previous_rate'       => $this->rates->previous_rate(),
-			'pending_rate'        => $pending ? array(
+			'rate'             => $rate,
+			'previous_rate'    => $this->rates->previous_rate(),
+			'pending_rate'     => $pending ? array(
 				'rate'           => (float) $pending['rate'],
 				'previous_rate'  => (float) $pending['previous_rate'],
 				'change_percent' => null === $pending['change_percent'] ? null : (float) $pending['change_percent'],
 				'created_at'     => (int) $pending['created_at'],
 				'user'           => Job::user_display_name( (int) $pending['user_id'] ),
 			) : null,
-			'summary'             => $this->products->summary( $rate ),
-			'scope'               => $scope,
-			'currency_mode'       => (string) $this->settings->get( 'currency_mode' ),
-			'currency_mode_stale' => $this->settings->currency_mode_is_stale(),
-			'active_job'          => $active ? $active->to_array() : null,
-			'last_job'            => $last ? $last->to_array() : null,
-			'last_preview_job'    => $preview_job ? $preview_job->to_array() : null,
-			'preview_required'    => $preview_required,
-			'preview_ok'          => $preview_ok,
-			'lock'                => $this->lock->status(),
-			'scheduler'           => $this->scheduler->health(),
-			'settings'            => array(
-				'batch_size'         => $this->settings->batch_size(),
-				'time_budget'        => $this->settings->time_budget(),
-				'rounding'           => $this->settings->get( 'rounding' ),
-				'increment'          => (float) $this->settings->get( 'increment' ),
-				'decimals'           => (int) $this->settings->get( 'decimals' ),
-				'threshold'          => (float) $this->settings->get( 'rate_change_threshold' ),
-				'retry_limit'        => (int) $this->settings->get( 'retry_limit' ),
-				'retention_days'     => (int) $this->settings->get( 'retention_days' ),
-				'display_toman'      => (bool) $this->settings->get( 'display_toman' ),
-				'display_toman_cart' => (bool) $this->settings->get( 'display_toman_cart' ),
-				'persian_digits'     => (bool) $this->settings->get( 'persian_digits' ),
-				'toman_suffix'       => (string) $this->settings->get( 'toman_suffix' ),
-				'auto_manage'        => (bool) $this->settings->get( 'auto_manage_new_products' ),
+			'summary'          => $this->products->summary( $rate ),
+			'scope'            => $scope,
+			'active_job'       => $active ? $active->to_array() : null,
+			'last_job'         => $last ? $last->to_array() : null,
+			'last_preview_job' => $preview_job ? $preview_job->to_array() : null,
+			'preview_required' => $preview_required,
+			'preview_ok'       => $preview_ok,
+			'unit_changed'     => $unit_changed ? $unit_changed->get_error_message() : '',
+			'lock'             => $this->lock->status(),
+			'scheduler'        => $this->scheduler->health(),
+			'settings'         => array(
+				'batch_size'     => $this->settings->batch_size(),
+				'time_budget'    => $this->settings->time_budget(),
+				'rounding'       => $rounding['rounding'],
+				'increment'      => $rounding['increment'],
+				'decimals'       => $rounding['decimals'],
+				'threshold'      => (float) $this->settings->get( 'rate_change_threshold' ),
+				'retry_limit'    => (int) $this->settings->get( 'retry_limit' ),
+				'retention_days' => (int) $this->settings->get( 'retention_days' ),
 			),
 		);
 	}

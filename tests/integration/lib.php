@@ -358,7 +358,7 @@ function usdtf_it_guard_store() {
 		\USDTF\Settings::OPTION,
 		\USDTF\Settings::OPTION_RATE,
 		\USDTF\Settings::OPTION_PENDING_RATE,
-		\USDTF\Settings::OPTION_SYNCED_CURRENCY_MODE,
+		\USDTF\Settings::OPTION_RATE_UNIT,
 		\USDTF\Lock::OPTION,
 		'usdtf_last_error',
 		'usdtf_stale_resumes',
@@ -469,10 +469,9 @@ function usdtf_it_restore_store() {
 	);
 
 	try {
-		// Restoring the meta goes through the plugin's own writers, so the
-		// revision guard has to be off: it would bump _usdtf_revision on every
-		// source price this puts back and the store would end up with a higher
-		// revision than it started with.
+		// The meta and the prices are put back the way the plugin writes them
+		// itself, with its product hooks off, so restoring the store is not
+		// mistaken for an edit made by the store owner.
 		\USDTF\Product_Pricing::without_hooks(
 			function () use ( $snapshot, &$restored ) {
 				foreach ( $snapshot['metas'] as $row ) {
@@ -771,41 +770,146 @@ function usdtf_it_rest_data( $response ) {
 }
 
 /**
- * Create a simple product with Toman source prices.
+ * Create a simple product priced in WooCommerce for the legacy scenarios.
+ *
+ * The WooCommerce price is the input of the USD-pegged model, so this is a
+ * thin wrapper around usdtf_it_make_priced_product() that stores the pricing
+ * mode explicitly. The first job that sees the product generates its USD price
+ * and leaves the WooCommerce price alone; a later rate change rewrites it.
  *
  * @param string $name    Product name.
- * @param mixed  $regular Toman regular price.
- * @param mixed  $sale    Toman sale price.
- * @param string $mode    Pricing mode.
+ * @param mixed  $regular WooCommerce regular price in the store unit.
+ * @param mixed  $sale    WooCommerce sale price, empty for none.
+ * @param string $mode    Pricing mode (managed or excluded).
  * @return \WC_Product
  */
 function usdtf_it_make_simple_product( $name, $regular, $sale = '', $mode = 'managed' ) {
+	return usdtf_it_make_priced_product( $name, $regular, $sale, $mode );
+}
+
+/**
+ * Make this process, the worker processes and the test web server see a Toman
+ * store priced without decimals.
+ *
+ * The plugin only prices a store whose WooCommerce currency is IRT or IRR, and
+ * the legacy scenarios assert whole Toman prices. The worker scripts and the
+ * HTTP server are separate PHP processes, so a filter in this process is not
+ * enough: the two WooCommerce options are written to the database and put back
+ * by a shutdown handler, which also runs after a failed assertion.
+ *
+ * @return void
+ */
+function usdtf_it_use_toman_store() {
+	if ( isset( $GLOBALS['usdtf_it_store_options'] ) ) {
+		return;
+	}
+
+	$GLOBALS['usdtf_it_store_options'] = array(
+		'woocommerce_currency'           => get_option( 'woocommerce_currency', null ),
+		'woocommerce_price_num_decimals' => get_option( 'woocommerce_price_num_decimals', null ),
+	);
+
+	usdtf_it_set_currency( null );
+	update_option( 'woocommerce_currency', 'IRT' );
+	update_option( 'woocommerce_price_num_decimals', 0 );
+
+	register_shutdown_function( 'usdtf_it_restore_store_options' );
+}
+
+/**
+ * Put back the WooCommerce options usdtf_it_use_toman_store() replaced.
+ *
+ * @return void
+ */
+function usdtf_it_restore_store_options() {
+	if ( ! isset( $GLOBALS['usdtf_it_store_options'] ) ) {
+		return;
+	}
+
+	foreach ( (array) $GLOBALS['usdtf_it_store_options'] as $option => $value ) {
+		if ( null === $value ) {
+			delete_option( $option );
+		} else {
+			update_option( $option, $value );
+		}
+	}
+
+	unset( $GLOBALS['usdtf_it_store_options'] );
+}
+
+/**
+ * Force the WooCommerce currency for the rest of this process.
+ *
+ * The USD-pegged model only works on a store whose currency is IRT or IRR, and
+ * the test installation may use another one. The filter is added on
+ * pre_option_woocommerce_currency, so it wins over the stored option and leaves
+ * the database alone. Passing null removes it again.
+ *
+ * @param string|null $code Currency code such as IRT or IRR, or null to remove the override.
+ * @return void
+ */
+function usdtf_it_set_currency( $code ) {
+	remove_filter( 'pre_option_woocommerce_currency', 'usdtf_it_currency_override' );
+
+	$GLOBALS['usdtf_it_currency'] = null === $code ? null : (string) $code;
+
+	if ( null !== $code ) {
+		add_filter( 'pre_option_woocommerce_currency', 'usdtf_it_currency_override' );
+	}
+}
+
+/**
+ * Filter callback of usdtf_it_set_currency().
+ *
+ * @return string
+ */
+function usdtf_it_currency_override() {
+	return (string) $GLOBALS['usdtf_it_currency'];
+}
+
+/**
+ * Create a simple product that carries only WooCommerce prices.
+ *
+ * This is the shape of a store that has never run the plugin: no USD anchor, no
+ * seen price, and no mode unless the caller asks for one.
+ *
+ * @param string     $name    Product name.
+ * @param string|int $regular Regular price, written as given.
+ * @param string|int $sale    Sale price, empty for none.
+ * @param string     $mode    Pricing mode, empty to leave the meta unset.
+ * @return \WC_Product_Simple
+ */
+function usdtf_it_make_priced_product( $name, $regular, $sale = '', $mode = '' ) {
 	$product = new \WC_Product_Simple();
 	$product->set_name( $name );
 	$product->set_status( 'publish' );
 	$product->set_catalog_visibility( 'visible' );
-	// A managed product carries no WooCommerce price until the first sync: the
-	// canonical value lives in the Toman source meta only.
+	$product->set_regular_price( (string) $regular );
+	$product->set_sale_price( (string) $sale );
 	$product->save();
 
 	usdtf_it_track_product( $product );
 
-	$pricing = usdtf_plugin()->pricing();
-	$pricing->set_mode( $product->get_id(), $mode );
-	$pricing->set_source( $product->get_id(), $regular, $sale );
+	if ( '' !== (string) $mode ) {
+		update_post_meta( $product->get_id(), '_usdtf_mode', (string) $mode );
+	}
 
 	return wc_get_product( $product->get_id() );
 }
 
 /**
- * Create a variable product with the given variations.
+ * Create a variable product whose variations carry only WooCommerce prices.
+ *
+ * Like usdtf_it_make_priced_product(): no USD anchor, no seen price, and no
+ * mode unless the caller asks for one. The parent price range is synced, as
+ * WooCommerce does when the product is saved in the admin.
  *
  * @param string $name       Product name.
- * @param array  $variations List of [ regular, sale ] Toman pairs.
- * @param string $mode       Pricing mode.
+ * @param array  $variations List of [ regular, sale ] Woo price pairs; sale optional.
+ * @param string $mode       Pricing mode of the parent and every variation, empty to leave it unset.
  * @return \WC_Product_Variable
  */
-function usdtf_it_make_variable_product( $name, array $variations, $mode = 'managed' ) {
+function usdtf_it_make_priced_variable_product( $name, array $variations, $mode = '' ) {
 	$product = new \WC_Product_Variable();
 	$product->set_name( $name );
 	$product->set_status( 'publish' );
@@ -821,22 +925,73 @@ function usdtf_it_make_variable_product( $name, array $variations, $mode = 'mana
 
 	usdtf_it_track_product( $product );
 
-	$pricing = usdtf_plugin()->pricing();
-	$pricing->set_mode( $product->get_id(), $mode );
+	if ( '' !== (string) $mode ) {
+		update_post_meta( $product->get_id(), '_usdtf_mode', (string) $mode );
+	}
 
-	foreach ( $variations as $index => $prices ) {
+	foreach ( array_values( $variations ) as $index => $prices ) {
 		$variation = new \WC_Product_Variation();
 		$variation->set_parent_id( $product->get_id() );
 		$variation->set_attributes( array( 'size' => (string) ( $index + 1 ) ) );
+		$variation->set_regular_price( (string) $prices[0] );
+		$variation->set_sale_price( isset( $prices[1] ) ? (string) $prices[1] : '' );
 		$variation->save();
 
 		usdtf_it_track_product( $variation );
 
-		$pricing->set_mode( $variation->get_id(), $mode );
-		$pricing->set_source( $variation->get_id(), $prices[0], isset( $prices[1] ) ? $prices[1] : '' );
+		if ( '' !== (string) $mode ) {
+			update_post_meta( $variation->get_id(), '_usdtf_mode', (string) $mode );
+		}
 	}
 
+	\WC_Product_Variable::sync( $product->get_id() );
+
 	return wc_get_product( $product->get_id() );
+}
+
+/**
+ * Create a variable product priced in WooCommerce for the legacy scenarios.
+ *
+ * A thin wrapper around usdtf_it_make_priced_variable_product() that stores
+ * the pricing mode on the parent and on every variation explicitly.
+ *
+ * @param string $name       Product name.
+ * @param array  $variations List of [ regular, sale ] WooCommerce price pairs.
+ * @param string $mode       Pricing mode.
+ * @return \WC_Product_Variable
+ */
+function usdtf_it_make_variable_product( $name, array $variations, $mode = 'managed' ) {
+	return usdtf_it_make_priced_variable_product( $name, $variations, $mode );
+}
+
+/**
+ * Generate the USD prices of the managed products in this process.
+ *
+ * The first job that sees a product only stores its USD price, so a scenario
+ * that needs a job to write WooCommerce prices runs this first and then saves
+ * a new rate. The worker actions the job queued are cleared again: the job ran
+ * here, and a web server running the queue must not pick them up later.
+ *
+ * @param int[] $ids Product IDs, empty for every managed product.
+ * @return int Job ID.
+ */
+function usdtf_it_generate_usd( array $ids = array() ) {
+	$args = array( 'type' => \USDTF\Job::TYPE_SYNC );
+
+	if ( $ids ) {
+		$args['scope'] = array( 'ids' => array_map( 'intval', $ids ) );
+	}
+
+	$job    = usdtf_it_create_job( $args );
+	$job_id = (int) $job['id'];
+
+	usdtf_it_run_job( $job_id );
+
+	foreach ( array( \USDTF\Sync_Runner::HOOK_DISCOVER, \USDTF\Sync_Runner::HOOK_PROCESS, \USDTF\Sync_Runner::HOOK_FINALIZE ) as $hook ) {
+		\USDTF\Scheduler::unschedule_all( $hook, array( $job_id ) );
+	}
+
+	return $job_id;
 }
 
 /**
@@ -946,7 +1101,8 @@ function usdtf_it_reset_plugin_state() {
 		\USDTF\Settings::OPTION,
 		\USDTF\Settings::OPTION_RATE,
 		\USDTF\Settings::OPTION_PENDING_RATE,
-		\USDTF\Settings::OPTION_SYNCED_CURRENCY_MODE,
+		\USDTF\Settings::OPTION_RATE_UNIT,
+		\USDTF\Database::OPTION_UPGRADE_NOTICE,
 		'usdtf_last_error',
 		'usdtf_stale_resumes',
 	);
@@ -957,12 +1113,6 @@ function usdtf_it_reset_plugin_state() {
 
 	// Use the shared instance so nothing keeps a cached copy of the old values.
 	usdtf_plugin()->settings()->reset();
-
-	// A fresh install defaults to Toman transactions, which has its own
-	// scenario. The other scenarios describe the USD transaction mode, so it is
-	// pinned here instead of being inherited from the default.
-	usdtf_plugin()->settings()->update( array( 'currency_mode' => \USDTF\Settings::MODE_USD ) );
-	usdtf_plugin()->settings()->set_synced_currency_mode( \USDTF\Settings::MODE_USD );
 
 	// The shipped default requires a dry run before every update; the mechanics
 	// scenarios create jobs directly, so they opt out. The enforcement itself

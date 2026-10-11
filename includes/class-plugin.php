@@ -120,9 +120,6 @@ final class Plugin {
 			$this->admin()->hooks();
 		}
 
-		$this->display()->hooks();
-		$this->currency()->hooks();
-
 		/**
 		 * Fires once the plugin finished loading its modules.
 		 *
@@ -274,24 +271,6 @@ final class Plugin {
 	}
 
 	/**
-	 * Storefront display.
-	 *
-	 * @return \USDTF\Frontend\Display
-	 */
-	public function display() {
-		return $this->service( 'display' );
-	}
-
-	/**
-	 * Transaction currency mode.
-	 *
-	 * @return \USDTF\Frontend\Currency
-	 */
-	public function currency() {
-		return $this->service( 'currency' );
-	}
-
-	/**
 	 * REST API controller.
 	 *
 	 * @return \USDTF\Admin\Rest_Controller
@@ -374,14 +353,6 @@ final class Plugin {
 
 			case 'admin':
 				$service = new \USDTF\Admin\Admin( $this->settings(), $this->runner(), $this->rates(), $this->jobs(), $this->products(), $this->pricing(), $this->health(), $this->logger(), $this->scheduler() );
-				break;
-
-			case 'display':
-				$service = new \USDTF\Frontend\Display( $this->settings(), $this->pricing() );
-				break;
-
-			case 'currency':
-				$service = new \USDTF\Frontend\Currency( $this->settings() );
 				break;
 
 			case 'rest':

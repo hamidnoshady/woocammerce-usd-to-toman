@@ -19,14 +19,8 @@ defined( 'ABSPATH' ) || exit;
 	</h1>
 
 	<p class="usdtf-lead">
-		<?php esc_html_e( 'Source prices are entered in Toman. WooCommerce prices are derived from the manual USD/Toman rate, and every update runs as a safe background job that can be paused, resumed and reviewed.', 'usd-to-toman-price-sync-for-woocommerce' ); ?>
+		<?php esc_html_e( 'Every managed product keeps a USD price, recorded from its WooCommerce price. When you change the exchange rate, the WooCommerce price is recalculated from the USD price, in a safe background job that can be previewed, paused, resumed and reviewed.', 'usd-to-toman-price-sync-for-woocommerce' ); ?>
 	</p>
-
-	<?php if ( ! empty( $state['currency_mode_stale'] ) ) : ?>
-		<div class="notice notice-warning inline usdtf-inline-notice">
-			<p><?php esc_html_e( 'The transaction currency changed after the last full update. Run a full price update so every price field holds the configured currency.', 'usd-to-toman-price-sync-for-woocommerce' ); ?></p>
-		</div>
-	<?php endif; ?>
 
 	<nav class="nav-tab-wrapper usdtf-tabs">
 		<?php foreach ( $usdtf_tabs as $usdtf_slug => $usdtf_label ) : ?>

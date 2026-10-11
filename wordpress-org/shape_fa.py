@@ -71,12 +71,17 @@ TRANSPARENT = {0x064B, 0x064C, 0x064D, 0x064E, 0x064F, 0x0650, 0x0651, 0x0652, 0
 # A zero width non joiner is not drawn, but it stops a connection.
 ZWNJ = 0x200C
 
+# Paired punctuation is mirrored inside a right to left run: the reversal puts the
+# opening mark on the right, where its glyph has to face the other way.
+MIRRORED = {0x28: 0x29, 0x29: 0x28, 0x5B: 0x5D, 0x5D: 0x5B, 0xAB: 0xBB, 0xBB: 0xAB}
+
 # Digits, Latin words and currency amounts keep their own order inside a right to
 # left line. Matching them as whole tokens means the reversal happens between
-# runs and never inside one.
+# runs and never inside one. Latin words separated by single spaces ("Action
+# Scheduler") stay together as one phrase.
 LTR_TOKEN = re.compile(
     r'[$\u20AC]?[\u06F0-\u06F9\u0660-\u06690-9]+(?:[,.][\u06F0-\u06F9\u0660-\u06690-9]+)*'
-    r'|[A-Za-z][A-Za-z0-9._+-]*'
+    r'|[A-Za-z][A-Za-z0-9._+-]*(?: [A-Za-z][A-Za-z0-9._+-]*)*'
 )
 
 
@@ -111,7 +116,7 @@ def _shape_rtl_run(text):
             continue
 
         if code not in FORMS:
-            shaped.append(code)
+            shaped.append(MIRRORED.get(code, code))
 
             continue
 

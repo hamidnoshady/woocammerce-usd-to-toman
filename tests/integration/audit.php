@@ -3,10 +3,12 @@
  * Integration scenarios for the production audit fixes (issue #4).
  *
  * Covers: live REST route registration, retry timing, cross-slice variation
- * failures, variation mode persistence, the include_variations scope, the
- * read-only source meta rule, queue failures, the dry-run-first rule,
- * variation discovery under unmanaged parents, variation pagination, the
- * zero source rule, the capability allowlist and scheduled sales.
+ * failures, variation mode persistence, the include_variations scope, queue
+ * failures, the dry-run-first rule, variation discovery under unmanaged
+ * parents, variation pagination and the capability allowlist. The read-only
+ * source meta, zero source and ended scheduled sale scenarios of the old
+ * Toman-source model are covered by their USD-pegged counterparts in
+ * pegged.php.
  *
  * @package USDTF
  */
@@ -57,6 +59,11 @@ usdtf_it_delete_products();
 $rates->save_rate( 270000 );
 $retry_product = usdtf_it_make_simple_product( 'Retry product', '5400000' );
 
+// The USD price is generated first, so the retried item below writes a new Woo price.
+$retry_job = usdtf_it_create_job( array( 'type' => Job::TYPE_SYNC ) );
+usdtf_it_run_job( (int) $retry_job['id'] );
+$rates->save_rate( 300000 );
+
 $retry_job = usdtf_it_create_job( array( 'type' => Job::TYPE_SYNC ) );
 $retry_id  = (int) $retry_job['id'];
 
@@ -106,7 +113,7 @@ usdtf_it_assert( count( usdtf_plugin()->jobs()->next_items( $retry_id, 20 ) ) ==
 
 usdtf_it_run_job( $retry_id );
 usdtf_it_assert_same( Job::STATUS_COMPLETED, usdtf_plugin()->jobs()->get( $retry_id )->status(), 'the job must finish once the retry is due' );
-usdtf_it_assert_same( '20', usdtf_it_price( $retry_product->get_id() ), 'the retried item must be processed normally' );
+usdtf_it_assert_same( '6000000', usdtf_it_price( $retry_product->get_id() ), 'the retried item must be processed normally' );
 
 usdtf_it_pass( 'the retry delay is respected for pending items' );
 
@@ -126,11 +133,18 @@ for ( $i = 1; $i <= 25; $i++ ) {
 
 $sliced_product = usdtf_it_make_variable_product( 'Sliced variable product', $usdtf_it_variation_prices );
 
-// Variation #3 carries an invalid source: it is reported in the first slice.
+// Variation #3 carries an invalid price (WooCommerce would not save one, so it
+// is planted in the meta): it is reported in the first slice.
 $usdtf_it_children = $sliced_product->get_children();
 $broken_variation  = (int) $usdtf_it_children[2];
 
-update_post_meta( $broken_variation, Product_Pricing::META_SOURCE_REGULAR, '-5' );
+update_post_meta( $broken_variation, '_regular_price', '-5' );
+update_post_meta( $broken_variation, '_price', '-5' );
+
+// The working variations get their USD price first, so the sliced job below changes them.
+$sliced_job = usdtf_it_create_job( array( 'type' => Job::TYPE_SYNC ) );
+usdtf_it_run_job( (int) $sliced_job['id'] );
+$rates->save_rate( 300000 );
 
 // Ten variations per slice: the job needs three slices for 25 variations.
 add_filter(
@@ -155,14 +169,14 @@ $sliced_item = $wpdb->get_row( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.
 
 usdtf_it_assert_same( '25', (string) $sliced_item['child_total'], 'the item must know all of its variations' );
 usdtf_it_assert( false !== strpos( (string) $sliced_item['message'], 'skipped: 1' ), 'the cumulative counters must keep the early slice problem visible: ' . (string) $sliced_item['message'] );
-usdtf_it_assert_same( '1', (string) $sliced_item['attention'], 'an invalid variation source in an early slice must flag the item for attention' );
+usdtf_it_assert_same( '1', (string) $sliced_item['attention'], 'an invalid variation price in an early slice must flag the item for attention' );
 
 $usdtf_it_child_stats = json_decode( (string) $sliced_item['child_stats'], true );
 usdtf_it_assert( is_array( $usdtf_it_child_stats ) && 1 === (int) $usdtf_it_child_stats['skipped'], 'the persisted per-item counters must remember the early slice skip' );
 usdtf_it_assert( is_array( $usdtf_it_child_stats ) && 24 === (int) $usdtf_it_child_stats['changed'], 'the working variations must be counted as changed' );
 usdtf_it_assert( is_array( $usdtf_it_child_stats ) && 1 === (int) $usdtf_it_child_stats['attention'], 'the attention flag must be sticky across the slices' );
 
-usdtf_it_assert_same( Job::STATUS_COMPLETED_WITH_ERRORS, $sliced_job_row->status(), 'the job must finish with errors when a variation had an invalid source' );
+usdtf_it_assert_same( Job::STATUS_COMPLETED_WITH_ERRORS, $sliced_job_row->status(), 'the job must finish with errors when a variation had an invalid price' );
 
 // A variation whose price cannot be written at all fails the item in the slice
 // it happens in, no matter how many slices follow.
@@ -174,6 +188,16 @@ for ( $i = 1; $i <= 12; $i++ ) {
 
 $failing_product = usdtf_it_make_variable_product( 'Failing variable product', $usdtf_it_fail_prices );
 $failing_broken  = (int) $failing_product->get_children()[2];
+
+// Generate the USD prices first: only a new rate makes the job write the variations.
+$failing_job = usdtf_it_create_job(
+	array(
+		'type'  => Job::TYPE_SYNC,
+		'scope' => array( 'ids' => array( $failing_product->get_id() ) ),
+	)
+);
+usdtf_it_run_job( (int) $failing_job['id'] );
+$rates->save_rate( 330000 );
 
 $failing_hook = function ( $saved_product ) use ( $failing_broken ) {
 	$saved_id = $saved_product instanceof \WC_Product ? (int) $saved_product->get_id() : (int) $saved_product;
@@ -234,30 +258,39 @@ $_POST = array(
 	'usdtf_mode'        => Product_Pricing::MODE_MANAGED,
 );
 
-$_POST['usdtf_variation_source'] = array(
+// A price posted next to the mode is ignored: variation prices belong to WooCommerce.
+$_POST['usdtf_variation'] = array(
 	$panel_child_id => array(
-		'mode'    => Product_Pricing::MODE_NATIVE,
-		'regular' => '3000000',
+		'mode'    => Product_Pricing::MODE_EXCLUDED,
+		'regular' => '999',
 	),
 );
 
 $panel_object->save_variation( $panel_child_id );
 
-usdtf_it_assert_same( Product_Pricing::MODE_NATIVE, $pricing->get_mode( $panel_child_id ), 'the variation mode select must be persisted' );
-usdtf_it_assert_same( '3000000', usdtf_it_meta( $panel_child_id, Product_Pricing::META_SOURCE_REGULAR ), 'the variation source must still be persisted' );
+usdtf_it_assert_same( Product_Pricing::MODE_EXCLUDED, $pricing->get_mode( $panel_child_id ), 'the variation mode select must be persisted' );
+usdtf_it_assert_same( '3000000', usdtf_it_price( $panel_child_id ), 'the variation price must still be the WooCommerce price' );
 
-$_POST['usdtf_variation_source'][ $panel_child_id ]['mode'] = Product_Pricing::MODE_EXCLUDED;
+// A retired or unknown mode is refused and leaves the stored mode alone.
+$_POST['usdtf_variation'][ $panel_child_id ]['mode'] = 'native';
 
 $panel_object->save_variation( $panel_child_id );
 
-usdtf_it_assert_same( Product_Pricing::MODE_EXCLUDED, $pricing->get_mode( $panel_child_id ), 'switching the variation mode must survive the save' );
+usdtf_it_assert_same( Product_Pricing::MODE_EXCLUDED, usdtf_it_meta( $panel_child_id, Product_Pricing::META_MODE ), 'a mode other than Managed or Excluded must be refused for a variation' );
+delete_transient( 'usdtf_panel_error_' . get_current_user_id() );
+
+$_POST['usdtf_variation'][ $panel_child_id ]['mode'] = Product_Pricing::MODE_MANAGED;
+
+$panel_object->save_variation( $panel_child_id );
+
+usdtf_it_assert_same( Product_Pricing::MODE_MANAGED, $pricing->get_mode( $panel_child_id ), 'switching the variation mode must survive the save' );
 
 // The full product save carries the same fields for every variation.
-$_POST['usdtf_variation_source'][ $panel_child_id ]['mode'] = Product_Pricing::MODE_MANAGED;
+$_POST['usdtf_variation'][ $panel_child_id ]['mode'] = Product_Pricing::MODE_EXCLUDED;
 
 $panel_object->save_product( $panel_variable->get_id() );
 
-usdtf_it_assert_same( Product_Pricing::MODE_MANAGED, $pricing->get_mode( $panel_child_id ), 'the product save must persist the variation mode as well' );
+usdtf_it_assert_same( Product_Pricing::MODE_EXCLUDED, $pricing->get_mode( $panel_child_id ), 'the product save must persist the variation mode as well' );
 
 unset( $_POST );
 
@@ -273,6 +306,11 @@ $rates->save_rate( 270000 );
 
 $scope_variable = usdtf_it_make_variable_product( 'Scope variable', array( array( '2000000' ), array( '4000000' ) ) );
 $scope_simple   = usdtf_it_make_simple_product( 'Scope simple', '5000000' );
+
+// Everything gets its USD price first; the scoped jobs below run at a new rate.
+$scope_generate = usdtf_it_create_job( array( 'type' => Job::TYPE_SYNC ) );
+usdtf_it_run_job( (int) $scope_generate['id'] );
+$rates->save_rate( 300000 );
 
 $no_variations_job = usdtf_it_create_job(
 	array(
@@ -291,73 +329,16 @@ usdtf_it_assert_same( Job_Repository::ITEM_SKIPPED, $no_variations_item['status'
 usdtf_it_assert( false !== strpos( (string) $no_variations_item['message'], 'excluded' ), 'the skip must explain itself: ' . (string) $no_variations_item['message'] );
 
 $first_child = wc_get_product( (int) $scope_variable->get_children()[0] );
-usdtf_it_assert_same( '', (string) $first_child->get_regular_price( 'edit' ), 'the variations must not be written when the scope excludes them' );
-usdtf_it_assert_same( '19', usdtf_it_price( $scope_simple->get_id() ), 'the simple product in the same job must still be updated' );
+usdtf_it_assert_same( '2000000', (string) $first_child->get_regular_price( 'edit' ), 'the variations must not be written when the scope excludes them' );
+usdtf_it_assert_same( '5556000', usdtf_it_price( $scope_simple->get_id() ), 'the simple product in the same job must still be updated' );
 
 $with_variations_job = usdtf_it_create_job( array( 'type' => Job::TYPE_SYNC ) );
 usdtf_it_run_job( (int) $with_variations_job['id'] );
 
 $first_child = wc_get_product( (int) $scope_variable->get_children()[0] );
-usdtf_it_assert( '' !== (string) $first_child->get_regular_price( 'edit' ), 'a default scope must write the variation prices' );
+usdtf_it_assert_same( '2223000', (string) $first_child->get_regular_price( 'edit' ), 'a default scope must write the variation prices' );
 
 usdtf_it_pass( 'the include_variations scope flag decides what a variable item does' );
-
-// ---------------------------------------------------------------------------
-// 37. The worker never rewrites the canonical Toman source meta.
-// ---------------------------------------------------------------------------
-usdtf_it_reset_plugin_state();
-usdtf_it_delete_products();
-
-$rates->save_rate( 270000 );
-
-$race_product = usdtf_it_make_simple_product( 'Race product', '5000000' );
-$race_id      = $race_product->get_id();
-
-// An edit that lands while the worker writes the product, after the revision
-// check but before the meta refresh: exactly the window the audit describes.
-$race_edit = null;
-
-$race_edit = function ( $saved_product ) use ( $race_id, $pricing, &$race_edit ) {
-	$saved_id = $saved_product instanceof \WC_Product ? (int) $saved_product->get_id() : (int) $saved_product;
-
-	if ( $saved_id !== $race_id ) {
-		return;
-	}
-
-	static $done = false;
-
-	if ( $done ) {
-		return;
-	}
-
-	$done = true;
-	remove_action( 'woocommerce_update_product', $race_edit );
-	$pricing->set_source( $race_id, '9999999' );
-};
-
-add_action( 'woocommerce_update_product', $race_edit );
-
-$race_job = usdtf_it_create_job( array( 'type' => Job::TYPE_SYNC ) );
-usdtf_it_run_job( (int) $race_job['id'] );
-
-remove_action( 'woocommerce_update_product', $race_edit );
-
-usdtf_it_assert_same( '9999999', usdtf_it_meta( $race_id, Product_Pricing::META_SOURCE_REGULAR ), 'a concurrent edit of the canonical Toman source must survive the worker — the worker may never rewrite the source meta' );
-
-$race_item = $wpdb->get_row( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-	$wpdb->prepare( 'SELECT status FROM ' . Database::items_table() . ' WHERE job_id = %d AND object_id = %d', (int) $race_job['id'], $race_id ),
-	ARRAY_A
-);
-usdtf_it_assert( in_array( $race_item['status'], array( Job_Repository::ITEM_CHANGED, Job_Repository::ITEM_CONFLICT ), true ), 'the raced item must finish as changed or as a conflict, never as a silent overwrite' );
-
-// The next run adopts the new source without losing it.
-$adopt_job = usdtf_it_create_job( array( 'type' => Job::TYPE_SYNC ) );
-usdtf_it_run_job( (int) $adopt_job['id'] );
-
-usdtf_it_assert_same( '9999999', usdtf_it_meta( $race_id, Product_Pricing::META_SOURCE_REGULAR ), 'later jobs must also keep the concurrent source' );
-usdtf_it_assert_same( '38', usdtf_it_price( $race_id ), 'the next job derives the USD price from the surviving source (9999999 / 270000 = 37.037, rounded up to 38)' );
-
-usdtf_it_pass( 'the worker never rewrites the canonical Toman source meta' );
 
 // ---------------------------------------------------------------------------
 // 38. A queueing failure pauses the job and frees the lock.
@@ -475,14 +456,19 @@ $rates->save_rate( 270000 );
 $orphan_variable = usdtf_it_make_variable_product(
 	'Unmanaged parent',
 	array( array( '2700000' ), array( '5400000' ) ),
-	Product_Pricing::MODE_NATIVE
+	Product_Pricing::MODE_EXCLUDED
 );
 
 // The factory applies the parent mode to its variations; the orphan scenario
-// needs managed variations under a native parent.
+// needs managed variations under an excluded parent.
 foreach ( $orphan_variable->get_children() as $orphan_child_id ) {
 	$pricing->set_mode( (int) $orphan_child_id, Product_Pricing::MODE_MANAGED );
 }
+
+// The variations get their USD price first; the job below writes a new rate.
+$orphan_job = usdtf_it_create_job( array( 'type' => Job::TYPE_SYNC ) );
+usdtf_it_run_job( (int) $orphan_job['id'] );
+$rates->save_rate( 300000 );
 
 $orphan_job = usdtf_it_create_job( array( 'type' => Job::TYPE_SYNC ) );
 usdtf_it_run_job( (int) $orphan_job['id'] );
@@ -492,14 +478,15 @@ $orphan_items = $wpdb->get_results( // phpcs:ignore WordPress.DB.DirectDatabaseQ
 	ARRAY_A
 );
 
-usdtf_it_assert_same( 2, count( $orphan_items ), 'the managed variations under the native parent must be discovered on their own' );
+usdtf_it_assert_same( 2, count( $orphan_items ), 'the managed variations under the excluded parent must be discovered on their own' );
 usdtf_it_assert_same( 'variation', $orphan_items[0]['object_type'], 'the discovered items must be variations' );
 
-foreach ( $orphan_variable->get_children() as $orphan_child_id ) {
-	usdtf_it_assert( '' !== usdtf_it_price( $orphan_child_id ), 'the managed variation must have been written' );
-}
+$orphan_children = $orphan_variable->get_children();
+usdtf_it_assert_same( '3000000', usdtf_it_price( (int) $orphan_children[0] ), 'the managed variation must have been written' );
+usdtf_it_assert_same( '6000000', usdtf_it_price( (int) $orphan_children[1] ), 'the managed variation must have been written' );
 
-usdtf_it_assert_same( '', usdtf_it_price( $orphan_variable->get_id() ), 'the native parent itself must stay untouched' );
+usdtf_it_assert_same( '', usdtf_it_price( $orphan_variable->get_id() ), 'the excluded parent itself must stay untouched' );
+usdtf_it_assert_same( '', usdtf_it_meta( $orphan_variable->get_id(), Product_Pricing::META_USD_REGULAR ), 'the excluded parent must get no USD price' );
 
 usdtf_it_pass( 'managed variations under an unmanaged parent are discovered' );
 
@@ -539,43 +526,32 @@ add_filter(
 	}
 );
 
+// The first job generates every USD price, the second one writes a new rate.
+$paged_job = usdtf_it_create_job( array( 'type' => Job::TYPE_SYNC ) );
+usdtf_it_run_job( (int) $paged_job['id'] );
+
+$paged_job_row = usdtf_plugin()->jobs()->get( (int) $paged_job['id'] );
+usdtf_it_assert_same( 12, (int) $paged_job_row->data['variations_processed'], 'a product with twelve variations and five per slice must process all of them' );
+
+foreach ( $paged_product->get_children() as $paged_child_id ) {
+	usdtf_it_assert( '' !== usdtf_it_meta( $paged_child_id, Product_Pricing::META_USD_REGULAR ), 'every variation of the product must get its USD price' );
+}
+
+$rates->save_rate( 300000 );
 $paged_job = usdtf_it_create_job( array( 'type' => Job::TYPE_SYNC ) );
 usdtf_it_run_job( (int) $paged_job['id'] );
 
 remove_all_filters( 'usdtf_variation_slice' );
 
 $paged_job_row = usdtf_plugin()->jobs()->get( (int) $paged_job['id'] );
-usdtf_it_assert_same( 12, (int) $paged_job_row->data['variations_processed'], 'a product with twelve variations and five per slice must process all of them' );
+usdtf_it_assert_same( 12, (int) $paged_job_row->data['variations_processed'], 'the rate change must process all twelve variations again' );
+usdtf_it_assert_same( 12, (int) $paged_job_row->data['variations_changed'], 'every variation of the product must have been written' );
 
-foreach ( $paged_product->get_children() as $paged_child_id ) {
-	usdtf_it_assert( '' !== usdtf_it_price( $paged_child_id ), 'every variation of the product must have been written' );
+foreach ( $paged_product->get_children() as $paged_index => $paged_child_id ) {
+	usdtf_it_assert( $usdtf_it_paged_prices[ $paged_index ][0] !== usdtf_it_price( $paged_child_id ), 'every variation of the product must have been written' );
 }
 
 usdtf_it_pass( 'variation IDs are paginated and nothing is cut off' );
-
-// ---------------------------------------------------------------------------
-// 42. A zero source price is refused at write time.
-// ---------------------------------------------------------------------------
-usdtf_it_reset_plugin_state();
-usdtf_it_delete_products();
-
-$zero_product = usdtf_it_make_simple_product( 'Zero source product', '1000000' );
-$zero_id      = $zero_product->get_id();
-
-usdtf_it_assert( is_wp_error( $pricing->set_source( $zero_id, '0' ) ), 'a zero regular source must be refused' );
-usdtf_it_assert( is_wp_error( $pricing->set_source( $zero_id, '1000000', '0' ) ), 'a zero sale source must be refused' );
-usdtf_it_assert_same( '1000000', usdtf_it_meta( $zero_id, Product_Pricing::META_SOURCE_REGULAR ), 'a refused write must not change the stored source' );
-
-$zero_import = new WC_Product_Simple();
-$zero_import->set_regular_price( '0' );
-$zero_import->save();
-
-usdtf_it_track_product( $zero_import );
-
-$pricing->set_mode( $zero_import->get_id(), Product_Pricing::MODE_MANAGED );
-usdtf_it_assert( is_wp_error( $pricing->import_current_price_as_source( $zero_import->get_id() ) ), 'importing a zero price must be refused too' );
-
-usdtf_it_pass( 'a zero source price is refused at write time' );
 
 // ---------------------------------------------------------------------------
 // 43. Only the capability allowlist is storable.
@@ -596,9 +572,9 @@ usdtf_it_assert_same( 'manage_options', $strong['required_capability'], 'the all
 // everything the form did not send.
 usdtf_plugin()->settings()->update(
 	array(
-		'batch_size'     => 25,
-		'persian_digits' => false,
-		'credit_author'  => true,
+		'batch_size'        => 25,
+		'loopback_fallback' => false,
+		'credit_author'     => true,
 	)
 );
 
@@ -619,7 +595,7 @@ restore_error_handler();
 
 usdtf_it_assert_same( array(), $notices, 'a partial update must not raise undefined array key warnings' );
 usdtf_it_assert_same( 25, $partial['batch_size'], 'a partial update must keep the stored batch size' );
-usdtf_it_assert_same( false, $partial['persian_digits'], 'a partial update must keep the stored booleans' );
+usdtf_it_assert_same( false, $partial['loopback_fallback'], 'a partial update must keep the stored booleans' );
 usdtf_it_assert_same( true, $partial['credit_author'], 'a setting without a form field must survive a partial update' );
 usdtf_it_assert_same( 'manage_options', $partial['required_capability'], 'the submitted capability must still be validated' );
 
@@ -654,9 +630,10 @@ usdtf_it_assert_same(
 // for the missing box. Everything the submit does not mention must stay put.
 usdtf_plugin()->settings()->update(
 	array(
-		'batch_size'     => 25,
-		'persian_digits' => true,
-		'credit_author'  => true,
+		'batch_size'        => 25,
+		'loopback_fallback' => true,
+		'credit_author'     => true,
+		'rounding'          => \USDTF\Calculator::ROUND_NEAREST,
 	)
 );
 
@@ -665,79 +642,21 @@ usdtf_it_assert(
 	'the settings screen must register the option sanitizer'
 );
 
-$mode_before = get_option( \USDTF\Settings::OPTION )['currency_mode'];
+$rounding_before = get_option( \USDTF\Settings::OPTION )['rounding'];
 
-update_option( \USDTF\Settings::OPTION, array( 'persian_digits' => '0' ) );
+update_option( \USDTF\Settings::OPTION, array( 'loopback_fallback' => '0' ) );
 
 $saved = get_option( \USDTF\Settings::OPTION );
 
-usdtf_it_assert_same( false, $saved['persian_digits'], 'clearing a boolean checkbox must store false' );
+usdtf_it_assert_same( false, $saved['loopback_fallback'], 'clearing a boolean checkbox must store false' );
 usdtf_it_assert_same( 25, $saved['batch_size'], 'a partial submit must keep the untouched numbers' );
 usdtf_it_assert_same( true, $saved['credit_author'], 'a partial submit must keep the settings it did not send' );
-usdtf_it_assert_same( $mode_before, $saved['currency_mode'], 'a partial submit must keep the currency mode' );
+usdtf_it_assert_same( \USDTF\Calculator::ROUND_NEAREST, $rounding_before, 'the rounding fixture must be stored before the partial submit' );
+usdtf_it_assert_same( $rounding_before, $saved['rounding'], 'a partial submit must keep the rounding mode' );
 
 usdtf_plugin()->settings()->reset();
 
 usdtf_it_pass( 'only the capability allowlist is storable' );
-
-// ---------------------------------------------------------------------------
-// 44. A scheduled sale that ended must not feed the Toman range.
-// ---------------------------------------------------------------------------
-usdtf_it_reset_plugin_state();
-usdtf_it_delete_products();
-
-$rates->save_rate( 270000 );
-$settings->update(
-	array(
-		'display_toman'  => true,
-		'persian_digits' => false,
-	)
-);
-
-$expired_sale_product = usdtf_it_make_variable_product( 'Expired sale variable', array( array( '2000000', '1500000' ), array( '4000000' ) ) );
-
-$expired_child = wc_get_product( (int) $expired_sale_product->get_children()[0] );
-$expired_child->set_date_on_sale_from( time() - YEAR_IN_SECONDS );
-$expired_child->set_date_on_sale_to( time() - DAY_IN_SECONDS );
-$expired_child->save();
-
-$active_child = wc_get_product( (int) $expired_sale_product->get_children()[1] );
-
-$expired_job = usdtf_it_create_job( array( 'type' => Job::TYPE_SYNC ) );
-usdtf_it_run_job( (int) $expired_job['id'] );
-
-// The worker wrote through its own product instances, so read the children
-// back from the database before judging them.
-$expired_child = wc_get_product( (int) $expired_child->get_id() );
-
-usdtf_it_assert( ! $expired_child->is_on_sale(), 'the expired sale variation must not be on sale' );
-
-$usdtf_it_usd_html = wc_price( 10 );
-$expired_range     = apply_filters( 'woocommerce_get_price_html', $usdtf_it_usd_html, wc_get_product( $expired_sale_product->get_id() ) );
-
-usdtf_it_assert( false === strpos( $expired_range, '1,500,000' ), 'an expired scheduled sale must not feed the Toman range' );
-usdtf_it_assert( false !== strpos( $expired_range, '2,000,000' ), 'the regular Toman price must be used once the sale ended' );
-
-// While the sale is active the sale price is the reference.
-$active_sale_product = usdtf_it_make_variable_product( 'Active sale variable', array( array( '2000000', '1500000' ), array( '4000000' ) ) );
-
-$active_sale_child = wc_get_product( (int) $active_sale_product->get_children()[0] );
-$active_sale_child->set_date_on_sale_from( time() - HOUR_IN_SECONDS );
-$active_sale_child->set_date_on_sale_to( time() + DAY_IN_SECONDS );
-$active_sale_child->save();
-
-$active_sale_job = usdtf_it_create_job( array( 'type' => Job::TYPE_SYNC ) );
-usdtf_it_run_job( (int) $active_sale_job['id'] );
-
-$active_sale_child = wc_get_product( (int) $active_sale_child->get_id() );
-
-usdtf_it_assert( $active_sale_child->is_on_sale(), 'the active sale variation must be on sale' );
-
-$active_range = apply_filters( 'woocommerce_get_price_html', $usdtf_it_usd_html, wc_get_product( $active_sale_product->get_id() ) );
-
-usdtf_it_assert( false !== strpos( $active_range, '1,500,000' ), 'an active sale must feed the Toman range' );
-
-usdtf_it_pass( 'a scheduled sale that ended must not feed the Toman range' );
 
 // ---------------------------------------------------------------------------
 // 45. Maintenance cron can schedule its custom recurrence even on activation.
@@ -785,10 +704,10 @@ usdtf_it_reset_plugin_state();
 usdtf_it_delete_products();
 $rates->save_rate( 270000 );
 
-// The revision guard answers to WooCommerce price writes, so the product is
-// synced first: that is the state a product is in when a store owner deletes
-// it. Deleting a product removes its meta row by row, and anything written
-// during that loop outlives the product as junk in wp_postmeta.
+// The product is synced first, so it carries the plugin's USD price meta: that
+// is the state a product is in when a store owner deletes it. Deleting a
+// product removes its meta row by row, and anything written during that loop
+// outlives the product as junk in wp_postmeta.
 $doomed     = usdtf_it_make_simple_product( 'Doomed product', '5400000' );
 $doomed_id  = $doomed->get_id();
 $doomed_job = usdtf_it_create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
@@ -796,6 +715,7 @@ $doomed_job = usdtf_it_create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
 usdtf_it_run_job( (int) $doomed_job['id'] );
 
 usdtf_it_assert( '' !== usdtf_it_price( $doomed_id ), 'the product must carry a WooCommerce price before it is deleted' );
+usdtf_it_assert( '' !== usdtf_it_meta( $doomed_id, Product_Pricing::META_USD_REGULAR ), 'the product must carry its USD price before it is deleted' );
 
 wp_delete_post( $doomed_id, true );
 

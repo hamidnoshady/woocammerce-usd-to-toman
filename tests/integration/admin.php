@@ -43,6 +43,11 @@ $rates->save_rate( 270000 );
 
 $rest_product = usdtf_it_make_simple_product( 'REST product', 5000000 );
 
+// The product gets its USD price first, so the REST update below moves the Woo price.
+$rest_generate = usdtf_it_create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
+usdtf_it_run_job( (int) $rest_generate['id'] );
+$rates->save_rate( 300000 );
+
 // The route must exist: without this assertion a 404 would look like a pass.
 $state_response = usdtf_it_rest( 'GET', '/state' );
 
@@ -60,7 +65,7 @@ $preview_response = usdtf_it_rest( 'POST', '/preview' );
 
 usdtf_it_assert_same( '', usdtf_it_rest_error_code( $preview_response ), 'the preview route must work' );
 usdtf_it_assert_same( 200, $preview_response->get_status(), 'the preview route must answer with 200' );
-usdtf_it_assert_same( '', usdtf_it_price( $rest_product->get_id() ), 'a preview must not write a price' );
+usdtf_it_assert_same( '5000000', usdtf_it_price( $rest_product->get_id() ), 'a preview must not write a price' );
 
 // Update over REST: queues a job that the worker finishes.
 $update_response = usdtf_it_rest( 'POST', '/update', array( 'scope' => array( 'label' => 'Everything' ) ) );
@@ -79,7 +84,7 @@ usdtf_it_assert_same( 409, $duplicate_response->get_status(), 'a duplicate updat
 usdtf_it_assert_same( $rest_job_id, (int) usdtf_it_rest_error_data( $duplicate_response )['job']['id'], 'the refusal must carry the running job' );
 
 usdtf_it_run_job( $rest_job_id );
-usdtf_it_assert_same( '19', usdtf_it_price( $rest_product->get_id() ), 'the queued update must convert the product' );
+usdtf_it_assert_same( '5556000', usdtf_it_price( $rest_product->get_id() ), 'the queued update must convert the product' );
 
 // Job listing and detail, which the progress screen polls.
 $jobs_response = usdtf_it_rest( 'GET', '/jobs', array( 'limit' => 5 ) );
@@ -106,7 +111,7 @@ usdtf_it_assert( count( $job_detail['items'] ) >= 1, 'the job detail must return
 
 foreach ( $job_detail['items'] as $item ) {
 	usdtf_it_assert_same( \USDTF\Job_Repository::ITEM_CHANGED, $item['status'], 'the item filter must be applied' );
-	usdtf_it_assert( isset( $item['name'], $item['new_regular'], $item['revision'] ), 'every item must describe the product, the new price and its revision' );
+	usdtf_it_assert( isset( $item['name'], $item['new_regular'], $item['usd_regular'] ), 'every item must describe the product, the new price and its USD price' );
 }
 
 $missing_response = usdtf_it_rest( 'GET', '/jobs/99999999' );
@@ -169,16 +174,16 @@ $recalculate_response = usdtf_it_rest( 'POST', '/recalculate', array( 'ids' => a
 usdtf_it_assert_same( '', usdtf_it_rest_error_code( $recalculate_response ), 'the recalculate route must work' );
 usdtf_it_run_job( (int) usdtf_it_rest_data( $recalculate_response )['id'] );
 
-$rates->save_rate( 300000 );
+$rates->save_rate( 330000 );
 
-usdtf_it_assert_same( 300000.0, (float) $rates->get_rate(), 'the new rate must be stored' );
+usdtf_it_assert_same( 330000.0, (float) $rates->get_rate(), 'the new rate must be stored' );
 
 $rollback_response = usdtf_it_rest( 'POST', '/rollback' );
 
 usdtf_it_assert_same( '', usdtf_it_rest_error_code( $rollback_response ), 'the rollback route must work' );
 usdtf_it_run_job( (int) usdtf_it_rest_data( $rollback_response )['id'] );
 
-usdtf_it_assert_same( 270000.0, (float) $rates->get_rate(), 'the rollback must restore the previous rate' );
+usdtf_it_assert_same( 300000.0, (float) $rates->get_rate(), 'the rollback must restore the previous rate' );
 
 // A subscriber must not reach any of it.
 $rest_subscriber = wp_insert_user(
@@ -224,6 +229,12 @@ usdtf_it_assert( ! \USDTF\Scheduler::verify_token( 'not-the-token' ), 'a wrong l
 usdtf_it_assert( \USDTF\Scheduler::verify_token( \USDTF\Scheduler::token() ), 'the stored loopback token must be accepted' );
 
 $loopback_product = usdtf_it_make_simple_product( 'Loopback product', 5400000 );
+
+// The USD price is generated first, so the worker request below writes a new Woo price.
+$loopback_job = usdtf_it_create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
+usdtf_it_run_job( (int) $loopback_job['id'] );
+$rates->save_rate( 300000 );
+
 $loopback_job     = usdtf_it_create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
 $loopback_job_id  = (int) $loopback_job['id'];
 
@@ -253,7 +264,7 @@ $denied = $run_worker();
 
 usdtf_it_assert( $denied instanceof \USDTF_IT_Die, 'a request with a wrong token must be killed' );
 usdtf_it_assert_same( 403, $denied->die_status, 'a wrong token must be answered with 403' );
-usdtf_it_assert_same( '', usdtf_it_price( $loopback_product->get_id() ), 'a refused request must not process anything' );
+usdtf_it_assert_same( '5400000', usdtf_it_price( $loopback_product->get_id() ), 'a refused request must not process anything' );
 
 $worker_request( \USDTF\Scheduler::token(), 'usdtf_delete_everything' );
 $bad_hook = $run_worker();
@@ -278,7 +289,7 @@ $accepted = $run_worker();
 
 usdtf_it_assert( $accepted instanceof \USDTF_IT_Die, 'a valid worker request must run the hook' );
 usdtf_it_assert_same( 200, $accepted->die_status, 'a valid worker request must answer with 200' );
-usdtf_it_assert_same( '20', usdtf_it_price( $loopback_product->get_id() ), 'the worker request must process the batch it was given' );
+usdtf_it_assert_same( '6000000', usdtf_it_price( $loopback_product->get_id() ), 'the worker request must process the batch it was given' );
 
 usdtf_it_run_job( $loopback_job_id );
 usdtf_it_assert_same( \USDTF\Job::STATUS_COMPLETED, $jobs->get( $loopback_job_id )->status(), 'the job must finish after the manual worker request' );
@@ -305,6 +316,12 @@ usdtf_it_assert( false !== wp_next_scheduled( \USDTF\Cron::EVENT_DAILY ), 'the d
 
 // A job whose worker died is picked up by the recovery pass.
 $cron_product = usdtf_it_make_simple_product( 'Cron product', 2700000 );
+
+// The USD price is generated first, so the recovered job below writes a new Woo price.
+$cron_job = usdtf_it_create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
+usdtf_it_run_job( (int) $cron_job['id'] );
+$rates->save_rate( 300000 );
+
 $cron_job     = usdtf_it_create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
 $cron_job_id  = (int) $cron_job['id'];
 
@@ -323,7 +340,7 @@ usdtf_it_assert( $recovered_job->is_active(), 'the maintenance pass must keep th
 usdtf_it_assert( '' !== (string) $recovered_job->data['heartbeat_at'], 'the recovered job must have a fresh heartbeat' );
 
 usdtf_it_run_job( $cron_job_id );
-usdtf_it_assert_same( '10', usdtf_it_price( $cron_product->get_id() ), 'the recovered job must still finish its work' );
+usdtf_it_assert_same( '3000000', usdtf_it_price( $cron_product->get_id() ), 'the recovered job must still finish its work' );
 
 // The daily pass applies the retention window.
 $settings->update( array( 'retention_days' => 30 ) );
@@ -362,33 +379,50 @@ usdtf_it_assert( (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM `{$
 usdtf_it_pass( 'cron maintenance recovers jobs and applies the retention window' );
 
 // ---------------------------------------------------------------------------
-// 25. Uninstalling never destroys the canonical Toman prices by default.
+// 25. Uninstalling never touches the WooCommerce prices, and keeps the USD
+//     prices unless the store owner opts in.
 // ---------------------------------------------------------------------------
 usdtf_it_delete_products();
 usdtf_it_reset_plugin_state();
 $rates->save_rate( 270000 );
 
 $uninstall_product = usdtf_it_make_simple_product( 'Uninstall product', 5000000 );
-$uninstall_job     = usdtf_it_create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
 
+// Generate the USD price, then let a new rate write the Woo price.
+$uninstall_job = usdtf_it_create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
+usdtf_it_run_job( (int) $uninstall_job['id'] );
+$rates->save_rate( 300000 );
+$uninstall_job = usdtf_it_create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
 usdtf_it_run_job( (int) $uninstall_job['id'] );
 
+usdtf_it_assert_same( '5556000', usdtf_it_price( $uninstall_product->get_id() ), 'the fixture must carry a price the plugin wrote' );
+
 $jobs_table = \USDTF\Database::jobs_table();
-$source_key = \USDTF\Product_Pricing::META_SOURCE_REGULAR;
+$usd_key    = \USDTF\Product_Pricing::META_USD_REGULAR;
 
 usdtf_it_assert( \USDTF\Database::table_exists( $jobs_table ), 'the plugin tables must exist before the uninstall' );
 
 // A meta key the plugin does not own, to prove a purge is scoped.
 update_post_meta( $uninstall_product->get_id(), 'usdtf_it_foreign_key', 'keep me' );
 
+// The inert Toman prices a 1.1.x install left behind.
+foreach ( \USDTF\Product_Pricing::LEGACY_META_KEYS as $legacy_key ) {
+	update_post_meta( $uninstall_product->get_id(), $legacy_key, '5000000' );
+}
+
 // The assertions look at this scenario's own product instead of counting the
 // meta across the whole site: a store that already uses the plugin keeps its
-// own source prices, and that must not be mistaken for this fixture's.
+// own USD prices, and that must not be mistaken for this fixture's.
 \USDTF\Installer::uninstall( false );
 
 usdtf_it_assert( ! \USDTF\Database::table_exists( $jobs_table ), 'uninstalling must drop the plugin tables' );
 usdtf_it_assert_same( '', (string) get_option( \USDTF\Settings::OPTION, '' ), 'uninstalling must remove the settings' );
-usdtf_it_assert_same( '5000000', usdtf_it_meta( $uninstall_product->get_id(), $source_key ), 'uninstalling without the opt in must keep the canonical Toman price' );
+usdtf_it_assert_same( '5556000', usdtf_it_price( $uninstall_product->get_id() ), 'uninstalling without the opt in must keep the WooCommerce price' );
+usdtf_it_assert_same( '18.52', usdtf_it_meta( $uninstall_product->get_id(), $usd_key ), 'uninstalling without the opt in must keep the USD price' );
+
+foreach ( \USDTF\Product_Pricing::LEGACY_META_KEYS as $legacy_key ) {
+	usdtf_it_assert_same( '5000000', usdtf_it_meta( $uninstall_product->get_id(), $legacy_key ), 'uninstalling without the opt in must keep the legacy ' . $legacy_key );
+}
 
 \USDTF\Installer::create_tables();
 \USDTF\Installer::seed_options();
@@ -401,7 +435,12 @@ usdtf_it_assert( \USDTF\Database::table_exists( $jobs_table ), 'the tables must 
 // product is dropped before it is read back.
 clean_post_cache( $uninstall_product->get_id() );
 
-usdtf_it_assert_same( '', usdtf_it_meta( $uninstall_product->get_id(), $source_key ), 'the explicit opt in must remove the plugin metadata' );
+usdtf_it_assert_same( '', usdtf_it_meta( $uninstall_product->get_id(), $usd_key ), 'the explicit opt in must remove the plugin metadata' );
+
+foreach ( \USDTF\Product_Pricing::LEGACY_META_KEYS as $legacy_key ) {
+	usdtf_it_assert_same( '', usdtf_it_meta( $uninstall_product->get_id(), $legacy_key ), 'the explicit opt in must remove the legacy ' . $legacy_key );
+}
+usdtf_it_assert_same( '5556000', usdtf_it_price( $uninstall_product->get_id() ), 'the explicit opt in must still keep the WooCommerce price' );
 usdtf_it_assert_same( 'keep me', usdtf_it_meta( $uninstall_product->get_id(), 'usdtf_it_foreign_key' ), 'a purge must not touch meta the plugin does not own' );
 
 // What activating the plugin again does.
@@ -414,3 +453,59 @@ usdtf_it_assert( \USDTF\Database::table_exists( \USDTF\Database::jobs_table() ),
 usdtf_it_assert( false !== wp_next_scheduled( \USDTF\Cron::EVENT_TICK ), 'activating again must restore the maintenance events' );
 
 usdtf_it_pass( 'uninstall keeps the Toman prices unless the store owner opts in' );
+
+// ---------------------------------------------------------------------------
+// 25b. Seeding the options: a fresh site gets every default, an upgrade keeps
+//      what is stored and backfills the rest.
+// ---------------------------------------------------------------------------
+$seed_defaults = \USDTF\Settings::defaults();
+
+// A brand new site: no settings option at all, then the installer runs.
+delete_option( \USDTF\Settings::OPTION );
+usdtf_it_assert_same( null, get_option( \USDTF\Settings::OPTION, null ), 'a fresh site must start without a settings option' );
+
+\USDTF\Installer::seed_options();
+
+$seed_fresh = get_option( \USDTF\Settings::OPTION, null );
+
+usdtf_it_assert( is_array( $seed_fresh ), 'a fresh install must store a settings option' );
+
+foreach ( $seed_defaults as $seed_key => $seed_value ) {
+	usdtf_it_assert( array_key_exists( $seed_key, $seed_fresh ), 'a fresh install must store the default of ' . $seed_key );
+	usdtf_it_assert_same( $seed_value, $seed_fresh[ $seed_key ], 'a fresh install must restore the default of ' . $seed_key );
+}
+
+usdtf_it_assert_same( 10, $seed_fresh['batch_size'], 'a fresh install must use the default batch size' );
+usdtf_it_assert_same( true, $seed_fresh['require_preview'], 'a fresh install must require a dry run before an update' );
+usdtf_it_assert_same( \USDTF\Calculator::ROUND_UP, $seed_fresh['rounding'], 'a fresh install must round up' );
+
+// An upgrade: a partial stored option keeps its values and gets the rest of the defaults.
+delete_option( \USDTF\Settings::OPTION );
+add_option(
+	\USDTF\Settings::OPTION,
+	array(
+		'rounding'    => \USDTF\Calculator::ROUND_DOWN,
+		'retry_limit' => 5,
+	)
+);
+
+$seed_partial = get_option( \USDTF\Settings::OPTION, null );
+
+usdtf_it_assert_same( array( 'rounding', 'retry_limit' ), array_keys( (array) $seed_partial ), 'the stored option must be partial before the installer runs' );
+
+\USDTF\Installer::seed_options();
+
+$seed_upgraded = get_option( \USDTF\Settings::OPTION, null );
+
+usdtf_it_assert( is_array( $seed_upgraded ), 'an upgrade must keep a settings option' );
+usdtf_it_assert_same( \USDTF\Calculator::ROUND_DOWN, $seed_upgraded['rounding'], 'an upgrade must keep a stored rounding mode' );
+usdtf_it_assert_same( 5, $seed_upgraded['retry_limit'], 'an upgrade must keep a stored retry limit' );
+usdtf_it_assert_same( 10, $seed_upgraded['batch_size'], 'the rest of the defaults must be backfilled into the stored option' );
+usdtf_it_assert_same( true, $seed_upgraded['require_preview'], 'an upgrade must backfill the dry-run-first rule' );
+usdtf_it_assert_same( $seed_defaults['increment'], $seed_upgraded['increment'], 'an upgrade must backfill the rounding increment' );
+usdtf_it_assert_same( array(), array_keys( array_diff_key( $seed_defaults, $seed_upgraded ) ), 'an upgrade must backfill every setting' );
+
+// Put the suite's usual settings back for whatever runs next.
+usdtf_it_reset_plugin_state();
+
+usdtf_it_pass( 'a fresh install restores every default and an upgrade backfills a partial settings option' );

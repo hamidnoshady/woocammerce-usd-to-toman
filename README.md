@@ -1,21 +1,38 @@
 # USD to Toman Price Sync for WooCommerce
 
-Keep product prices in Iranian **Toman** and derive the WooCommerce **USD** price from a manual
-USD/Toman rate — with an enforced dry run before every write, queued background updates that survive
-a closed browser **and the request boundary**, and a permanent audit trail.
+Peg your **Toman** or **Rial** prices to the dollar. The plugin reads the price already in
+WooCommerce, generates a **USD price** for each product from the rate you enter, and from then on the
+USD price is the anchor: when the rate changes, the WooCommerce price is rewritten as
+`USD price x rate`. Every update is previewed first, queued in the background, and reversible.
 
 This repository is the plugin source, the test suite, the CI configuration and the release tooling.
 Store owners only need the zip from the [releases page](../../releases).
 
 ```
-USD price = ceil( Toman price / USD_Toman rate )
+first run:    USD price = round2( Woo price / rate )      (records USD only, writes no price)
+rate change:  Woo price = round( USD price x new rate )   (rounded by the mode and increment setting)
 ```
 
-5,000,000 Toman at a rate of 270,000 Toman per dollar is **$19** (18.518 rounded up). The Toman
-value stays stored, so every future update recalculates from the source instead of from a rounded
-dollar amount — no rounding drift, ever.
+5,000,000 Toman at a rate of 270,000 is **$18.52**. When the rate becomes 300,000 the price moves to
+5,556,000 Toman. If someone edits the WooCommerce price by hand, the next run **re-bases** that
+product: its USD price is recalculated from the edited price at the current rate, and the edit is kept.
 
-The full specification lives in [issue #1](../../issues/1).
+The unit (Toman or Rial) comes from the WooCommerce currency (`IRT` or `IRR`) and is read-only; any
+other currency shows a notice and no job starts. Products are managed by default and can be set to
+**Excluded**. A dry run is required before an update, a rate move above the threshold needs a typed
+confirmation, and the last rate change can be rolled back. The rate remembers its unit: after the
+store moves between Toman and Rial, every job is refused until the rate is saved again.
+
+Upgrading from 1.1.x: a store in the old Toman mode keeps its storefront (the upgrade sets the
+WooCommerce currency to Toman, `IRT`, no decimals, once, with a notice). A store in the old USD-store
+mode must set the WooCommerce currency to Toman or Rial and review its prices; its old Toman prices
+are kept in hidden product meta and the plugin starts no job until then. A store that was in Toman
+mode is set to Toman once (the old plugin forced it); a store you move to Rial after the upgrade
+stays in Rial.
+
+The design of the pegged model is in
+[docs/superpowers/specs/2026-10-11-usd-pegged-pricing-design.md](docs/superpowers/specs/2026-10-11-usd-pegged-pricing-design.md);
+the original specification lives in [issue #1](../../issues/1).
 
 ![USD to Toman Price Sync for WooCommerce](wordpress-org/banner-772x250.png)
 
@@ -37,18 +54,19 @@ upload them.
 usd-to-toman-price-sync-for-woocommerce.php   Plugin header and bootstrap
 uninstall.php                                 Cleanup on uninstall
 includes/                                     Plugin classes (USDTF\ namespace)
-  class-calculator.php                        Price parsing, rounding, formatting
-  class-settings.php                          Settings, batch size, rounding, currency mode
+  class-store-currency.php                    Toman/Rial unit read from the WooCommerce currency
+  class-price-planner.php                     Per product decision: generate, re-base, update, skip
+  class-calculator.php                        USD maths, unit-aware rounding, formatting
+  class-settings.php                          Settings, batch size, rounding mode and increment
   class-database.php / class-installer.php    Custom tables, schema upgrades, uninstall
   class-job.php / class-job-repository.php    Job model and persistence
   class-sync-runner.php                       Discovery, batches, finalize, resume, locking
   class-recorder.php                          The only write path (WooCommerce CRUD)
-  class-product-pricing.php                   Per product pricing mode and Toman source
+  class-product-pricing.php                   Per product USD anchor, seen price and mode
   class-rate-repository.php / class-rate-guard.php  Rate history and typo protection
   class-scheduler.php / class-cron.php / class-lock.php  Queue backends and locking
   class-health.php / class-logger.php         Diagnostics and logging
   admin/                                      Admin screen, REST API, product panel
-  frontend/                                   Toman display and Toman transaction mode
 assets/                                       Admin CSS/JS
 languages/                                    Translation template and shipped catalogues
 bin/                                          Build, lint and translation tooling
@@ -110,8 +128,8 @@ how CI proves the release zip is complete.
 The suite covers the rounding examples from the specification, dry runs, unchanged prices, sale
 prices and slicing of variable products, conflict detection and recalculation, invalid and excluded
 products, scopes, duplicate job protection, pause/resume/cancel, rate typo protection, rollback,
-both currency modes, crash recovery, products deleted mid job and onboarding an existing Toman
-catalog, the storefront display, the rounding modes and their guards, the retention window, the
+the Toman and Rial units, crash recovery, products deleted mid job, hand-edited prices that are
+re-based, the upgrade from the old schema, the rounding modes and their guards, the retention window, the
 product statuses, the REST API the admin screen uses, the token protected worker endpoint, the cron
 maintenance pass and the uninstall behaviour.
 

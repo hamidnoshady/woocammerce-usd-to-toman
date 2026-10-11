@@ -159,6 +159,64 @@
 		} );
 	}
 
+	/**
+	 * Format a regular price and its sale price as "regular / sale".
+	 *
+	 * @param {number|string|null} regular Regular price.
+	 * @param {number|string|null} sale    Sale price.
+	 * @param {number}             digits  Decimal places.
+	 * @param {string}             prefix  Text put before each amount, such as "$".
+	 * @return {string} An em dash when there is no price at all.
+	 */
+	function formatPair( regular, sale, digits, prefix ) {
+		var parts = [];
+
+		[ regular, sale ].forEach( function ( amount ) {
+			if ( null !== amount && undefined !== amount && '' !== amount ) {
+				parts.push( ( prefix || '' ) + formatNumber( amount, digits ) );
+			}
+		} );
+
+		return parts.length ? parts.join( ' / ' ) : '—';
+	}
+
+	function priceDecimals() {
+		var decimals = state.settings ? parseInt( state.settings.decimals, 10 ) : 0;
+
+		return isNaN( decimals ) ? 0 : decimals;
+	}
+
+	function currencySupported() {
+		return ! state.store_currency || !! state.store_currency.supported;
+	}
+
+	/**
+	 * Why no job can start right now, or an empty string when one can: the
+	 * store currency is not Toman or Rial, or the rate was saved in the other
+	 * unit (the server sends the translated message).
+	 */
+	function jobBlocker() {
+		if ( ! currencySupported() ) {
+			return __( 'Set the store currency to Iranian Toman or Rial', 'usd-to-toman-price-sync-for-woocommerce' );
+		}
+
+		return state.unit_changed ? String( state.unit_changed ) : '';
+	}
+
+	function statusLabel( status ) {
+		var map = {
+			changed: __( 'Updated', 'usd-to-toman-price-sync-for-woocommerce' ),
+			generated: __( 'USD set', 'usd-to-toman-price-sync-for-woocommerce' ),
+			rebased: __( 'Re-based', 'usd-to-toman-price-sync-for-woocommerce' ),
+			unchanged: __( 'Unchanged', 'usd-to-toman-price-sync-for-woocommerce' ),
+			skipped: __( 'Skipped', 'usd-to-toman-price-sync-for-woocommerce' ),
+			failed: __( 'Failed', 'usd-to-toman-price-sync-for-woocommerce' ),
+			conflict: __( 'Conflict', 'usd-to-toman-price-sync-for-woocommerce' ),
+		};
+
+		return Object.prototype.hasOwnProperty.call( map, status ) ? map[ status ] : String( status || '' );
+	}
+
 	function collectScope() {
 		var select = $( '#usdtf-scope-mode' );
 		var mode = select ? select.value : 'all';
@@ -246,13 +304,13 @@
 		if ( discovering ) {
 			numbers.appendChild( document.createTextNode(
 				( labels.working || __( 'Working…', 'usd-to-toman-price-sync-for-woocommerce' ) ) + ' · ' +
-				formatNumber( job.rate ) + ' ' + ( labels.rateSuffix || __( 'Toman / USD', 'usd-to-toman-price-sync-for-woocommerce' ) )
+				formatNumber( job.rate ) + ' ' + ( labels.rateSuffix || '' )
 			) );
 		} else {
 			numbers.appendChild( document.createTextNode(
 				formatNumber( counters.processed ) + ' / ' + formatNumber( counters.total ) +
 					' (' + parseInt( job.progress, 10 ) + '%) · ' +
-					formatNumber( job.rate ) + ' ' + ( labels.rateSuffix || __( 'Toman / USD', 'usd-to-toman-price-sync-for-woocommerce' ) )
+					formatNumber( job.rate ) + ' ' + ( labels.rateSuffix || '' )
 			) );
 		}
 		progress.appendChild( numbers );
@@ -274,7 +332,9 @@
 		list.className = 'usdtf-counters';
 
 		var counterLabels = [
-			[ 'changed', __( 'Changed', 'usd-to-toman-price-sync-for-woocommerce' ) ],
+			[ 'changed', __( 'Updated', 'usd-to-toman-price-sync-for-woocommerce' ) ],
+			[ 'generated', __( 'USD set', 'usd-to-toman-price-sync-for-woocommerce' ) ],
+			[ 'rebased', __( 'Re-based', 'usd-to-toman-price-sync-for-woocommerce' ) ],
 			[ 'unchanged', __( 'Unchanged', 'usd-to-toman-price-sync-for-woocommerce' ) ],
 			[ 'skipped', __( 'Skipped', 'usd-to-toman-price-sync-for-woocommerce' ) ],
 			[ 'failed', __( 'Failed', 'usd-to-toman-price-sync-for-woocommerce' ) ],
@@ -408,6 +468,12 @@
 
 	function startJob( path, extra ) {
 		var payload = { scope: collectScope() };
+
+		if ( jobBlocker() ) {
+			toast( jobBlocker(), true );
+
+			return Promise.resolve( null );
+		}
 
 		if ( extra ) {
 			Object.keys( extra ).forEach( function ( key ) {
@@ -685,7 +751,7 @@
 				var message = __( 'Start the background price update now?', 'usd-to-toman-price-sync-for-woocommerce' );
 
 				if ( state.preview_required && ! state.preview_ok ) {
-					message += ' ' + __( 'A dry run with the same rate, transaction currency, rounding settings and scope is required first.', 'usd-to-toman-price-sync-for-woocommerce' );
+					message += ' ' + __( 'A dry run with the same rate, rounding settings and scope is required first.', 'usd-to-toman-price-sync-for-woocommerce' );
 				}
 
 				if ( window.confirm( message ) ) {
@@ -784,27 +850,186 @@
 		} );
 	}
 
-	function initProductPanel() {
-		var select = $( '#usdtf-mode' );
-
-		if ( ! select ) {
+	/**
+	 * Jobs are refused while the store currency is not Toman or Rial, or while
+	 * the rate was saved in the other unit, so the buttons that start one stay
+	 * disabled. The server renders them disabled too; this also covers the
+	 * rate form's preview button.
+	 */
+	function initCurrencyGuard() {
+		if ( ! jobBlocker() ) {
 			return;
 		}
 
-		function refresh() {
-			var managed = 'managed' === select.value;
+		[ '#usdtf-start-update', '#usdtf-start-preview', '#usdtf-preview-rate', '#usdtf-rollback' ].forEach( function ( selector ) {
+			var button = $( selector );
 
-			[ '#usdtf-source-regular', '#usdtf-source-sale' ].forEach( function ( selector ) {
-				var field = $( selector );
+			if ( button ) {
+				button.disabled = true;
+			}
+		} );
+	}
 
-				if ( field ) {
-					field.disabled = ! managed;
-				}
-			} );
+	/**
+	 * One row of the items table, built with textContent only.
+	 *
+	 * Columns: Product, Status, Current Woo price, USD price, New Woo price, Details.
+	 */
+	function itemRow( item ) {
+		var row = document.createElement( 'tr' );
+		var decimals = priceDecimals();
+
+		var product = document.createElement( 'td' );
+		var name = item.name || sprintf(
+			/* translators: %d: product ID. */
+			__( 'Product #%d', 'usd-to-toman-price-sync-for-woocommerce' ),
+			parseInt( item.object_id, 10 )
+		);
+
+		if ( item.edit_link ) {
+			var link = document.createElement( 'a' );
+			link.href = item.edit_link;
+			link.textContent = name;
+			product.appendChild( link );
+		} else {
+			product.appendChild( document.createTextNode( name ) );
 		}
 
-		select.addEventListener( 'change', refresh );
-		refresh();
+		if ( parseInt( item.parent_id, 10 ) > 0 ) {
+			var badge = document.createElement( 'span' );
+			badge.className = 'usdtf-badge';
+			badge.textContent = __( 'variation', 'usd-to-toman-price-sync-for-woocommerce' );
+			product.appendChild( document.createTextNode( ' ' ) );
+			product.appendChild( badge );
+		}
+
+		row.appendChild( product );
+
+		var status = document.createElement( 'td' );
+		var pill = document.createElement( 'span' );
+		pill.className = 'usdtf-status usdtf-status--' + String( item.status || '' ).replace( /[^a-z_-]/g, '' );
+		pill.textContent = item.status_label || statusLabel( item.status );
+		status.appendChild( pill );
+		row.appendChild( status );
+
+		var current = document.createElement( 'td' );
+		current.textContent = formatPair( item.old_regular, item.old_sale, decimals );
+		row.appendChild( current );
+
+		var usd = document.createElement( 'td' );
+		usd.textContent = formatPair( item.usd_regular, item.usd_sale, 2, '$' );
+		row.appendChild( usd );
+
+		var next = document.createElement( 'td' );
+		var strong = document.createElement( 'strong' );
+		strong.textContent = formatPair( item.new_regular, item.new_sale, decimals );
+		next.appendChild( strong );
+		row.appendChild( next );
+
+		var details = document.createElement( 'td' );
+		details.appendChild( document.createTextNode( item.message || '' ) );
+
+		var notes = [];
+
+		if ( parseInt( item.child_total, 10 ) > 0 ) {
+			notes.push( sprintf(
+				/* translators: 1: processed variations, 2: total variations. */
+				__( 'Variations processed: %1$d / %2$d', 'usd-to-toman-price-sync-for-woocommerce' ),
+				parseInt( item.child_cursor, 10 ),
+				parseInt( item.child_total, 10 )
+			) );
+		}
+
+		if ( parseInt( item.attempts, 10 ) > 0 ) {
+			notes.push( sprintf(
+				/* translators: %d: attempts. */
+				__( 'Attempts: %d', 'usd-to-toman-price-sync-for-woocommerce' ),
+				parseInt( item.attempts, 10 )
+			) );
+		}
+
+		notes.forEach( function ( note ) {
+			var line = document.createElement( 'span' );
+			line.className = 'description';
+			line.textContent = note;
+			details.appendChild( document.createElement( 'br' ) );
+			details.appendChild( line );
+		} );
+
+		row.appendChild( details );
+
+		return row;
+	}
+
+	function renderItems( table, items ) {
+		var body = $( 'tbody', table );
+
+		if ( ! body ) {
+			return;
+		}
+
+		body.innerHTML = '';
+
+		if ( ! items.length ) {
+			var empty = document.createElement( 'tr' );
+			var cell = document.createElement( 'td' );
+			cell.colSpan = 6;
+			cell.textContent = __( 'No items match this filter.', 'usd-to-toman-price-sync-for-woocommerce' );
+			empty.appendChild( cell );
+			body.appendChild( empty );
+
+			return;
+		}
+
+		items.forEach( function ( item ) {
+			body.appendChild( itemRow( item ) );
+		} );
+	}
+
+	/**
+	 * Status tabs of a job's items: All, Updated, USD set, Re-based,
+	 * Unchanged, Skipped, Failed, Conflicts. The links work without
+	 * JavaScript; with it, the table is reloaded in place over REST.
+	 */
+	function initStatusTabs() {
+		var tabs = $( '.usdtf-status-tabs' );
+
+		if ( ! tabs ) {
+			return;
+		}
+
+		var jobId = parseInt( tabs.getAttribute( 'data-job-id' ), 10 );
+		var table = jobId ? $( '.usdtf-items-table[data-job-id="' + jobId + '"]' ) : null;
+
+		if ( ! table ) {
+			return;
+		}
+
+		tabs.addEventListener( 'click', function ( event ) {
+			var link = event.target.closest( 'a[data-status]' );
+
+			if ( ! link ) {
+				return;
+			}
+
+			event.preventDefault();
+
+			var status = link.getAttribute( 'data-status' ) || '';
+
+			api( '/jobs/' + jobId + '?items_per_page=50&items_status=' + encodeURIComponent( status ) + '&_usdtf=' + Date.now() ).then( function ( job ) {
+				renderItems( table, job && job.items ? job.items : [] );
+
+				$$( 'a[data-status]', tabs ).forEach( function ( other ) {
+					other.classList.toggle( 'is-current', other === link );
+				} );
+
+				if ( window.history && window.history.replaceState ) {
+					window.history.replaceState( null, '', link.href );
+				}
+			} ).catch( function ( error ) {
+				toast( errorMessage( error ), true );
+			} );
+		} );
 	}
 
 	function initPolling() {
@@ -818,7 +1043,8 @@
 		initScope();
 		initButtons();
 		initJobActions();
-		initProductPanel();
+		initCurrencyGuard();
+		initStatusTabs();
 		initPolling();
 	} );
 }() );

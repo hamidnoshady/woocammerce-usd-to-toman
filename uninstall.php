@@ -2,9 +2,10 @@
 /**
  * Uninstall routine.
  *
- * Removes the plugin's options, cron events and custom tables. The canonical
- * Toman prices stored on products are only removed when the store owner
- * explicitly opted in, because they are real price data.
+ * Removes the plugin's options, cron events and custom tables. The USD prices
+ * stored on products, and the inert Toman prices a 1.1.x install left, are
+ * only removed when the store owner explicitly opted in, because they are real
+ * price data. WooCommerce prices are never touched.
  *
  * @package USDTF
  */
@@ -20,7 +21,7 @@ if ( ! defined( 'USDTF_FILE' ) ) {
 }
 
 if ( ! defined( 'USDTF_VERSION' ) ) {
-	define( 'USDTF_VERSION', '1.1.5' );
+	define( 'USDTF_VERSION', '1.2.0' );
 }
 
 require_once USDTF_DIR . 'includes/class-autoloader.php';

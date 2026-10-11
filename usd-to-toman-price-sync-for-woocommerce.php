@@ -2,8 +2,8 @@
 /**
  * Plugin Name:       USD to Toman Price Sync for WooCommerce
  * Plugin URI:        https://github.com/hamidnoshady/woocammerce-usd-to-toman
- * Description:       Keep canonical Toman prices and derive WooCommerce USD prices from a manual USD/Toman rate, with dry-run preview and safe queued background synchronization.
- * Version:           1.1.5
+ * Description:       Peg Toman or Rial prices to the dollar: enter the USD rate and WooCommerce prices follow it, with dry-run preview, rollback and safe queued updates.
+ * Version:           1.2.0
  * Requires at least: 6.2
  * Requires PHP:      7.4
  * Author:            Hamid Noshady
@@ -21,7 +21,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'USDTF_VERSION', '1.1.5' );
+define( 'USDTF_VERSION', '1.2.0' );
 define( 'USDTF_FILE', __FILE__ );
 define( 'USDTF_DIR', plugin_dir_path( __FILE__ ) );
 define( 'USDTF_URL', plugin_dir_url( __FILE__ ) );

@@ -121,12 +121,14 @@ try {
 	$first_update_finished = usdtf_it_http_wait_job( $first_update_id, $usdtf_regression_header, 90 );
 	usdtf_it_assert_same( Job::STATUS_COMPLETED, $first_update_finished['status'] ?? '', 'first update must complete via HTTP queue' );
 	usdtf_it_assert( (int) ( $first_update_finished['counters']['processed'] ?? 0 ) >= 3, 'first update must have processed products' );
-	// Verify the first sync wrote the expected price (20) before the second
-	// rate change, with a cache flush so this process sees the worker's write.
+	// Verify the first sync generated the USD price (5,600,000 / 280,000 =
+	// 20.00) and kept the Woo price before the second rate change, with a cache
+	// flush so this process sees the worker's write.
 	wp_cache_flush();
-	$first_expected = (string) ceil( 5600000 / 280000 );
+	$first_expected = '5600000';
 	foreach ( $regression_products as $prod ) {
 		usdtf_it_assert_same( $first_expected, usdtf_it_price( $prod->get_id() ), 'product #' . $prod->get_id() . ' price after first HTTP job must be ' . $first_expected );
+		usdtf_it_assert_same( '20.00', usdtf_it_meta( $prod->get_id(), \USDTF\Product_Pricing::META_USD_REGULAR ), 'product #' . $prod->get_id() . ' must get its USD price from the first HTTP job' );
 	}
 
 	// Second HTTP job: new rate, new preview/update pair. Proves the server
@@ -143,8 +145,8 @@ try {
 	$second_update_finished = usdtf_it_http_wait_job( (int) $second_update['json']['id'], $usdtf_regression_header, 90 );
 	usdtf_it_assert_same( Job::STATUS_COMPLETED, $second_update_finished['status'] ?? '', 'second update must complete via HTTP queue' );
 
-	// Prices reflect the second rate: ceil(5,600,000 / 350,000) = 16.
-	$expected = (string) ceil( 5600000 / 350000 );
+	// Prices reflect the second rate: 20.00 USD x 350,000 = 7,000,000.
+	$expected = '7000000';
 	// Flush the in-memory product cache: the worker wrote through a
 	// different PHP process, so this process's cache still holds the
 	// pre-sync empty price.
@@ -156,7 +158,7 @@ try {
 			$diag = ' counters=' . wp_json_encode( $second_update_finished['counters'] ?? array() );
 			$diag .= ' status=' . ( $second_update_finished['status'] ?? '?' );
 			$diag .= ' product=' . $prod->get_id() . ' price=' . var_export( $actual, true );
-			$diag .= ' source=' . var_export( get_post_meta( $prod->get_id(), \USDTF\Product_Pricing::META_SOURCE_REGULAR, true ), true );
+			$diag .= ' usd=' . var_export( get_post_meta( $prod->get_id(), \USDTF\Product_Pricing::META_USD_REGULAR, true ), true );
 			usdtf_it_assert_same( $expected, $actual, 'product #' . $prod->get_id() . ' price must reflect the second HTTP job rate (expected ' . $expected . ', got ' . var_export( $actual, true ) . ')' . $diag );
 		} else {
 			usdtf_it_assert_same( $expected, $actual, 'product #' . $prod->get_id() . ' price must reflect the second HTTP job rate' );
@@ -173,21 +175,30 @@ try {
 	// simulate a store product that was excluded by the guard and ensure an
 	// HTTP job does not touch it.
 	$guard_product = usdtf_it_make_simple_product( 'Guarded store product', '2700000' );
-	// Mark it as the guard would: excluded mode.
+	// Mark it as the guard would: excluded mode. It also carries a USD price
+	// of an earlier rate, which a job that touched it would rewrite.
 	usdtf_plugin()->pricing()->set_mode( $guard_product->get_id(), \USDTF\Product_Pricing::MODE_EXCLUDED );
-	update_post_meta( $guard_product->get_id(), \USDTF\Product_Pricing::META_SOURCE_REGULAR, '9999999' );
+	usdtf_plugin()->pricing()->save_state(
+		$guard_product->get_id(),
+		array(
+			'usd_regular'  => '99.99',
+			'seen_regular' => '2700000',
+			'rate'         => 250000.0,
+		)
+	);
 
 	$rates->save_rate( 270000 );
 	// Store original protected metadata before preview/update.
-	$guard_before_regular = get_post_meta( $guard_product->get_id(), \USDTF\Product_Pricing::META_SOURCE_REGULAR, true );
-	$guard_before_sale = get_post_meta( $guard_product->get_id(), \USDTF\Product_Pricing::META_SOURCE_SALE, true );
+	$guard_before_regular = get_post_meta( $guard_product->get_id(), \USDTF\Product_Pricing::META_USD_REGULAR, true );
+	$guard_before_sale = get_post_meta( $guard_product->get_id(), \USDTF\Product_Pricing::META_USD_SALE, true );
 	$guard_before_price = get_post_meta( $guard_product->get_id(), '_regular_price', true );
-	$guard_before_derived = get_post_meta( $guard_product->get_id(), \USDTF\Product_Pricing::META_DERIVED_REGULAR, true );
+	$guard_before_seen = get_post_meta( $guard_product->get_id(), \USDTF\Product_Pricing::META_SEEN_REGULAR, true );
+	$guard_before_rate = get_post_meta( $guard_product->get_id(), \USDTF\Product_Pricing::META_RATE, true );
 	$guard_preview = usdtf_it_http( 'POST', '/preview', array( 'scope' => array() ), $usdtf_regression_header );
 	usdtf_it_assert_same( 200, $guard_preview['code'], 'guard preview must be 200' );
 	$guard_preview_done = usdtf_it_http_wait_job( (int) $guard_preview['json']['id'], $usdtf_regression_header, 90 );
 	usdtf_it_assert_same( Job::STATUS_COMPLETED, $guard_preview_done['status'] ?? '', 'guard preview must complete (was ' . var_export( $guard_preview_done['status'] ?? null, true ) . ')' );
-	usdtf_it_assert_same( '9999999', (string) get_post_meta( $guard_product->get_id(), \USDTF\Product_Pricing::META_SOURCE_REGULAR, true ), 'guard preview must not touch stored Toman source' );
+	usdtf_it_assert_same( '99.99', (string) get_post_meta( $guard_product->get_id(), \USDTF\Product_Pricing::META_USD_REGULAR, true ), 'guard preview must not touch the stored USD price' );
 
 	$guard_update = usdtf_it_http( 'POST', '/update', array( 'scope' => array() ), $usdtf_regression_header );
 	usdtf_it_assert_same( 200, $guard_update['code'], 'guard update must be 200' );
@@ -196,11 +207,14 @@ try {
 	usdtf_it_assert( (int) ( $guard_update_done['counters']['processed'] ?? 0 ) >= 0, 'guard update counters must be present' );
 
 	// The excluded product must not have been repriced: stored prices and protected metadata unchanged.
-	$after = get_post_meta( $guard_product->get_id(), \USDTF\Product_Pricing::META_SOURCE_REGULAR, true );
-	usdtf_it_assert_same( '9999999', (string) $after, 'an excluded product must not be touched by an HTTP job (source regular)' );
-	usdtf_it_assert_same( (string) $guard_before_sale, (string) get_post_meta( $guard_product->get_id(), \USDTF\Product_Pricing::META_SOURCE_SALE, true ), 'guard sale source must remain unchanged' );
+	wp_cache_flush();
+	$after = get_post_meta( $guard_product->get_id(), \USDTF\Product_Pricing::META_USD_REGULAR, true );
+	usdtf_it_assert_same( '99.99', (string) $after, 'an excluded product must not be touched by an HTTP job (USD regular)' );
+	usdtf_it_assert_same( (string) $guard_before_regular, (string) $after, 'guard USD regular price must remain unchanged' );
+	usdtf_it_assert_same( (string) $guard_before_sale, (string) get_post_meta( $guard_product->get_id(), \USDTF\Product_Pricing::META_USD_SALE, true ), 'guard USD sale price must remain unchanged' );
 	usdtf_it_assert_same( (string) $guard_before_price, (string) get_post_meta( $guard_product->get_id(), '_regular_price', true ), 'guard Woo price must remain unchanged' );
-	usdtf_it_assert_same( (string) $guard_before_derived, (string) get_post_meta( $guard_product->get_id(), \USDTF\Product_Pricing::META_DERIVED_REGULAR, true ), 'guard derived price must remain unchanged' );
+	usdtf_it_assert_same( (string) $guard_before_seen, (string) get_post_meta( $guard_product->get_id(), \USDTF\Product_Pricing::META_SEEN_REGULAR, true ), 'guard seen price must remain unchanged' );
+	usdtf_it_assert_same( (string) $guard_before_rate, (string) get_post_meta( $guard_product->get_id(), \USDTF\Product_Pricing::META_RATE, true ), 'guard rate must remain unchanged' );
 
 	// Repeated execution: second preview/update must also leave guard untouched.
 	$guard_preview2 = usdtf_it_http( 'POST', '/preview', array( 'scope' => array() ), $usdtf_regression_header );
@@ -211,12 +225,14 @@ try {
 	usdtf_it_assert_same( 200, $guard_update2['code'], 'second guard update must be 200' );
 	$guard_update2_done = usdtf_it_http_wait_job( (int) $guard_update2['json']['id'], $usdtf_regression_header, 90 );
 	usdtf_it_assert_same( Job::STATUS_COMPLETED, $guard_update2_done['status'] ?? '', 'second guard update must complete' );
-	usdtf_it_assert_same( '9999999', (string) get_post_meta( $guard_product->get_id(), \USDTF\Product_Pricing::META_SOURCE_REGULAR, true ), 'guard product must still be untouched after repeated jobs' );
+	wp_cache_flush();
+	usdtf_it_assert_same( '99.99', (string) get_post_meta( $guard_product->get_id(), \USDTF\Product_Pricing::META_USD_REGULAR, true ), 'guard product must still be untouched after repeated jobs' );
+	usdtf_it_assert_same( '2700000', usdtf_it_price( $guard_product->get_id() ), 'guard Woo price must still be untouched after repeated jobs' );
 
 	// Fixture cleanup: remove guard product and verify no leftover.
 	$guard_id = $guard_product->get_id();
 	wp_delete_post( $guard_id, true );
-	usdtf_it_assert_same( '', (string) get_post_meta( $guard_id, \USDTF\Product_Pricing::META_SOURCE_REGULAR, true ), 'guard fixture must be cleaned up (meta removed)' );
+	usdtf_it_assert_same( '', (string) get_post_meta( $guard_id, \USDTF\Product_Pricing::META_USD_REGULAR, true ), 'guard fixture must be cleaned up (meta removed)' );
 
 	usdtf_it_pass( 'store isolation survives HTTP background jobs (with completed jobs, unchanged prices/metadata, repeated execution and cleanup)' );
 

@@ -45,6 +45,16 @@ final class Job_Repository {
 	const ITEM_FAILED = 'failed';
 
 	/**
+	 * Item status: the USD anchor was created from the current Woo price.
+	 */
+	const ITEM_GENERATED = 'generated';
+
+	/**
+	 * Item status: the USD anchor was re-based on a hand-edited Woo price.
+	 */
+	const ITEM_REBASED = 'rebased';
+
+	/**
 	 * Item status: the source changed during the job.
 	 */
 	const ITEM_CONFLICT = 'conflict';
@@ -69,15 +79,12 @@ final class Job_Repository {
 		'object_id',
 		'parent_id',
 		'object_type',
-		'expected_revision',
-		'source_regular',
-		'source_sale',
+		'usd_regular',
+		'usd_sale',
 		'old_regular',
 		'old_sale',
 		'new_regular',
 		'new_sale',
-		'toman_regular',
-		'toman_sale',
 		'status',
 		'child_cursor',
 		'child_total',
@@ -94,7 +101,7 @@ final class Job_Repository {
 	 *
 	 * @var string[]
 	 */
-	const ITEM_FORMATS = array( '%d', '%d', '%d', '%s', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%d', '%s', '%d', '%d', '%s', '%s', '%s' );
+	const ITEM_FORMATS = array( '%d', '%d', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%d', '%s', '%d', '%d', '%s', '%s', '%s' );
 
 	/**
 	 * Create a job row.
@@ -109,12 +116,12 @@ final class Job_Repository {
 				'status'        => Job::STATUS_QUEUED,
 				'job_type'      => Job::TYPE_SYNC,
 				'scope'         => array(),
-				'currency_mode' => Settings::MODE_USD,
 				'rate'          => 0,
 				'previous_rate' => null,
 				'rounding'      => Calculator::ROUND_UP,
 				'increment'     => 1,
 				'decimals'      => 0,
+				'unit'          => Store_Currency::unit(),
 				'user_id'       => get_current_user_id(),
 				'phase'         => Job::PHASE_DISCOVER,
 			)
@@ -128,18 +135,18 @@ final class Job_Repository {
 				'status'        => (string) $args['status'],
 				'job_type'      => (string) $args['job_type'],
 				'scope'         => wp_json_encode( $args['scope'] ),
-				'currency_mode' => (string) $args['currency_mode'],
 				'rate'          => (float) $args['rate'],
 				'previous_rate' => null === $args['previous_rate'] ? null : (float) $args['previous_rate'],
 				'rounding'      => (string) $args['rounding'],
 				'increment'     => (float) $args['increment'],
 				'decimals'      => (int) $args['decimals'],
+				'unit'          => (string) $args['unit'],
 				'phase'         => (string) $args['phase'],
 				'user_id'       => (int) $args['user_id'],
 				'created_at'    => $now,
 				'updated_at'    => $now,
 			),
-			array( '%s', '%s', '%s', '%s', '%f', '%f', '%s', '%f', '%d', '%s', '%d', '%s', '%s' )
+			array( '%s', '%s', '%s', '%f', '%f', '%s', '%f', '%d', '%s', '%s', '%d', '%s', '%s' )
 		);
 	}
 
@@ -283,12 +290,13 @@ final class Job_Repository {
 			'phase',
 			'rate',
 			'previous_rate',
-			'currency_mode',
 			'decimals',
 			'rounding',
 			'increment',
 			'total_items',
 			'processed',
+			'generated',
+			'rebased',
 			'changed',
 			'unchanged',
 			'skipped',
@@ -308,6 +316,8 @@ final class Job_Repository {
 		$format_map = array(
 			'total_items'    => '%d',
 			'processed'      => '%d',
+			'generated'      => '%d',
+			'rebased'        => '%d',
 			'changed'        => '%d',
 			'unchanged'      => '%d',
 			'skipped'        => '%d',
@@ -376,7 +386,7 @@ final class Job_Repository {
 	 * @return void
 	 */
 	public function increment( $job_id, array $deltas ) {
-		$allowed = array( 'processed', 'changed', 'unchanged', 'skipped', 'failed', 'conflicts', 'total_items', 'variations_processed', 'variations_changed' );
+		$allowed = array( 'processed', 'generated', 'rebased', 'changed', 'unchanged', 'skipped', 'failed', 'conflicts', 'total_items', 'variations_processed', 'variations_changed' );
 		$sets    = array();
 
 		global $wpdb;
@@ -417,7 +427,7 @@ final class Job_Repository {
 	 * @return void
 	 */
 	public function set_counter( $job_id, $counter, $value ) {
-		$allowed = array( 'total_items', 'processed', 'changed', 'unchanged', 'skipped', 'failed', 'conflicts', 'discovery_page' );
+		$allowed = array( 'total_items', 'processed', 'generated', 'rebased', 'changed', 'unchanged', 'skipped', 'failed', 'conflicts', 'discovery_page' );
 
 		if ( ! in_array( $counter, $allowed, true ) ) {
 			return;
@@ -477,27 +487,24 @@ final class Job_Repository {
 
 		foreach ( $items as $item ) {
 			$rows[] = array(
-				'job_id'            => (int) $job_id,
-				'object_id'         => (int) $item['object_id'],
-				'parent_id'         => isset( $item['parent_id'] ) ? (int) $item['parent_id'] : 0,
-				'object_type'       => isset( $item['object_type'] ) ? (string) $item['object_type'] : 'product',
-				'expected_revision' => isset( $item['expected_revision'] ) ? (int) $item['expected_revision'] : 0,
-				'source_regular'    => isset( $item['source_regular'] ) ? $item['source_regular'] : null,
-				'source_sale'       => isset( $item['source_sale'] ) ? $item['source_sale'] : null,
-				'old_regular'       => isset( $item['old_regular'] ) ? $item['old_regular'] : null,
-				'old_sale'          => isset( $item['old_sale'] ) ? $item['old_sale'] : null,
-				'new_regular'       => isset( $item['new_regular'] ) ? $item['new_regular'] : null,
-				'new_sale'          => isset( $item['new_sale'] ) ? $item['new_sale'] : null,
-				'toman_regular'     => isset( $item['toman_regular'] ) ? $item['toman_regular'] : null,
-				'toman_sale'        => isset( $item['toman_sale'] ) ? $item['toman_sale'] : null,
-				'status'            => isset( $item['status'] ) ? (string) $item['status'] : self::ITEM_PENDING,
-				'child_cursor'      => isset( $item['child_cursor'] ) ? (int) $item['child_cursor'] : 0,
-				'child_total'       => isset( $item['child_total'] ) ? (int) $item['child_total'] : 0,
-				'parent_synced'     => isset( $item['parent_synced'] ) ? (int) $item['parent_synced'] : 0,
-				'attempts'          => isset( $item['attempts'] ) ? (int) $item['attempts'] : 0,
-				'message'           => isset( $item['message'] ) ? $item['message'] : null,
-				'retry_after'       => isset( $item['retry_after'] ) ? $item['retry_after'] : null,
-				'updated_at'        => $now,
+				'job_id'        => (int) $job_id,
+				'object_id'     => (int) $item['object_id'],
+				'parent_id'     => isset( $item['parent_id'] ) ? (int) $item['parent_id'] : 0,
+				'object_type'   => isset( $item['object_type'] ) ? (string) $item['object_type'] : 'product',
+				'usd_regular'   => isset( $item['usd_regular'] ) ? $item['usd_regular'] : null,
+				'usd_sale'      => isset( $item['usd_sale'] ) ? $item['usd_sale'] : null,
+				'old_regular'   => isset( $item['old_regular'] ) ? $item['old_regular'] : null,
+				'old_sale'      => isset( $item['old_sale'] ) ? $item['old_sale'] : null,
+				'new_regular'   => isset( $item['new_regular'] ) ? $item['new_regular'] : null,
+				'new_sale'      => isset( $item['new_sale'] ) ? $item['new_sale'] : null,
+				'status'        => isset( $item['status'] ) ? (string) $item['status'] : self::ITEM_PENDING,
+				'child_cursor'  => isset( $item['child_cursor'] ) ? (int) $item['child_cursor'] : 0,
+				'child_total'   => isset( $item['child_total'] ) ? (int) $item['child_total'] : 0,
+				'parent_synced' => isset( $item['parent_synced'] ) ? (int) $item['parent_synced'] : 0,
+				'attempts'      => isset( $item['attempts'] ) ? (int) $item['attempts'] : 0,
+				'message'       => isset( $item['message'] ) ? $item['message'] : null,
+				'retry_after'   => isset( $item['retry_after'] ) ? $item['retry_after'] : null,
+				'updated_at'    => $now,
 			);
 		}
 
@@ -578,15 +585,14 @@ final class Job_Repository {
 	 */
 	public function update_item( $item_id, array $data ) {
 		$formats = array(
-			'object_id'         => '%d',
-			'parent_id'         => '%d',
-			'expected_revision' => '%d',
-			'attempts'          => '%d',
-			'child_cursor'      => '%d',
-			'child_total'       => '%d',
-			'parent_synced'     => '%d',
-			'attention'         => '%d',
-			'job_id'            => '%d',
+			'object_id'     => '%d',
+			'parent_id'     => '%d',
+			'attempts'      => '%d',
+			'child_cursor'  => '%d',
+			'child_total'   => '%d',
+			'parent_synced' => '%d',
+			'attention'     => '%d',
+			'job_id'        => '%d',
 		);
 
 		$clean   = array();

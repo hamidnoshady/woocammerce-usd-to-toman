@@ -121,55 +121,7 @@ final class Calculator {
 	}
 
 	/**
-	 * Parse a Toman source price.
-	 *
-	 * Empty input is allowed and means "no price". Zero and negative values are
-	 * rejected because they cannot produce a valid WooCommerce price.
-	 *
-	 * @param mixed $raw Raw value.
-	 * @return array{code:string,value:float|null}
-	 */
-	public static function parse_toman( $raw ) {
-		$normalized = self::normalize_number( $raw );
-
-		if ( '' === $normalized ) {
-			return array(
-				'code'  => 'empty',
-				'value' => null,
-			);
-		}
-
-		$value = (float) $normalized;
-
-		if ( $value < 0 ) {
-			return array(
-				'code'  => 'negative',
-				'value' => $value,
-			);
-		}
-
-		if ( 0.0 === $value ) {
-			return array(
-				'code'  => 'zero',
-				'value' => 0.0,
-			);
-		}
-
-		if ( $value > 1.0e16 ) {
-			return array(
-				'code'  => 'out_of_range',
-				'value' => $value,
-			);
-		}
-
-		return array(
-			'code'  => 'ok',
-			'value' => $value,
-		);
-	}
-
-	/**
-	 * Parse an exchange rate (Toman per 1 USD).
+	 * Parse an exchange rate (store units per 1 USD).
 	 *
 	 * @param mixed $raw Raw value.
 	 * @return array{code:string,value:float|null}
@@ -249,13 +201,28 @@ final class Calculator {
 	}
 
 	/**
-	 * Convert a Toman amount to a USD WooCommerce price.
+	 * Derive the USD anchor from a store price.
 	 *
-	 * `USD = ceil( Toman / rate )` by default. The conversion always starts from
-	 * the canonical Toman value so rounding errors can never accumulate.
+	 * @param float|int|string $price Store price in the store currency.
+	 * @param float|int|string $rate  Store currency units per 1 USD.
+	 * @return float|null USD rounded half up to 2 decimals, null when not computable.
+	 */
+	public static function usd_from_price( $price, $rate ) {
+		$price = (float) $price;
+		$rate  = (float) $rate;
+
+		if ( $price <= 0 || $rate <= 0 ) {
+			return null;
+		}
+
+		return (float) round( $price / $rate, 2 );
+	}
+
+	/**
+	 * Derive a store price from a USD anchor.
 	 *
-	 * @param float|int|string $toman     Canonical Toman amount.
-	 * @param float|int|string $rate      Toman per 1 USD.
+	 * @param float|int|string $usd  USD anchor.
+	 * @param float|int|string $rate Store currency units per 1 USD.
 	 * @param array            $args {
 	 *     Optional. Conversion options.
 	 *
@@ -265,7 +232,7 @@ final class Calculator {
 	 * }
 	 * @return float|null Null when the conversion is not possible.
 	 */
-	public static function from_toman( $toman, $rate, $args = array() ) {
+	public static function price_from_usd( $usd, $rate, $args = array() ) {
 		$args = wp_parse_args(
 			$args,
 			array(
@@ -275,37 +242,51 @@ final class Calculator {
 			)
 		);
 
-		$toman = (float) $toman;
-		$rate  = (float) $rate;
+		$usd  = (float) $usd;
+		$rate = (float) $rate;
 
-		if ( $rate <= 0 || $toman < 0 ) {
+		if ( $usd <= 0 || $rate <= 0 ) {
 			return null;
 		}
 
-		if ( 0.0 === $toman ) {
-			return 0.0;
-		}
+		$price = self::round_amount( $usd * $rate, $args['rounding'], $args['increment'] );
 
-		$usd = self::round_amount( $toman / $rate, $args['rounding'], $args['increment'] );
-
-		return self::trim_to_decimals( $usd, (int) $args['decimals'] );
+		return self::trim_to_decimals( $price, (int) $args['decimals'] );
 	}
 
 	/**
-	 * Convert a USD reference value back into Toman. Used for reporting only.
+	 * Rounding increments offered for a store currency unit.
 	 *
-	 * @param float|int|string $usd  USD amount.
-	 * @param float|int|string $rate Toman per 1 USD.
-	 * @return float|null
+	 * @param string $unit Store currency unit, 'toman' or 'rial'.
+	 * @return float[]
 	 */
-	public static function from_usd( $usd, $rate ) {
-		$rate = (float) $rate;
-
-		if ( $rate <= 0 ) {
-			return null;
+	public static function increments_for_unit( $unit ) {
+		if ( 'rial' === $unit ) {
+			return array( 10.0, 1000.0, 10000.0, 100000.0 );
 		}
 
-		return (float) $usd * $rate;
+		return array( 1.0, 100.0, 1000.0, 10000.0 );
+	}
+
+	/**
+	 * Default rounding increment for a store currency unit.
+	 *
+	 * @param string $unit Store currency unit, 'toman' or 'rial'.
+	 * @return float
+	 */
+	public static function default_increment( $unit ) {
+		return 'rial' === $unit ? 10000.0 : 1000.0;
+	}
+
+	/**
+	 * Format a store price or USD amount for display with locale separators.
+	 *
+	 * @param float|int|string $amount   Amount.
+	 * @param int              $decimals Decimal places.
+	 * @return string
+	 */
+	public static function format_price( $amount, $decimals = 0 ) {
+		return number_format_i18n( (float) $amount, max( 0, min( 6, (int) $decimals ) ) );
 	}
 
 	/**
@@ -360,79 +341,6 @@ final class Calculator {
 		}
 
 		return self::to_price_string( $a, $decimals ) === self::to_price_string( $b, $decimals );
-	}
-
-	/**
-	 * Format a Toman amount for display.
-	 *
-	 * @param float|int|string $amount Amount.
-	 * @param array            $args {
-	 *     Optional. Formatting options.
-	 *
-	 *     @type int    $decimals        Decimal places. Default 0.
-	 *     @type bool   $persian_digits  Convert digits to Persian numerals. Default false.
-	 *     @type string $suffix          Suffix such as the Toman label. Default ''.
-	 *     @type bool   $with_suffix     Append the suffix. Default false.
-	 * }
-	 * @return string
-	 */
-	public static function format_toman( $amount, $args = array() ) {
-		$args = wp_parse_args(
-			$args,
-			array(
-				'decimals'       => 0,
-				'persian_digits' => false,
-				'suffix'         => '',
-				'with_suffix'    => false,
-				'separator'      => ',',
-				'decimal_sep'    => '.',
-			)
-		);
-
-		if ( null === $amount || '' === $amount ) {
-			return '';
-		}
-
-		$decimals = max( 0, min( 6, (int) $args['decimals'] ) );
-		$number   = number_format( (float) $amount, $decimals, $args['decimal_sep'], $args['separator'] );
-
-		if ( ! empty( $args['persian_digits'] ) ) {
-			$number = self::to_persian_digits( $number );
-			if ( '٫' !== $args['decimal_sep'] ) {
-				$number = str_replace( '.', '٫', $number );
-			}
-		}
-
-		if ( ! empty( $args['with_suffix'] ) && '' !== $args['suffix'] ) {
-			$number .= ' ' . $args['suffix'];
-		}
-
-		return $number;
-	}
-
-	/**
-	 * Convert ASCII digits (and separators) to Persian digits.
-	 *
-	 * @param string $value Value to convert.
-	 * @return string
-	 */
-	public static function to_persian_digits( $value ) {
-		return strtr(
-			(string) $value,
-			array(
-				'0' => '۰',
-				'1' => '۱',
-				'2' => '۲',
-				'3' => '۳',
-				'4' => '۴',
-				'5' => '۵',
-				'6' => '۶',
-				'7' => '۷',
-				'8' => '۸',
-				'9' => '۹',
-				',' => '٬',
-			)
-		);
 	}
 
 	/**
