@@ -9,6 +9,7 @@ namespace USDTF\Admin;
 
 use USDTF\Calculator;
 use USDTF\Capabilities;
+use USDTF\Database;
 use USDTF\Health;
 use USDTF\Job;
 use USDTF\Job_Repository;
@@ -37,6 +38,11 @@ final class Admin {
 	 * Option group used by the settings screen.
 	 */
 	const OPTION_GROUP = 'usdtf_settings_group';
+
+	/**
+	 * Action of the admin-post request and its nonce that dismiss the upgrade notice.
+	 */
+	const DISMISS_UPGRADE_NOTICE = 'usdtf_dismiss_upgrade_notice';
 
 	/**
 	 * Header of the job items CSV export.
@@ -151,6 +157,7 @@ final class Admin {
 		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_assets' ) );
 		add_action( 'admin_notices', array( $this, 'render_notices' ) );
 		add_action( 'admin_post_usdtf_export', array( $this, 'export_csv' ) );
+		add_action( 'admin_post_' . self::DISMISS_UPGRADE_NOTICE, array( $this, 'dismiss_upgrade_notice' ) );
 
 		add_filter(
 			'plugin_action_links_' . USDTF_BASENAME,
@@ -570,6 +577,8 @@ final class Admin {
 			return;
 		}
 
+		$this->render_upgrade_notice();
+
 		$screen        = function_exists( 'get_current_screen' ) ? get_current_screen() : null;
 		$on_own_screen = $screen && false !== strpos( (string) $screen->id, self::PAGE );
 
@@ -596,6 +605,69 @@ final class Admin {
 				);
 			}
 		}
+	}
+
+	/**
+	 * The one-time notice the 1.2.0 upgrade left, until it is dismissed.
+	 *
+	 * Shown on every admin screen to the users who run the plugin. The caller
+	 * has checked the capability.
+	 *
+	 * @return void
+	 */
+	private function render_upgrade_notice() {
+		$kind = (string) get_option( Database::OPTION_UPGRADE_NOTICE, '' );
+
+		switch ( $kind ) {
+			case 'toman':
+			case 'toman_review':
+				$class   = 'notice-warning';
+				$message = __( 'The store currency was set to Iranian Toman (IRT, no decimals) to keep the storefront as it was. Earlier versions applied this only while the plugin was active; it is now a normal WooCommerce setting.', 'usd-to-toman-price-sync-for-woocommerce' );
+
+				if ( 'toman_review' === $kind ) {
+					$message .= ' ' . __( 'Your prices were last written for the removed USD-store mode, so review them before you run an update.', 'usd-to-toman-price-sync-for-woocommerce' );
+				}
+				break;
+
+			case 'usd':
+				$class   = 'notice-error';
+				$message = __( 'The USD-store mode was removed. Set the WooCommerce store currency to Iranian Toman or Rial and review your prices; the plugin does not update prices until then. The old Toman prices are kept in hidden product meta (_usdtf_source_regular and _usdtf_source_sale).', 'usd-to-toman-price-sync-for-woocommerce' );
+				break;
+
+			default:
+				return;
+		}
+
+		printf(
+			'<div class="notice %1$s"><p><strong>%2$s</strong> %3$s</p><p><a href="%4$s">%5$s</a> | <a href="%6$s">%7$s</a></p></div>',
+			esc_attr( $class ),
+			esc_html__( 'USD/Toman pricing:', 'usd-to-toman-price-sync-for-woocommerce' ),
+			esc_html( $message ),
+			esc_url( admin_url( 'admin.php?page=wc-settings' ) ),
+			esc_html__( 'Open the WooCommerce currency settings', 'usd-to-toman-price-sync-for-woocommerce' ),
+			esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=' . self::DISMISS_UPGRADE_NOTICE ), self::DISMISS_UPGRADE_NOTICE ) ),
+			esc_html__( 'Dismiss this notice', 'usd-to-toman-price-sync-for-woocommerce' )
+		);
+	}
+
+	/**
+	 * Dismiss the upgrade notice for good, then go back where the user was.
+	 *
+	 * @return void
+	 */
+	public function dismiss_upgrade_notice() {
+		if ( ! Capabilities::current_user_can() ) {
+			wp_die( esc_html__( 'You are not allowed to manage USD/Toman pricing.', 'usd-to-toman-price-sync-for-woocommerce' ), 403 );
+		}
+
+		check_admin_referer( self::DISMISS_UPGRADE_NOTICE );
+
+		delete_option( Database::OPTION_UPGRADE_NOTICE );
+
+		$back = wp_get_referer();
+
+		wp_safe_redirect( $back ? $back : admin_url() );
+		exit;
 	}
 
 	/**

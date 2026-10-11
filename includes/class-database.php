@@ -31,6 +31,13 @@ final class Database {
 	const OBSOLETE_OPTIONS = array( 'usdtf_synced_currency_mode' );
 
 	/**
+	 * Option holding the one-time notice the 1.2.0 upgrade leaves for the
+	 * store owner: `toman`, `toman_review` or `usd`, after the old currency
+	 * mode. Removed when the notice is dismissed and on uninstall.
+	 */
+	const OPTION_UPGRADE_NOTICE = 'usdtf_upgrade_notice';
+
+	/**
 	 * Fully qualified table name.
 	 *
 	 * @param string $name Table short name without prefix.

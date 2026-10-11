@@ -1100,6 +1100,7 @@ function usdtf_it_reset_plugin_state() {
 		\USDTF\Settings::OPTION,
 		\USDTF\Settings::OPTION_RATE,
 		\USDTF\Settings::OPTION_PENDING_RATE,
+		\USDTF\Database::OPTION_UPGRADE_NOTICE,
 		'usdtf_last_error',
 		'usdtf_stale_resumes',
 	);

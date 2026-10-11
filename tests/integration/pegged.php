@@ -317,7 +317,7 @@ update_option(
 	array(
 		'currency_mode'            => 'toman',
 		'rounding'                 => 'nearest',
-		'increment'                => 1.0,
+		'increment'                => 1000.0,
 		'decimals'                 => 2,
 		'batch_size'               => 15,
 		'auto_manage_new_products' => true,
@@ -327,11 +327,59 @@ update_option(
 		'toman_suffix'             => 'تومان',
 	)
 );
-update_option( 'usdtf_synced_currency_mode', 'usd', false );
+update_option( 'usdtf_synced_currency_mode', 'toman', false );
 update_option( \USDTF\Installer::VERSION_OPTION, '5', false );
 usdtf_plugin()->settings()->all( true );
 
+// A 1.1.x store in Toman mode: the old plugin forced IRT, no decimals and the
+// symbol on the right at runtime only, so the database holds other values.
+usdtf_it_set_currency( null );
+
+$up_store_keys   = array( 'woocommerce_currency', 'woocommerce_price_num_decimals', 'woocommerce_currency_pos' );
+$up_store_before = array();
+
+foreach ( $up_store_keys as $up_key ) {
+	$up_store_before[ $up_key ] = get_option( $up_key, null );
+}
+
+$up_restore_store = function () use ( $up_store_before ) {
+	foreach ( $up_store_before as $up_key => $up_value ) {
+		if ( null === $up_value ) {
+			delete_option( $up_key );
+		} else {
+			update_option( $up_key, $up_value );
+		}
+	}
+};
+register_shutdown_function( $up_restore_store );
+
+$up_set_store = function ( $currency, $decimals, $position ) {
+	update_option( 'woocommerce_currency', $currency );
+	update_option( 'woocommerce_price_num_decimals', $decimals );
+	update_option( 'woocommerce_currency_pos', $position );
+};
+$up_store     = function () use ( $up_store_keys ) {
+	$values = array();
+
+	foreach ( $up_store_keys as $up_key ) {
+		$values[ $up_key ] = (string) get_option( $up_key, '' );
+	}
+
+	return $values;
+};
+$up_toman     = array(
+	'woocommerce_currency'           => 'IRT',
+	'woocommerce_price_num_decimals' => '0',
+	'woocommerce_currency_pos'       => 'right_space',
+);
+
+$up_set_store( 'USD', '2', 'left' );
+delete_option( \USDTF\Database::OPTION_UPGRADE_NOTICE );
+
 \USDTF\Installer::maybe_upgrade();
+
+usdtf_it_assert_same( $up_toman, $up_store(), 'the upgrade of a Toman-mode store persists the currency the old plugin forced at runtime' );
+usdtf_it_assert_same( 'toman', get_option( \USDTF\Database::OPTION_UPGRADE_NOTICE ), 'the upgrade of a Toman-mode store leaves a one-time notice' );
 
 foreach ( array_keys( $old_metas ) as $meta_key ) {
 	usdtf_it_assert_same( '', usdtf_it_meta( $old_pid, $meta_key ), 'the upgrade deletes ' . $meta_key . ' from the first product' );
@@ -363,28 +411,193 @@ usdtf_it_assert( in_array( 'rebased', $columns_of( $jobs_table ), true ), 'the u
 usdtf_it_assert_same( array(), array_diff( $items_before, $columns_of( $items_table ) ), 'the obsolete items columns stay in place' );
 usdtf_it_assert_same( array(), array_diff( $jobs_before, $columns_of( $jobs_table ) ), 'the obsolete jobs columns stay in place' );
 
-// A second run changes nothing, even when the version marker is lost.
+// A second run changes nothing, even when the version marker is lost: the
+// owner has since moved the store to Rial and dismissed the notice.
+$up_set_store( 'IRR', '0', 'right_space' );
+delete_option( \USDTF\Database::OPTION_UPGRADE_NOTICE );
+
 $state_after_first = array(
 	'settings' => get_option( 'usdtf_settings' ),
 	'metas'    => array( get_post_meta( $old_pid ), get_post_meta( $kept_pid ) ),
 	'items'    => $columns_of( $items_table ),
 	'jobs'     => $columns_of( $jobs_table ),
+	'store'    => $up_store(),
+	'notice'   => get_option( \USDTF\Database::OPTION_UPGRADE_NOTICE, false ),
 );
 
 \USDTF\Installer::maybe_upgrade();
 update_option( \USDTF\Installer::VERSION_OPTION, '5', false );
 \USDTF\Installer::maybe_upgrade();
 \USDTF\Installer::migrate_to_pegged_model();
+\USDTF\Installer::activate();
 
 $state_after_second = array(
 	'settings' => get_option( 'usdtf_settings' ),
 	'metas'    => array( get_post_meta( $old_pid ), get_post_meta( $kept_pid ) ),
 	'items'    => $columns_of( $items_table ),
 	'jobs'     => $columns_of( $jobs_table ),
+	'store'    => $up_store(),
+	'notice'   => get_option( \USDTF\Database::OPTION_UPGRADE_NOTICE, false ),
 );
 
 usdtf_it_assert_same( $state_after_first, $state_after_second, 'running the upgrade again changes nothing' );
+usdtf_it_assert_same( 'IRR', $state_after_second['store']['woocommerce_currency'], 'a second upgrade never forces Toman again' );
 usdtf_it_assert_same( \USDTF\Database::SCHEMA_VERSION, get_option( \USDTF\Installer::VERSION_OPTION ), 'the schema version stays current after a second upgrade' );
+
+// Each old currency mode, migrated on its own.
+$up_migrate = function ( $settings, $synced ) use ( $up_set_store, $up_store ) {
+	$up_set_store( 'USD', '2', 'left' );
+	delete_option( \USDTF\Database::OPTION_UPGRADE_NOTICE );
+	delete_option( 'usdtf_synced_currency_mode' );
+
+	if ( null === $settings ) {
+		delete_option( 'usdtf_settings' );
+	} else {
+		update_option( 'usdtf_settings', $settings );
+	}
+
+	if ( null !== $synced ) {
+		update_option( 'usdtf_synced_currency_mode', $synced, false );
+	}
+
+	\USDTF\Installer::migrate_to_pegged_model();
+
+	return array( $up_store(), get_option( \USDTF\Database::OPTION_UPGRADE_NOTICE, false ) );
+};
+$up_usd     = array(
+	'woocommerce_currency'           => 'USD',
+	'woocommerce_price_num_decimals' => '2',
+	'woocommerce_currency_pos'       => 'left',
+);
+$up_legacy  = array(
+	'rounding'      => 'up',
+	'batch_size'    => 10,
+	'display_toman' => true,
+	'toman_suffix'  => 'تومان',
+);
+
+list( $up_after, $up_notice ) = $up_migrate( $up_legacy, null );
+usdtf_it_assert_same( $up_toman, $up_after, 'an old store without a stored currency mode was a Toman store and keeps its storefront' );
+usdtf_it_assert_same( 'toman', $up_notice, 'an old store without a stored currency mode gets the Toman notice' );
+
+list( $up_after, $up_notice ) = $up_migrate( array_merge( $up_legacy, array( 'currency_mode' => 'toman' ) ), 'usd' );
+usdtf_it_assert_same( $up_toman, $up_after, 'a Toman-mode store with prices last written for USD keeps the Toman storefront' );
+usdtf_it_assert_same( 'toman_review', $up_notice, 'prices last written for the USD mode ask for a review' );
+
+list( $up_after, $up_notice ) = $up_migrate( array_merge( $up_legacy, array( 'currency_mode' => 'usd' ) ), 'usd' );
+usdtf_it_assert_same( $up_usd, $up_after, 'the upgrade of a USD-mode store changes no WooCommerce option' );
+usdtf_it_assert_same( 'usd', $up_notice, 'the upgrade of a USD-mode store explains that the mode was removed' );
+
+list( $up_after, $up_notice ) = $up_migrate( null, null );
+usdtf_it_assert_same( $up_usd, $up_after, 'a fresh install changes no WooCommerce option' );
+usdtf_it_assert_same( false, $up_notice, 'a fresh install leaves no upgrade notice' );
+
+list( $up_after, $up_notice ) = $up_migrate( \USDTF\Settings::defaults(), null );
+usdtf_it_assert_same( $up_usd, $up_after, 'an install already on the new settings changes no WooCommerce option' );
+usdtf_it_assert_same( false, $up_notice, 'an install already on the new settings leaves no upgrade notice' );
+
+$up_set_store( 'IRT', '0', 'right_space' );
+update_option( 'woocommerce_currency_pos', 'left' );
+update_option( 'usdtf_settings', array_merge( $up_legacy, array( 'currency_mode' => 'toman' ) ) );
+$up_writes  = array();
+$up_counter = function ( $option ) use ( &$up_writes ) {
+	$up_writes[] = $option;
+};
+add_action( 'update_option', $up_counter );
+\USDTF\Installer::migrate_to_pegged_model();
+remove_action( 'update_option', $up_counter );
+usdtf_it_assert_same( array( 'woocommerce_currency_pos' ), array_values( array_intersect( $up_writes, $up_store_keys ) ), 'only the WooCommerce options that differ are written' );
+
+// The notice is shown once to whoever runs the plugin, on every admin screen,
+// until it is dismissed through a nonce and capability protected request.
+require_once ABSPATH . 'wp-admin/includes/screen.php';
+
+$up_admins = get_users(
+	array(
+		'role'   => 'administrator',
+		'number' => 1,
+		'fields' => 'ID',
+	)
+);
+$up_admin  = usdtf_plugin()->admin();
+$up_notice = function () use ( $up_admin ) {
+	ob_start();
+	$up_admin->render_notices();
+
+	return (string) ob_get_clean();
+};
+$up_texts  = array(
+	'toman'        => 'The store currency was set to Iranian Toman (IRT, no decimals)',
+	'toman_review' => 'review them before you run an update',
+	'usd'          => 'The USD-store mode was removed',
+);
+
+set_current_screen( 'dashboard' );
+wp_set_current_user( $up_admins ? (int) $up_admins[0] : 0 );
+
+foreach ( $up_texts as $up_kind => $up_text ) {
+	update_option( \USDTF\Database::OPTION_UPGRADE_NOTICE, $up_kind, false );
+	$up_html = $up_notice();
+	usdtf_it_assert( false !== strpos( $up_html, $up_text ), 'the ' . $up_kind . ' upgrade notice is shown on the WordPress dashboard' );
+	usdtf_it_assert( false !== strpos( $up_html, 'action=usdtf_dismiss_upgrade_notice' ), 'the ' . $up_kind . ' upgrade notice can be dismissed' );
+}
+
+usdtf_it_assert( false !== strpos( $up_notice(), 'hidden product meta' ), 'the USD-mode notice says the old Toman prices are kept' );
+
+update_option( \USDTF\Database::OPTION_UPGRADE_NOTICE, 'toman', false );
+usdtf_it_assert( false !== strpos( $up_notice(), '_wpnonce=' ), 'the dismiss link carries a nonce' );
+
+$up_refused = null;
+$_REQUEST   = array( '_wpnonce' => 'forged' );
+
+try {
+	$up_admin->dismiss_upgrade_notice();
+} catch ( \USDTF_IT_Die $die ) {
+	$up_refused = $die;
+}
+
+usdtf_it_assert( $up_refused instanceof \USDTF_IT_Die, 'a dismissal without a valid nonce is refused' );
+usdtf_it_assert_same( 'toman', get_option( \USDTF\Database::OPTION_UPGRADE_NOTICE ), 'a refused dismissal keeps the notice' );
+
+$up_redirected = null;
+$up_redirect   = function ( $location ) {
+	throw new \USDTF_IT_Die( 'redirect ' . $location );
+};
+add_filter( 'wp_redirect', $up_redirect );
+$_REQUEST = array( '_wpnonce' => wp_create_nonce( 'usdtf_dismiss_upgrade_notice' ) );
+
+try {
+	$up_admin->dismiss_upgrade_notice();
+} catch ( \USDTF_IT_Die $die ) {
+	$up_redirected = $die;
+}
+
+remove_filter( 'wp_redirect', $up_redirect );
+usdtf_it_assert( $up_redirected instanceof \USDTF_IT_Die && 0 === strpos( $up_redirected->getMessage(), 'redirect ' ), 'a valid dismissal redirects back' );
+usdtf_it_assert_same( false, get_option( \USDTF\Database::OPTION_UPGRADE_NOTICE, false ), 'a valid dismissal clears the notice' );
+usdtf_it_assert_same( '', $up_notice(), 'a dismissed notice is not shown again' );
+
+update_option( \USDTF\Database::OPTION_UPGRADE_NOTICE, 'toman', false );
+wp_set_current_user( 0 );
+usdtf_it_assert_same( '', $up_notice(), 'a visitor without the plugin capability sees no upgrade notice' );
+
+$up_refused = null;
+
+try {
+	$up_admin->dismiss_upgrade_notice();
+} catch ( \USDTF_IT_Die $die ) {
+	$up_refused = $die;
+}
+
+usdtf_it_assert( $up_refused instanceof \USDTF_IT_Die, 'a dismissal without the plugin capability is refused' );
+usdtf_it_assert_same( 'toman', get_option( \USDTF\Database::OPTION_UPGRADE_NOTICE ), 'a dismissal without the capability keeps the notice' );
+
+$_REQUEST                  = array();
+$GLOBALS['current_screen'] = null;
+
+$up_restore_store();
+delete_option( \USDTF\Database::OPTION_UPGRADE_NOTICE );
+usdtf_it_set_currency( 'IRT' );
 usdtf_it_pass( 'the upgrade migrates an old database once' );
 
 // ---------------------------------------------------------------------------

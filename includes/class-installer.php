@@ -77,9 +77,10 @@ final class Installer {
 	 * Remove the data of the old currency-mode model.
 	 *
 	 * Deletes the obsolete post meta in one query, reads a stored "native"
-	 * product mode as "excluded", and drops the obsolete settings keys and
-	 * options. Safe to run more than once. The obsolete table columns stay in
-	 * place, unused: dbDelta never drops columns.
+	 * product mode as "excluded", keeps the storefront currency of an old
+	 * Toman-mode install (see carry_over_currency_mode()), and drops the
+	 * obsolete settings keys and options. Safe to run more than once. The
+	 * obsolete table columns stay in place, unused: dbDelta never drops columns.
 	 *
 	 * @return void
 	 */
@@ -114,6 +115,8 @@ final class Installer {
 
 		$stored = get_option( Settings::OPTION, null );
 
+		self::carry_over_currency_mode( $stored );
+
 		if ( is_array( $stored ) ) {
 			$kept = array_intersect_key( $stored, Settings::defaults() );
 
@@ -125,6 +128,64 @@ final class Installer {
 		foreach ( Database::OBSOLETE_OPTIONS as $option ) {
 			delete_option( $option );
 		}
+	}
+
+	/**
+	 * Keep the storefront currency of a 1.1.x install.
+	 *
+	 * Up to 1.1.x the store transacted in Toman by default ("Toman mode", also
+	 * when no mode was stored): the plugin forced the WooCommerce currency to
+	 * IRT, no decimals and the symbol after the price through option filters,
+	 * at runtime only. 1.2.0 reads the real WooCommerce options, so for such a
+	 * store they are written once, and only the ones that differ. A store in
+	 * the removed USD-store mode keeps its WooCommerce options. Either way a
+	 * one-time notice tells the owner what happened.
+	 *
+	 * Only an old install is touched: its settings still hold keys of the old
+	 * model, or the old synced-mode option still exists. A fresh install has
+	 * no settings, and a migrated one has neither, so a second run changes
+	 * nothing even when the schema version marker is lost.
+	 *
+	 * @param mixed $stored The stored settings, before the obsolete keys are dropped.
+	 * @return void
+	 */
+	private static function carry_over_currency_mode( $stored ) {
+		if ( ! is_array( $stored ) ) {
+			return;
+		}
+
+		$synced    = get_option( 'usdtf_synced_currency_mode', null );
+		$old_shape = (bool) array_diff_key( $stored, Settings::defaults() ) || null !== $synced;
+
+		if ( ! $old_shape ) {
+			return;
+		}
+
+		// The old sanitizer kept only `usd` and `toman` and read anything else,
+		// a missing key included, as Toman.
+		$mode = isset( $stored['currency_mode'] ) && 'usd' === $stored['currency_mode'] ? 'usd' : 'toman';
+
+		if ( 'usd' === $mode ) {
+			update_option( Database::OPTION_UPGRADE_NOTICE, 'usd', false );
+
+			return;
+		}
+
+		$toman_store = array(
+			'woocommerce_currency'           => 'IRT',
+			'woocommerce_price_num_decimals' => '0',
+			'woocommerce_currency_pos'       => 'right_space',
+		);
+
+		foreach ( $toman_store as $option => $value ) {
+			if ( (string) get_option( $option, '' ) !== $value ) {
+				update_option( $option, $value );
+			}
+		}
+
+		// Prices last written for the USD-store mode while the Toman mode was
+		// already selected still hold USD amounts: the owner reviews them.
+		update_option( Database::OPTION_UPGRADE_NOTICE, 'usd' === $synced ? 'toman_review' : 'toman', false );
 	}
 
 	/**
@@ -308,6 +369,7 @@ final class Installer {
 			self::VERSION_OPTION,
 			Lock::OPTION,
 			Scheduler::TOKEN_OPTION,
+			Database::OPTION_UPGRADE_NOTICE,
 			'usdtf_last_error',
 			'usdtf_health_snapshot',
 			'usdtf_needs_full_resync',
