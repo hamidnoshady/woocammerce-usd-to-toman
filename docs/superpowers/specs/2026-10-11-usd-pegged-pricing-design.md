@@ -111,7 +111,8 @@ If someone then types 6,000,000 in Woo, the next run re-bases: U = 20.00 at the 
   `expected_revision` are replaced by `usd_regular` and `usd_sale`. `old_*` and `new_*` keep meaning
   "Woo price before / after". A database version bump migrates the table (section 9).
 - **Rollback:** restoring the previous rate recalculates `U × previous rate` for managed products
-  whose Woo price still equals `seen`; other products are skipped and listed.
+  whose Woo price still equals `seen`. A product whose Woo price was edited by hand is re-based on its
+  edit (decision D2) and keeps the edited price; it is listed as re-based.
 - **Preview before Update, the 15 % rate-typo guard, the single active job lock, pause/resume/
   cancel, retries and the Action Scheduler worker are unchanged.**
 - **Scopes** (everything, selected products, category, type, outdated only, changed since) are
