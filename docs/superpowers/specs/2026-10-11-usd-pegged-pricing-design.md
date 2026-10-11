@@ -51,7 +51,7 @@ data is removed by an upgrade step (section 9).
 | `_usdtf_rate` | Rate (store-unit per 1 USD) used at the product's last sync. Existing key, same meaning. |
 | `_usdtf_seen_regular` | Woo regular price the plugin last wrote or accepted. Used to detect hand edits. |
 | `_usdtf_seen_sale` | Same for the sale price. |
-| `_usdtf_mode` | `managed` or `excluded`. A stored `native` is treated as `excluded`. |
+| `_usdtf_mode` | `managed` or `excluded`. A product with no value is **managed** (so an existing catalogue is picked up without per-product work); a stored `native` is treated as `excluded`. |
 | `_usdtf_synced_at`, `_usdtf_last_error`, `_usdtf_last_job`, `_usdtf_conflict` | Unchanged. |
 
 Removed: `_usdtf_source_regular`, `_usdtf_source_sale`, `_usdtf_derived_regular`,
@@ -120,7 +120,8 @@ If someone then types 6,000,000 in Woo, the next run re-bases: U = 20.00 at the 
 ## 7. Settings
 
 Removed: `currency_mode`, `display_toman`, `display_toman_cart`, `persian_digits`, `toman_suffix`,
-`decimals`, and the option `usdtf_synced_currency_mode`.
+`decimals`, `auto_manage_new_products` (products are managed unless excluded), and the option
+`usdtf_synced_currency_mode`.
 
 Changed:
 - **Store currency** (new, read-only row): shows "Toman (IRT)" or "Rial (IRR)" with a link to
@@ -150,8 +151,10 @@ fallback, require preview, capability, rate-change threshold, credit line, delet
 ## 9. Upgrade and uninstall
 
 - Installer bumps the database version and, once: deletes the removed meta keys and settings
-  keys, rewrites stored mode `native` to `excluded`, and alters the items table (add `usd_*`, drop
-  the removed columns). Old job history rows keep their status and message.
+  keys, rewrites stored mode `native` to `excluded`, and extends the items and jobs tables (add
+  `usd_*` and the `generated`/`rebased` counters). The obsolete columns stay in place, unused:
+  `dbDelta` never drops columns and the SQLite test driver differs from MySQL. Old job history rows
+  keep their status and message.
 - `uninstall.php` lists the new meta keys. "Delete data on uninstall" behaves as today. The plugin
   never deletes WooCommerce prices on uninstall.
 
