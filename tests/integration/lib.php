@@ -468,10 +468,9 @@ function usdtf_it_restore_store() {
 	);
 
 	try {
-		// Restoring the meta goes through the plugin's own writers, so the
-		// revision guard has to be off: it would bump _usdtf_revision on every
-		// source price this puts back and the store would end up with a higher
-		// revision than it started with.
+		// The meta and the prices are put back the way the plugin writes them
+		// itself, with its product hooks off, so restoring the store is not
+		// mistaken for an edit made by the store owner.
 		\USDTF\Product_Pricing::without_hooks(
 			function () use ( $snapshot, &$restored ) {
 				foreach ( $snapshot['metas'] as $row ) {
@@ -770,30 +769,71 @@ function usdtf_it_rest_data( $response ) {
 }
 
 /**
- * Create a simple product with Toman source prices.
+ * Create a simple product priced in WooCommerce for the legacy scenarios.
+ *
+ * The WooCommerce price is the input of the USD-pegged model, so this is a
+ * thin wrapper around usdtf_it_make_priced_product() that stores the pricing
+ * mode explicitly. The first job that sees the product generates its USD price
+ * and leaves the WooCommerce price alone; a later rate change rewrites it.
  *
  * @param string $name    Product name.
- * @param mixed  $regular Toman regular price.
- * @param mixed  $sale    Toman sale price.
- * @param string $mode    Pricing mode.
+ * @param mixed  $regular WooCommerce regular price in the store unit.
+ * @param mixed  $sale    WooCommerce sale price, empty for none.
+ * @param string $mode    Pricing mode (managed or excluded).
  * @return \WC_Product
  */
 function usdtf_it_make_simple_product( $name, $regular, $sale = '', $mode = 'managed' ) {
-	$product = new \WC_Product_Simple();
-	$product->set_name( $name );
-	$product->set_status( 'publish' );
-	$product->set_catalog_visibility( 'visible' );
-	// A managed product carries no WooCommerce price until the first sync: the
-	// canonical value lives in the Toman source meta only.
-	$product->save();
+	return usdtf_it_make_priced_product( $name, $regular, $sale, $mode );
+}
 
-	usdtf_it_track_product( $product );
+/**
+ * Make this process, the worker processes and the test web server see a Toman
+ * store priced without decimals.
+ *
+ * The plugin only prices a store whose WooCommerce currency is IRT or IRR, and
+ * the legacy scenarios assert whole Toman prices. The worker scripts and the
+ * HTTP server are separate PHP processes, so a filter in this process is not
+ * enough: the two WooCommerce options are written to the database and put back
+ * by a shutdown handler, which also runs after a failed assertion.
+ *
+ * @return void
+ */
+function usdtf_it_use_toman_store() {
+	if ( isset( $GLOBALS['usdtf_it_store_options'] ) ) {
+		return;
+	}
 
-	$pricing = usdtf_plugin()->pricing();
-	$pricing->set_mode( $product->get_id(), $mode );
-	$pricing->set_source( $product->get_id(), $regular, $sale );
+	$GLOBALS['usdtf_it_store_options'] = array(
+		'woocommerce_currency'           => get_option( 'woocommerce_currency', null ),
+		'woocommerce_price_num_decimals' => get_option( 'woocommerce_price_num_decimals', null ),
+	);
 
-	return wc_get_product( $product->get_id() );
+	usdtf_it_set_currency( null );
+	update_option( 'woocommerce_currency', 'IRT' );
+	update_option( 'woocommerce_price_num_decimals', 0 );
+
+	register_shutdown_function( 'usdtf_it_restore_store_options' );
+}
+
+/**
+ * Put back the WooCommerce options usdtf_it_use_toman_store() replaced.
+ *
+ * @return void
+ */
+function usdtf_it_restore_store_options() {
+	if ( ! isset( $GLOBALS['usdtf_it_store_options'] ) ) {
+		return;
+	}
+
+	foreach ( (array) $GLOBALS['usdtf_it_store_options'] as $option => $value ) {
+		if ( null === $value ) {
+			delete_option( $option );
+		} else {
+			update_option( $option, $value );
+		}
+	}
+
+	unset( $GLOBALS['usdtf_it_store_options'] );
 }
 
 /**
@@ -909,45 +949,18 @@ function usdtf_it_make_priced_variable_product( $name, array $variations, $mode 
 }
 
 /**
- * Create a variable product with the given variations.
+ * Create a variable product priced in WooCommerce for the legacy scenarios.
+ *
+ * A thin wrapper around usdtf_it_make_priced_variable_product() that stores
+ * the pricing mode on the parent and on every variation explicitly.
  *
  * @param string $name       Product name.
- * @param array  $variations List of [ regular, sale ] Toman pairs.
+ * @param array  $variations List of [ regular, sale ] WooCommerce price pairs.
  * @param string $mode       Pricing mode.
  * @return \WC_Product_Variable
  */
 function usdtf_it_make_variable_product( $name, array $variations, $mode = 'managed' ) {
-	$product = new \WC_Product_Variable();
-	$product->set_name( $name );
-	$product->set_status( 'publish' );
-
-	$attribute = new \WC_Product_Attribute();
-	$attribute->set_name( 'Size' );
-	$attribute->set_options( array_map( 'strval', range( 1, count( $variations ) ) ) );
-	$attribute->set_visible( true );
-	$attribute->set_variation( true );
-	$product->set_attributes( array( $attribute ) );
-
-	$product->save();
-
-	usdtf_it_track_product( $product );
-
-	$pricing = usdtf_plugin()->pricing();
-	$pricing->set_mode( $product->get_id(), $mode );
-
-	foreach ( $variations as $index => $prices ) {
-		$variation = new \WC_Product_Variation();
-		$variation->set_parent_id( $product->get_id() );
-		$variation->set_attributes( array( 'size' => (string) ( $index + 1 ) ) );
-		$variation->save();
-
-		usdtf_it_track_product( $variation );
-
-		$pricing->set_mode( $variation->get_id(), $mode );
-		$pricing->set_source( $variation->get_id(), $prices[0], isset( $prices[1] ) ? $prices[1] : '' );
-	}
-
-	return wc_get_product( $product->get_id() );
+	return usdtf_it_make_priced_variable_product( $name, $variations, $mode );
 }
 
 /**

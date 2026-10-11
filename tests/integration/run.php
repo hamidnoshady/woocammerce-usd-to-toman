@@ -114,6 +114,13 @@ if ( 'pegged' === getenv( 'USDTF_IT_ONLY' ) ) {
 }
 
 // ---------------------------------------------------------------------------
+// The legacy scenarios, ported to the USD-pegged model. They run on a Toman
+// store priced without decimals; the worker scripts and the test web server
+// read the same WooCommerce options from the database.
+// ---------------------------------------------------------------------------
+usdtf_it_use_toman_store();
+
+// ---------------------------------------------------------------------------
 // 1. The rounding examples from the issue.
 // ---------------------------------------------------------------------------
 usdtf_it_reset_plugin_state();
@@ -123,15 +130,27 @@ $laptop_a = usdtf_it_make_simple_product( 'Laptop A', 5000000 );
 $laptop_b = usdtf_it_make_simple_product( 'Laptop B', 5400000 );
 $laptop_c = usdtf_it_make_simple_product( 'Laptop C', 5410000 );
 
+// The first update only generates the USD prices from the Woo prices.
 $job = usdtf_it_create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
 usdtf_it_assert( ! is_wp_error( $job ), 'the update job should be created' );
 usdtf_it_run_job( (int) $job['id'] );
 
-usdtf_it_assert_same( '19', usdtf_it_price( $laptop_a->get_id() ), '5,000,000 / 270,000 must round up to 19 USD' );
-usdtf_it_assert_same( '20', usdtf_it_price( $laptop_b->get_id() ), '5,400,000 / 270,000 must stay 20 USD' );
-usdtf_it_assert_same( '21', usdtf_it_price( $laptop_c->get_id() ), '5,410,000 / 270,000 must round up to 21 USD' );
-usdtf_it_assert_same( '5000000', usdtf_it_meta( $laptop_a->get_id(), \USDTF\Product_Pricing::META_SOURCE_REGULAR ), 'the canonical Toman price must be preserved' );
-usdtf_it_assert_same( '270000', usdtf_it_meta( $laptop_a->get_id(), \USDTF\Product_Pricing::META_RATE ), 'the rate used must be stored per product' );
+usdtf_it_assert_same( '18.52', usdtf_it_meta( $laptop_a->get_id(), \USDTF\Product_Pricing::META_USD_REGULAR ), '5,000,000 / 270,000 must give 18.52 USD' );
+usdtf_it_assert_same( '20.00', usdtf_it_meta( $laptop_b->get_id(), \USDTF\Product_Pricing::META_USD_REGULAR ), '5,400,000 / 270,000 must give 20.00 USD' );
+usdtf_it_assert_same( '20.04', usdtf_it_meta( $laptop_c->get_id(), \USDTF\Product_Pricing::META_USD_REGULAR ), '5,410,000 / 270,000 must give 20.04 USD' );
+usdtf_it_assert_same( '5000000', usdtf_it_price( $laptop_a->get_id() ), 'generating the USD price must leave the Woo price alone' );
+usdtf_it_assert_same( 3, (int) $jobs->get( (int) $job['id'] )->data['generated'], 'the first update must report three generated USD prices' );
+
+// A new rate rewrites the Woo prices from the USD prices, rounded up to 1,000 Toman.
+$rates->save_rate( 297000 );
+$job = usdtf_it_create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
+usdtf_it_run_job( (int) $job['id'] );
+
+usdtf_it_assert_same( '5501000', usdtf_it_price( $laptop_a->get_id() ), '18.52 USD x 297,000 must round up to 5,501,000' );
+usdtf_it_assert_same( '5940000', usdtf_it_price( $laptop_b->get_id() ), '20.00 USD x 297,000 must stay 5,940,000' );
+usdtf_it_assert_same( '5952000', usdtf_it_price( $laptop_c->get_id() ), '20.04 USD x 297,000 must round up to 5,952,000' );
+usdtf_it_assert_same( '18.52', usdtf_it_meta( $laptop_a->get_id(), \USDTF\Product_Pricing::META_USD_REGULAR ), 'the USD price must be preserved' );
+usdtf_it_assert_same( '297000', usdtf_it_meta( $laptop_a->get_id(), \USDTF\Product_Pricing::META_RATE ), 'the rate used must be stored per product' );
 usdtf_it_pass( 'rounding example from the issue (5,000,000 Toman → $19)' );
 
 $finished = $jobs->get( (int) $job['id'] );
@@ -173,16 +192,17 @@ $preview = $runner->preview( array() );
 usdtf_it_assert( ! is_wp_error( $preview ), 'the dry run job should be created' );
 usdtf_it_run_job( (int) $preview['id'] );
 
-usdtf_it_assert_same( '19', usdtf_it_price( $laptop_a->get_id() ), 'a dry run must not change a price' );
+usdtf_it_assert_same( '5501000', usdtf_it_price( $laptop_a->get_id() ), 'a dry run must not change a price' );
+usdtf_it_assert_same( '297000', usdtf_it_meta( $laptop_a->get_id(), \USDTF\Product_Pricing::META_RATE ), 'a dry run must not store the new rate' );
 
 $preview_job = $jobs->get( (int) $preview['id'] );
 usdtf_it_assert_same( 3, (int) $preview_job->data['changed'], 'the dry run must report the three products that would change' );
 usdtf_it_pass( 'dry run reports changes without writing them' );
 
-// The real update applies the new rate and recalculates from the Toman source.
+// The real update applies the new rate and recalculates from the USD price.
 $update = usdtf_it_create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
 usdtf_it_run_job( (int) $update['id'] );
-usdtf_it_assert_same( '17', usdtf_it_price( $laptop_a->get_id() ), 'ceil(5,000,000 / 300,000) must be 17 USD' );
+usdtf_it_assert_same( '5556000', usdtf_it_price( $laptop_a->get_id() ), '18.52 USD x 300,000 must be 5,556,000' );
 
 // ---------------------------------------------------------------------------
 // 3. No unnecessary writes: the same rate again changes nothing.
@@ -198,13 +218,23 @@ usdtf_it_assert_same( 3, (int) $second_job->data['unchanged'], 'the products mus
 usdtf_it_assert_same( $before, get_post_modified_time( 'Y-m-d H:i:s', true, $laptop_a->get_id(), true ), 'an unchanged product must not be saved again' );
 usdtf_it_pass( 'unchanged prices are not rewritten' );
 
-// A tiny rate change that does not move any rounded price:
-// 300,300 keeps 5,000,000 → $17, 5,400,000 → $18 and 5,410,000 → $19.
-$rates->save_rate( 300300 );
+// A tiny rate change that does not move any rounded price: at 299,990 the USD
+// prices 18.52, 20.00 and 20.04 still round up to 5,556,000, 6,000,000 and 6,012,000.
+$GLOBALS['usdtf_it_legacy_writes'] = 0;
+$usdtf_it_count_writes             = function () {
+	++$GLOBALS['usdtf_it_legacy_writes'];
+};
+add_action( 'woocommerce_update_product', $usdtf_it_count_writes );
+
+$rates->save_rate( 299990 );
 $third = usdtf_it_create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
 usdtf_it_run_job( (int) $third['id'] );
 $third_job = $jobs->get( (int) $third['id'] );
 usdtf_it_assert_same( 0, (int) $third_job->data['changed'], 'a rate change that keeps every rounded price must not write' );
+usdtf_it_assert_same( 0, $GLOBALS['usdtf_it_legacy_writes'], 'a rate change that keeps every rounded price must not save a product' );
+usdtf_it_assert_same( '6012000', usdtf_it_price( $laptop_c->get_id() ), 'the rounded price must stay where it was' );
+usdtf_it_assert_same( '299990', usdtf_it_meta( $laptop_c->get_id(), \USDTF\Product_Pricing::META_RATE ), 'the product must still record the rate it was checked against' );
+remove_action( 'woocommerce_update_product', $usdtf_it_count_writes );
 
 $rates->save_rate( 270000 );
 $fourth = usdtf_it_create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
@@ -222,10 +252,17 @@ $sale_product = usdtf_it_make_simple_product( 'Mouse', 900000, 400000 );
 $job          = usdtf_it_create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
 usdtf_it_run_job( (int) $job['id'] );
 
-usdtf_it_assert_same( '4', usdtf_it_price( $sale_product->get_id() ), '900,000 / 270,000 must round up to 4 USD' );
-usdtf_it_assert_same( '2', usdtf_it_sale( $sale_product->get_id() ), '400,000 / 270,000 must round up to 2 USD' );
-usdtf_it_assert_same( '900000', usdtf_it_meta( $sale_product->get_id(), \USDTF\Product_Pricing::META_SOURCE_REGULAR ), 'the Toman regular price must be preserved' );
-usdtf_it_assert_same( '400000', usdtf_it_meta( $sale_product->get_id(), \USDTF\Product_Pricing::META_SOURCE_SALE ), 'the Toman sale price must be preserved' );
+usdtf_it_assert_same( '3.33', usdtf_it_meta( $sale_product->get_id(), \USDTF\Product_Pricing::META_USD_REGULAR ), '900,000 / 270,000 must give a 3.33 USD regular price' );
+usdtf_it_assert_same( '1.48', usdtf_it_meta( $sale_product->get_id(), \USDTF\Product_Pricing::META_USD_SALE ), '400,000 / 270,000 must give a 1.48 USD sale price' );
+
+$rates->save_rate( 297000 );
+$job = usdtf_it_create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
+usdtf_it_run_job( (int) $job['id'] );
+
+usdtf_it_assert_same( '990000', usdtf_it_price( $sale_product->get_id() ), '3.33 USD x 297,000 must round up to 990,000' );
+usdtf_it_assert_same( '440000', usdtf_it_sale( $sale_product->get_id() ), '1.48 USD x 297,000 must round up to 440,000' );
+usdtf_it_assert_same( '3.33', usdtf_it_meta( $sale_product->get_id(), \USDTF\Product_Pricing::META_USD_REGULAR ), 'the USD regular price must be preserved' );
+usdtf_it_assert_same( '1.48', usdtf_it_meta( $sale_product->get_id(), \USDTF\Product_Pricing::META_USD_SALE ), 'the USD sale price must be preserved' );
 
 // A scheduled sale keeps its dates: only the price fields are written.
 $scheduled         = usdtf_it_make_simple_product( 'Scheduled sale', 2000000, 1000000 );
@@ -237,9 +274,13 @@ $scheduled_product->save();
 $job = usdtf_it_create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
 usdtf_it_run_job( (int) $job['id'] );
 
+$rates->save_rate( 300000 );
+$job = usdtf_it_create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
+usdtf_it_run_job( (int) $job['id'] );
+
 $scheduled_product = wc_get_product( $scheduled->get_id() );
-usdtf_it_assert_same( '8', (string) $scheduled_product->get_regular_price( 'edit' ), 'ceil(2,000,000 / 270,000) must be the regular price' );
-usdtf_it_assert_same( '4', (string) $scheduled_product->get_sale_price( 'edit' ), 'ceil(1,000,000 / 270,000) must be the sale price' );
+usdtf_it_assert_same( '2019000', (string) $scheduled_product->get_regular_price( 'edit' ), '2,000,000 / 297,000 = 6.73 USD x 300,000 must be the regular price' );
+usdtf_it_assert_same( '1011000', (string) $scheduled_product->get_sale_price( 'edit' ), '1,000,000 / 297,000 = 3.37 USD x 300,000 must be the sale price' );
 usdtf_it_assert_same(
 	gmdate( 'Y-m-d', time() + 86400 ),
 	$scheduled_product->get_date_on_sale_from( 'edit' ) ? $scheduled_product->get_date_on_sale_from( 'edit' )->date( 'Y-m-d' ) : '',
@@ -252,11 +293,21 @@ usdtf_it_assert_same(
 );
 usdtf_it_pass( 'scheduled sale dates survive a synchronization' );
 
-// Clearing the sale price in the source clears it in WooCommerce.
-$pricing->set_source( $sale_product->get_id(), 900000, '' );
+// Removing the sale price in WooCommerce clears the USD sale price, and a later
+// rate change never brings the sale back.
+$sale_ended = wc_get_product( $sale_product->get_id() );
+$sale_ended->set_sale_price( '' );
+$sale_ended->save();
+
 $job = usdtf_it_create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
 usdtf_it_run_job( (int) $job['id'] );
-usdtf_it_assert_same( '', usdtf_it_sale( $sale_product->get_id() ), 'clearing the source sale price must clear the WooCommerce sale price' );
+usdtf_it_assert_same( '', usdtf_it_meta( $sale_product->get_id(), \USDTF\Product_Pricing::META_USD_SALE ), 'removing the sale price must clear the USD sale price' );
+
+$rates->save_rate( 270000 );
+$job = usdtf_it_create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
+usdtf_it_run_job( (int) $job['id'] );
+usdtf_it_assert_same( '', usdtf_it_sale( $sale_product->get_id() ), 'a cleared sale price must stay cleared in WooCommerce' );
+usdtf_it_assert_same( '900000', usdtf_it_price( $sale_product->get_id() ), 'the regular price must still follow its USD price' );
 usdtf_it_pass( 'sale prices are derived and cleared from the source' );
 
 // A variable product with 25 variations (more than one slice of 20).
@@ -270,7 +321,15 @@ $variable = usdtf_it_make_variable_product( 'Variable Laptop', $variations );
 
 $job = usdtf_it_create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
 usdtf_it_assert( ! is_wp_error( $job ), 'the variable product update should be created' );
-$steps = usdtf_it_run_job( (int) $job['id'] );
+usdtf_it_run_job( (int) $job['id'] );
+
+$parent = wc_get_product( $variable->get_id() );
+usdtf_it_assert_same( '3.70', usdtf_it_meta( $parent->get_children()[0], \USDTF\Product_Pricing::META_USD_REGULAR ), 'the first variation must get its USD price' );
+usdtf_it_assert_same( '92.59', usdtf_it_meta( $parent->get_children()[24], \USDTF\Product_Pricing::META_USD_REGULAR ), 'the twenty-fifth variation must get its USD price' );
+
+$rates->save_rate( 300000 );
+$job = usdtf_it_create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
+usdtf_it_run_job( (int) $job['id'] );
 
 $variable_job = $jobs->get( (int) $job['id'] );
 usdtf_it_assert_same( \USDTF\Job::STATUS_COMPLETED, $variable_job->status(), 'the variable product job must complete' );
@@ -280,10 +339,13 @@ $parent = wc_get_product( $variable->get_id() );
 usdtf_it_assert( $parent->is_type( 'variable' ), 'the parent must stay a variable product' );
 
 $first_variation = wc_get_product( $parent->get_children()[0] );
-usdtf_it_assert_same( '4', (string) $first_variation->get_regular_price( 'edit' ), 'the first variation must be converted' );
+usdtf_it_assert_same( '1110000', (string) $first_variation->get_regular_price( 'edit' ), 'the first variation must be converted' );
 
 $twenty_fifth = wc_get_product( $parent->get_children()[24] );
-usdtf_it_assert_same( '93', (string) $twenty_fifth->get_regular_price( 'edit' ), 'ceil(25,000,000 / 270,000) must be 93 USD' );
+usdtf_it_assert_same( '27777000', (string) $twenty_fifth->get_regular_price( 'edit' ), '92.59 USD x 300,000 must be 27,777,000' );
+
+$parent_range = array_map( 'floatval', get_post_meta( $variable->get_id(), '_price', false ) );
+usdtf_it_assert_same( array( 1110000.0, 27777000.0 ), array( min( $parent_range ), max( $parent_range ) ), 'the parent price range must be recalculated' );
 
 usdtf_it_pass( 'variable products are processed in slices and the parent range is recalculated' );
 
@@ -296,31 +358,44 @@ $rates->save_rate( 270000 );
 
 $conflict_product = usdtf_it_make_simple_product( 'Conflict Product', 5000000 );
 
+$job = usdtf_it_create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
+usdtf_it_run_job( (int) $job['id'] );
+
+$rates->save_rate( 300000 );
 $job    = usdtf_it_create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
 $job_id = (int) $job['id'];
 
-// Discovery queues the item with the current revision.
+// Discovery queues the item.
 $runner->handle_discovery( $job_id );
 
-// An admin edits the Toman price while the queue is busy.
-$pricing->set_source( $conflict_product->get_id(), 6000000 );
+// An admin edits the Woo price while the worker is busy with the product.
+$usdtf_it_edit_mid_job = function ( $product_id ) use ( $conflict_product ) {
+	if ( (int) $conflict_product->get_id() === (int) $product_id ) {
+		$edited = wc_get_product( $product_id );
+		$edited->set_regular_price( '6000000' );
+		$edited->save();
+	}
+};
+add_action( 'usdtf_before_price_write', $usdtf_it_edit_mid_job );
 
 // The worker now processes the item.
 $runner->handle_batch( $job_id );
+remove_action( 'usdtf_before_price_write', $usdtf_it_edit_mid_job );
 
 $statuses = usdtf_it_item_statuses( $job_id );
 usdtf_it_assert_same( \USDTF\Job_Repository::ITEM_CONFLICT, $statuses[ $conflict_product->get_id() ], 'an edited product must be reported as a conflict' );
-usdtf_it_assert_same( '', usdtf_it_price( $conflict_product->get_id() ), 'a conflicted product must not be overwritten' );
+usdtf_it_assert_same( '6000000', usdtf_it_price( $conflict_product->get_id() ), 'a conflicted product must not be overwritten' );
 usdtf_it_assert( '' !== usdtf_it_meta( $conflict_product->get_id(), \USDTF\Product_Pricing::META_CONFLICT ), 'the conflict marker must be stored on the product' );
 
 usdtf_it_run_job( $job_id );
 $conflict_job = $jobs->get( $job_id );
 usdtf_it_assert_same( \USDTF\Job::STATUS_COMPLETED_WITH_ERRORS, $conflict_job->status(), 'a job with conflicts must report completed_with_errors' );
 
-// Reviewing the conflicts and recalculating them resolves it.
+// Reviewing the conflicts and recalculating them resolves it: the edit becomes the new USD price.
 $runner->recalculate_conflicts( $job_id );
 usdtf_it_run_job( $job_id );
-usdtf_it_assert_same( '23', usdtf_it_price( $conflict_product->get_id() ), 'ceil(6,000,000 / 270,000) must be 23 USD after the conflict is recalculated' );
+usdtf_it_assert_same( '6000000', usdtf_it_price( $conflict_product->get_id() ), 'the edited price must survive the recalculation of the conflict' );
+usdtf_it_assert_same( '20.00', usdtf_it_meta( $conflict_product->get_id(), \USDTF\Product_Pricing::META_USD_REGULAR ), '6,000,000 / 300,000 must be the USD price after the conflict is recalculated' );
 usdtf_it_assert_same( '', usdtf_it_meta( $conflict_product->get_id(), \USDTF\Product_Pricing::META_CONFLICT ), 'the conflict marker must be cleared after recalculation' );
 usdtf_it_pass( 'concurrent product edits are protected and can be recalculated' );
 
@@ -331,31 +406,40 @@ usdtf_it_delete_products();
 usdtf_it_reset_plugin_state();
 $rates->save_rate( 270000 );
 
-$invalid = usdtf_it_make_simple_product( 'Invalid sale', 1000000 );
+$valid = usdtf_it_make_simple_product( 'Valid product', 2700000 );
 
-// A stored source pair where the sale price is above the regular price (for
-// example after a bad import): the job must skip and report it, never crash.
-update_post_meta( $invalid->get_id(), \USDTF\Product_Pricing::META_SOURCE_REGULAR, '1000000' );
-update_post_meta( $invalid->get_id(), \USDTF\Product_Pricing::META_SOURCE_SALE, '2000000' );
-$zero   = usdtf_it_make_simple_product( 'Zero price', '' );
-$native = usdtf_it_make_simple_product( 'Native USD product', '', '', \USDTF\Product_Pricing::MODE_NATIVE );
-$native->set_regular_price( '49' );
-$native->save();
+// A stored pair where the sale price is above the regular price (for example
+// after a bad import; WooCommerce itself would drop it on save): the job must
+// report it and write nothing, never crash.
+$invalid = usdtf_it_make_simple_product( 'Invalid sale', 1000000 );
+update_post_meta( $invalid->get_id(), '_sale_price', '2000000' );
+$zero = usdtf_it_make_simple_product( 'Zero price', '' );
+// A product saved with the retired native mode is excluded.
+$native   = usdtf_it_make_simple_product( 'Native USD product', 49, '', 'native' );
 $excluded = usdtf_it_make_simple_product( 'Excluded product', 3000000, '', \USDTF\Product_Pricing::MODE_EXCLUDED );
 
 $trashed = usdtf_it_make_simple_product( 'Trashed product', 4000000 );
 wp_trash_post( $trashed->get_id() );
 
+// The first update generates the USD prices, the second one moves every price it may.
+$job = usdtf_it_create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
+usdtf_it_run_job( (int) $job['id'] );
+$rates->save_rate( 300000 );
 $job = usdtf_it_create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
 usdtf_it_run_job( (int) $job['id'] );
 
 $statuses = usdtf_it_item_statuses( (int) $job['id'] );
-usdtf_it_assert_same( \USDTF\Job_Repository::ITEM_SKIPPED, $statuses[ $invalid->get_id() ], 'a sale price above the regular price must be skipped' );
-usdtf_it_assert_same( '', usdtf_it_price( $invalid->get_id() ), 'the invalid product must keep its price' );
-usdtf_it_assert_same( '', usdtf_it_price( $zero->get_id() ), 'a product without any price must be skipped' );
-usdtf_it_assert_same( '49', usdtf_it_price( $native->get_id() ), 'a native USD product must never be touched' );
-usdtf_it_assert_same( '', usdtf_it_price( $excluded->get_id() ), 'an excluded product must never be touched' );
-usdtf_it_assert_same( '', usdtf_it_price( $trashed->get_id() ), 'trashed products must be ignored' );
+usdtf_it_assert_same( '3000000', usdtf_it_price( $valid->get_id() ), 'a valid product next to them must still be updated' );
+usdtf_it_assert_same( \USDTF\Job_Repository::ITEM_FAILED, $statuses[ $invalid->get_id() ], 'a sale price above the regular price must be reported as failed' );
+usdtf_it_assert_same( '1000000', usdtf_it_price( $invalid->get_id() ), 'the invalid product must keep its price' );
+usdtf_it_assert_same( '', usdtf_it_meta( $invalid->get_id(), \USDTF\Product_Pricing::META_USD_REGULAR ), 'the invalid product must get no USD price' );
+usdtf_it_assert_same( \USDTF\Job_Repository::ITEM_SKIPPED, $statuses[ $zero->get_id() ], 'a product without any price must be skipped' );
+usdtf_it_assert_same( '', usdtf_it_price( $zero->get_id() ), 'a product without any price must keep no price' );
+usdtf_it_assert_same( '49', usdtf_it_price( $native->get_id() ), 'a product saved with the native mode must never be touched' );
+usdtf_it_assert_same( '3000000', usdtf_it_price( $excluded->get_id() ), 'an excluded product must never be touched' );
+usdtf_it_assert_same( '', usdtf_it_meta( $excluded->get_id(), \USDTF\Product_Pricing::META_USD_REGULAR ), 'an excluded product must get no USD price' );
+usdtf_it_assert_same( '4000000', usdtf_it_price( $trashed->get_id() ), 'trashed products must be ignored' );
+usdtf_it_assert( ! isset( $statuses[ $trashed->get_id() ] ), 'a trashed product must not be queued' );
 
 $job_data = $jobs->get( (int) $job['id'] );
 usdtf_it_assert_same( \USDTF\Job::STATUS_COMPLETED_WITH_ERRORS, $job_data->status(), 'skipped products are reported without failing the job' );
@@ -377,6 +461,11 @@ wp_set_object_terms( $in_category_a->get_id(), array( (int) $category_a ), 'prod
 $in_category_b = usdtf_it_make_simple_product( 'Category B product', 2700000 );
 wp_set_object_terms( $in_category_b->get_id(), array( (int) $category_b ), 'product_cat' );
 
+// Both products get their USD price first; the scoped jobs then run at a new rate.
+$job = usdtf_it_create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
+usdtf_it_run_job( (int) $job['id'] );
+$rates->save_rate( 300000 );
+
 $job = usdtf_it_create_job(
 	array(
 		'type'  => \USDTF\Job::TYPE_SYNC,
@@ -388,8 +477,8 @@ $job = usdtf_it_create_job(
 );
 usdtf_it_run_job( (int) $job['id'] );
 
-usdtf_it_assert_same( '10', usdtf_it_price( $in_category_a->get_id() ), 'the product in scope must be updated' );
-usdtf_it_assert_same( '', usdtf_it_price( $in_category_b->get_id() ), 'the product outside the scope must stay untouched' );
+usdtf_it_assert_same( '3000000', usdtf_it_price( $in_category_a->get_id() ), 'the product in scope must be updated' );
+usdtf_it_assert_same( '2700000', usdtf_it_price( $in_category_b->get_id() ), 'the product outside the scope must stay untouched' );
 
 $job = usdtf_it_create_job(
 	array(
@@ -401,7 +490,7 @@ $job = usdtf_it_create_job(
 	)
 );
 usdtf_it_run_job( (int) $job['id'] );
-usdtf_it_assert_same( '10', usdtf_it_price( $in_category_b->get_id() ), 'a selected product must be updated' );
+usdtf_it_assert_same( '3000000', usdtf_it_price( $in_category_b->get_id() ), 'a selected product must be updated' );
 
 $job = usdtf_it_create_job(
 	array(
@@ -506,88 +595,22 @@ $product = usdtf_it_make_simple_product( 'Rollback product', 5400000 );
 
 $job = usdtf_it_create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
 usdtf_it_run_job( (int) $job['id'] );
-usdtf_it_assert_same( '20', usdtf_it_price( $product->get_id() ), 'the first rate must produce 20 USD' );
+usdtf_it_assert_same( '20.00', usdtf_it_meta( $product->get_id(), \USDTF\Product_Pricing::META_USD_REGULAR ), 'the first rate must produce 20.00 USD' );
+usdtf_it_assert_same( '5400000', usdtf_it_price( $product->get_id() ), 'the first rate must keep the Woo price' );
 
 $rates->save_rate( 400000 );
 $job = usdtf_it_create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
 usdtf_it_run_job( (int) $job['id'] );
-usdtf_it_assert_same( '14', usdtf_it_price( $product->get_id() ), 'ceil(5,400,000 / 400,000) must be 14 USD' );
+usdtf_it_assert_same( '8000000', usdtf_it_price( $product->get_id() ), '20.00 USD x 400,000 must be 8,000,000' );
 
 $rollback = $runner->rollback();
 usdtf_it_assert( ! is_wp_error( $rollback ), 'the rollback job must be created' );
 usdtf_it_run_job( (int) $rollback['id'] );
 
 usdtf_it_assert_same( 270000.0, $rates->get_rate(), 'the rollback must restore the previous rate' );
-usdtf_it_assert_same( '20', usdtf_it_price( $product->get_id() ), 'the rollback must recalculate the price from the Toman source' );
+usdtf_it_assert_same( '5400000', usdtf_it_price( $product->get_id() ), 'the rollback must recalculate the price from the USD price' );
+usdtf_it_assert_same( '20.00', usdtf_it_meta( $product->get_id(), \USDTF\Product_Pricing::META_USD_REGULAR ), 'the rollback must keep the USD price' );
 usdtf_it_pass( 'rollback restores the previous rate and recalculates from source' );
-
-// ---------------------------------------------------------------------------
-// 11. Toman transaction mode (mode B) and the storefront display (mode A).
-// ---------------------------------------------------------------------------
-usdtf_it_delete_products();
-usdtf_it_reset_plugin_state();
-$rates->save_rate( 270000 );
-
-$product = usdtf_it_make_simple_product( 'Display product', 5000000, 2500000 );
-
-// Mode A first: WooCommerce stores USD, the storefront shows Toman.
-$job = usdtf_it_create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
-usdtf_it_run_job( (int) $job['id'] );
-
-$html = wc_get_product( $product->get_id() )->get_price_html();
-usdtf_it_assert( false !== strpos( $html, 'تومان' ), 'mode A price HTML must show the Toman label' );
-usdtf_it_assert( false !== strpos( $html, '۲' ), 'mode A price HTML must use Persian digits' );
-usdtf_it_assert( false === strpos( $html, '$' ), 'mode A price HTML must not show the USD price' );
-
-// The Store API price_html is built from the same filter.
-usdtf_it_assert_same(
-	$html,
-	wc_get_product( $product->get_id() )->get_price_html(),
-	'the Store API price HTML must use the same filtered value'
-);
-
-// Switch to Toman mode: the price fields must hold Toman after a full update.
-$settings->update(
-	array(
-		'currency_mode' => \USDTF\Settings::MODE_TOMAN,
-	)
-);
-
-usdtf_it_assert( $settings->currency_mode_is_stale(), 'a mode switch must mark the catalog as needing a full update' );
-
-$job = usdtf_it_create_job(
-	array(
-		'type'  => \USDTF\Job::TYPE_SYNC,
-		'scope' => array(
-			'ids' => array( $product->get_id() ),
-		),
-	)
-);
-usdtf_it_assert( ! is_wp_error( $job ), 'the update after the mode switch must be created' );
-
-// The scope is forced to the whole catalog because the mode changed.
-$scope = $jobs->get( (int) $job['id'] )->scope();
-usdtf_it_assert( empty( $scope['ids'] ), 'a currency mode change must force a full update' );
-
-usdtf_it_run_job( (int) $job['id'] );
-
-usdtf_it_assert_same( '5000000', usdtf_it_price( $product->get_id() ), 'in Toman mode the price field must hold the canonical Toman value' );
-usdtf_it_assert_same( '2500000', usdtf_it_sale( $product->get_id() ), 'in Toman mode the sale field must hold the canonical Toman value' );
-usdtf_it_assert_same( '19', usdtf_it_meta( $product->get_id(), \USDTF\Product_Pricing::META_DERIVED_REGULAR ), 'the derived USD price must be kept as a reference' );
-usdtf_it_assert_same( 'IRT', get_woocommerce_currency(), 'the transaction currency must be Toman' );
-usdtf_it_assert_same( 'تومان', get_woocommerce_currency_symbol(), 'the currency symbol must be the Toman label' );
-usdtf_it_assert_same( 0, wc_get_price_decimals(), 'Toman prices must not use decimals' );
-usdtf_it_assert_same( '5000000', wc_get_product( $product->get_id() )->get_regular_price( 'edit' ), 'the stored regular price must be the canonical Toman value' );
-usdtf_it_assert_same( '2500000', wc_get_product( $product->get_id() )->get_price(), 'the charged price must be the canonical Toman sale price, never a converted value' );
-usdtf_it_assert( ! $settings->currency_mode_is_stale(), 'the catalog must be marked as synchronized after the full update' );
-usdtf_it_pass( 'Toman transaction mode stores and charges canonical Toman prices' );
-
-// Back to USD mode for the remaining scenarios.
-$settings->update( array( 'currency_mode' => \USDTF\Settings::MODE_USD ) );
-$job = usdtf_it_create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
-usdtf_it_run_job( (int) $job['id'] );
-usdtf_it_assert_same( '19', usdtf_it_price( $product->get_id() ), 'switching back must restore derived USD prices' );
-usdtf_it_pass( 'switching the transaction currency back rewrites the price fields' );
 
 // ---------------------------------------------------------------------------
 // 12. Crash recovery.
@@ -601,6 +624,11 @@ $recovery_products = array();
 for ( $i = 1; $i <= 4; $i++ ) {
 	$recovery_products[] = usdtf_it_make_simple_product( 'Recovery product ' . $i, 270000 * $i );
 }
+
+// The USD prices 1.00 to 4.00 are generated first; the interrupted job then writes a new rate.
+$job = usdtf_it_create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
+usdtf_it_run_job( (int) $job['id'] );
+$rates->save_rate( 300000 );
 
 $job    = usdtf_it_create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
 $job_id = (int) $job['id'];
@@ -627,7 +655,7 @@ usdtf_it_assert_same( \USDTF\Job::STATUS_COMPLETED, $jobs->get( $job_id )->statu
 
 $finished_items = 0;
 
-foreach ( array( \USDTF\Job_Repository::ITEM_CHANGED, \USDTF\Job_Repository::ITEM_UNCHANGED, \USDTF\Job_Repository::ITEM_SKIPPED, \USDTF\Job_Repository::ITEM_FAILED, \USDTF\Job_Repository::ITEM_CONFLICT ) as $item_status ) {
+foreach ( array( \USDTF\Job_Repository::ITEM_CHANGED, \USDTF\Job_Repository::ITEM_GENERATED, \USDTF\Job_Repository::ITEM_REBASED, \USDTF\Job_Repository::ITEM_UNCHANGED, \USDTF\Job_Repository::ITEM_SKIPPED, \USDTF\Job_Repository::ITEM_FAILED, \USDTF\Job_Repository::ITEM_CONFLICT ) as $item_status ) {
 	$totals          = $jobs->item_totals( $job_id );
 	$finished_items += isset( $totals[ $item_status ] ) ? (int) $totals[ $item_status ] : 0;
 }
@@ -638,7 +666,7 @@ usdtf_it_assert_same( 4, (int) $jobs->get( $job_id )->data['processed'], 'the jo
 // The retried items were already written by the first batch, so they must be
 // recognised as unchanged instead of being written a second time.
 foreach ( $recovery_products as $index => $recovery_product ) {
-	usdtf_it_assert_same( (string) ( $index + 1 ), usdtf_it_price( $recovery_product->get_id() ), 'the recovered product price must be correct' );
+	usdtf_it_assert_same( (string) ( 300000 * ( $index + 1 ) ), usdtf_it_price( $recovery_product->get_id() ), 'the recovered product price must be correct' );
 }
 usdtf_it_pass( 'interrupted jobs resume from their saved progress' );
 
@@ -663,32 +691,6 @@ usdtf_it_assert_same( \USDTF\Job_Repository::ITEM_SKIPPED, $statuses[ $product->
 usdtf_it_run_job( $job_id );
 usdtf_it_assert_same( \USDTF\Job::STATUS_COMPLETED, $jobs->get( $job_id )->status(), 'the job must finish normally' );
 usdtf_it_pass( 'products deleted mid-job are skipped' );
-
-// ---------------------------------------------------------------------------
-// 14. Fixture compatibility: another plugin already stored a Toman source.
-// ---------------------------------------------------------------------------
-usdtf_it_delete_products();
-usdtf_it_reset_plugin_state();
-$rates->save_rate( 270000 );
-
-$fixture = usdtf_it_make_simple_product( 'Fixture product', '' );
-update_post_meta( $fixture->get_id(), \USDTF\Product_Pricing::META_EXTERNAL_SOURCE, '5000000' );
-$product = wc_get_product( $fixture->get_id() );
-$product->set_regular_price( '5000000' );
-$product->save();
-
-$pricing->set_mode( $fixture->get_id(), \USDTF\Product_Pricing::MODE_MANAGED );
-$imported = $pricing->import_current_price_as_source( $fixture->get_id() );
-usdtf_it_assert( ! is_wp_error( $imported ), 'importing the existing price must work' );
-
-$job = usdtf_it_create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
-usdtf_it_run_job( (int) $job['id'] );
-
-usdtf_it_assert_same( '19', usdtf_it_price( $fixture->get_id() ), 'the imported Toman price must convert to 19 USD' );
-usdtf_it_assert_same( '5000000', usdtf_it_meta( $fixture->get_id(), \USDTF\Product_Pricing::META_SOURCE_REGULAR ), 'the imported value must be kept as the source' );
-$external = usdtf_it_meta( $fixture->get_id(), \USDTF\Product_Pricing::META_EXTERNAL_SOURCE );
-usdtf_it_assert_same( '5000000', $external, 'a foreign source value must stay untouched' );
-usdtf_it_pass( 'an existing Toman catalog can be onboarded without data loss' );
 
 require __DIR__ . '/extra.php';
 require __DIR__ . '/admin.php';
