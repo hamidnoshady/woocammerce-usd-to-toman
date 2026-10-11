@@ -114,7 +114,7 @@ msgstr "نخست باید یک اجرای آزمایشی با همان نرخ، 
 
 #: includes/admin/views/settings.php:47
 msgid "A new store price is the USD price × the exchange rate, rounded to the increment below. Rounding up protects your margin."
-msgstr "قیمت تازهٔ فروشگاه برابر است با قیمت دلاری × نرخ ارز، گردشده بر پایهٔ پلهٔ افزایش زیر. گرد کردن رو به بالا حاشیهٔ سود شما را حفظ می‌کند."
+msgstr "قیمت تازهٔ فروشگاه برابر است با قیمت دلاری × نرخ ارز، گردشده بر پایهٔ پلهٔ گرد کردن زیر. گرد کردن رو به بالا حاشیهٔ سود شما را حفظ می‌کند."
 
 #: includes/admin/views/dashboard.php:142
 msgid "A rate is waiting for confirmation:"
@@ -473,7 +473,7 @@ msgstr "شامل گونه‌ها (پیشنهادی)"
 
 #: includes/admin/views/settings.php:51
 msgid "Increment"
-msgstr "پلهٔ افزایش"
+msgstr "پلهٔ گرد کردن"
 
 #: includes/admin/views/health.php:69 includes/class-health.php:308
 msgid "Interrupted jobs"
@@ -1205,7 +1205,7 @@ msgstr "نرخ ارز پیشینی برای بازگردانی وجود ندار
 
 #: includes/class-recorder.php:424
 msgid "There is no price to peg to USD."
-msgstr "قیمتی برای مبنا قرار دادن با دلار وجود ندارد."
+msgstr "قیمتی برای پیوند با دلار وجود ندارد."
 
 #: includes/class-rate-guard.php:153
 msgid "This is the rate that is already stored, so nothing was changed."
@@ -1271,7 +1271,7 @@ msgstr "قیمت دلاری"
 
 #: includes/admin/class-admin.php:446 includes/admin/class-admin.php:463 assets/js/admin.js:196 assets/js/admin.js:323
 msgid "USD set"
-msgstr "قیمت دلاری تنظیم شد"
+msgstr "قیمت دلاری تنظیم‌شده"
 
 #: includes/class-plugin.php:152
 msgid "USD to Toman Price Sync for WooCommerce needs WooCommerce to be installed and active."

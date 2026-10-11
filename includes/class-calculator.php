@@ -121,7 +121,7 @@ final class Calculator {
 	}
 
 	/**
-	 * Parse an exchange rate (Toman per 1 USD).
+	 * Parse an exchange rate (store units per 1 USD).
 	 *
 	 * @param mixed $raw Raw value.
 	 * @return array{code:string,value:float|null}
