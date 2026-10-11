@@ -89,6 +89,36 @@ usdtf_it_assert_same( wc_price( 5000000 ), $managed->get_price_html(), 'a manage
 usdtf_it_pass( 'the store currency is read from WooCommerce without an override' );
 
 // ---------------------------------------------------------------------------
+// Without WooCommerce (WordPress 6.2 to 6.4 do not enforce Requires Plugins)
+// the currency is read from the stored option, and activating does not fail.
+// The check runs in its own PHP process with WooCommerce switched off there.
+// ---------------------------------------------------------------------------
+usdtf_it_set_currency( null );
+$nw_stored = get_option( 'woocommerce_currency', null );
+update_option( 'woocommerce_currency', 'IRR' );
+
+$nw_output = array();
+$nw_status = 0;
+exec( escapeshellarg( PHP_BINARY ) . ' ' . escapeshellarg( __DIR__ . '/no-woocommerce.php' ) . ' ' . escapeshellarg( rtrim( ABSPATH, '/' ) ) . ' 2>&1', $nw_output, $nw_status );
+
+if ( null === $nw_stored ) {
+	delete_option( 'woocommerce_currency' );
+} else {
+	update_option( 'woocommerce_currency', $nw_stored );
+}
+
+usdtf_it_set_currency( 'IRT' );
+
+$nw_result = json_decode( (string) end( $nw_output ), true );
+usdtf_it_assert( 0 === $nw_status && is_array( $nw_result ), 'the plugin boots and activates without WooCommerce (exit ' . $nw_status . ': ' . implode( ' ', $nw_output ) . ')' );
+usdtf_it_assert_same( false, $nw_result['woocommerce'], 'the check process runs without WooCommerce' );
+usdtf_it_assert_same( 'IRR', $nw_result['code'], 'without WooCommerce the store currency comes from the stored option' );
+usdtf_it_assert_same( 'rial', $nw_result['unit'], 'without WooCommerce the unit follows the stored option' );
+usdtf_it_assert_same( 10000.0, (float) $nw_result['increment'], 'without WooCommerce the default increment follows the stored option' );
+usdtf_it_assert_same( true, $nw_result['activated'], 'activating without WooCommerce does not fail' );
+usdtf_it_pass( 'the store currency is read without WooCommerce and activation does not fail' );
+
+// ---------------------------------------------------------------------------
 // Price planner: the pure per-field decision.
 // ---------------------------------------------------------------------------
 $plan_round_0 = array(

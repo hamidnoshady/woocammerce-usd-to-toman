@@ -31,9 +31,18 @@ final class Store_Currency {
 	/**
 	 * Currency code of the store.
 	 *
+	 * Without WooCommerce loaded (WordPress 6.2 to 6.4 do not enforce the
+	 * "Requires Plugins" header, so the plugin can be activated alone) the
+	 * stored WooCommerce option is read instead, so activation and the
+	 * settings defaults still work and follow the store's own currency.
+	 *
 	 * @return string
 	 */
 	public static function code() {
+		if ( ! function_exists( 'get_woocommerce_currency' ) ) {
+			return (string) get_option( 'woocommerce_currency', '' );
+		}
+
 		return (string) get_woocommerce_currency();
 	}
 
