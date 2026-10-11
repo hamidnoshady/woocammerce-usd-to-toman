@@ -105,8 +105,11 @@ jobs:
 
           # The template and the compiled catalogues carry the version, and the
           # Release workflow refuses a release whose template is out of date.
-          php bin/make-pot.php
-          php bin/make-mo.php
+          # They are only rewritten when out of date: the template records its
+          # creation time, so regenerating it every run would add a commit even
+          # when nothing changed.
+          php bin/make-pot.php --check >/dev/null 2>&1 || php bin/make-pot.php
+          php bin/make-mo.php --check >/dev/null 2>&1 || php bin/make-mo.php
 
           php bin/check-versions.php
           php bin/lint.php
@@ -116,16 +119,33 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
 
+          # The branch and the tag go up in ONE atomic push. Two pushes in a row
+          # can fail with "missing necessary objects" on the tag, because GitHub
+          # may not have registered the commit that the first push just sent. An
+          # atomic push is all or nothing, so a failed attempt leaves nothing
+          # behind (no release commit without its tag) and is safe to repeat.
+          push_release() {
+            local attempt
+            for attempt in 1 2 3 4; do
+              if git push --atomic origin "$@"; then
+                return 0
+              fi
+              echo "::warning::Push attempt ${attempt} of 4 failed."
+              sleep $((attempt * 5))
+            done
+            return 1
+          }
+
           git add -A
           if git diff --cached --quiet; then
             echo "Nothing to commit, tagging the current main."
+            git tag "${version}"
+            push_release "refs/tags/${version}"
           else
             git commit -m "chore(release): ${version}"
-            git push origin HEAD:main
+            git tag "${version}"
+            push_release HEAD:main "refs/tags/${version}"
           fi
-
-          git tag "${version}"
-          git push origin "refs/tags/${version}"
 
           echo "tag=${version}" >> "$GITHUB_OUTPUT"
 
