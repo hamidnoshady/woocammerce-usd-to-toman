@@ -857,6 +857,58 @@ function usdtf_it_make_priced_product( $name, $regular, $sale = '', $mode = '' )
 }
 
 /**
+ * Create a variable product whose variations carry only WooCommerce prices.
+ *
+ * Like usdtf_it_make_priced_product(): no USD anchor, no seen price, and no
+ * mode unless the caller asks for one. The parent price range is synced, as
+ * WooCommerce does when the product is saved in the admin.
+ *
+ * @param string $name       Product name.
+ * @param array  $variations List of [ regular, sale ] Woo price pairs; sale optional.
+ * @param string $mode       Pricing mode of the parent and every variation, empty to leave it unset.
+ * @return \WC_Product_Variable
+ */
+function usdtf_it_make_priced_variable_product( $name, array $variations, $mode = '' ) {
+	$product = new \WC_Product_Variable();
+	$product->set_name( $name );
+	$product->set_status( 'publish' );
+
+	$attribute = new \WC_Product_Attribute();
+	$attribute->set_name( 'Size' );
+	$attribute->set_options( array_map( 'strval', range( 1, count( $variations ) ) ) );
+	$attribute->set_visible( true );
+	$attribute->set_variation( true );
+	$product->set_attributes( array( $attribute ) );
+
+	$product->save();
+
+	usdtf_it_track_product( $product );
+
+	if ( '' !== (string) $mode ) {
+		update_post_meta( $product->get_id(), '_usdtf_mode', (string) $mode );
+	}
+
+	foreach ( array_values( $variations ) as $index => $prices ) {
+		$variation = new \WC_Product_Variation();
+		$variation->set_parent_id( $product->get_id() );
+		$variation->set_attributes( array( 'size' => (string) ( $index + 1 ) ) );
+		$variation->set_regular_price( (string) $prices[0] );
+		$variation->set_sale_price( isset( $prices[1] ) ? (string) $prices[1] : '' );
+		$variation->save();
+
+		usdtf_it_track_product( $variation );
+
+		if ( '' !== (string) $mode ) {
+			update_post_meta( $variation->get_id(), '_usdtf_mode', (string) $mode );
+		}
+	}
+
+	\WC_Product_Variable::sync( $product->get_id() );
+
+	return wc_get_product( $product->get_id() );
+}
+
+/**
  * Create a variable product with the given variations.
  *
  * @param string $name       Product name.

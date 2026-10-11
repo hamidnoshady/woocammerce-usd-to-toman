@@ -688,6 +688,440 @@ foreach ( array( $doomed_id, $doomed_variation ) as $doomed_post ) {
 
 usdtf_it_pass( 'the meta key list is the new key set and deleting a product leaves no plugin meta' );
 
+// ---------------------------------------------------------------------------
+// Recorder and sync runner: Preview then Update through the jobs engine.
+// ---------------------------------------------------------------------------
+usdtf_it_set_currency( 'IRT' );
+usdtf_it_reset_plugin_state();
+usdtf_it_delete_products();
+
+$pg_settings = usdtf_plugin()->settings();
+$pg_rates    = usdtf_plugin()->rates();
+$pg_jobs     = usdtf_plugin()->jobs();
+$pg_recorder = usdtf_plugin()->recorder();
+
+// A Toman store prices without decimals; the shipped default needs a dry run before an update.
+$pg_decimals = get_option( 'woocommerce_price_num_decimals' );
+update_option( 'woocommerce_price_num_decimals', 0 );
+$pg_settings->update( array( 'require_preview' => true ) );
+$pg_rates->save_rate( 270000 );
+
+// Every WooCommerce product save counts as a price write.
+$GLOBALS['usdtf_it_price_writes'] = 0;
+$pg_count_write                   = function () {
+	++$GLOBALS['usdtf_it_price_writes'];
+};
+add_action( 'woocommerce_update_product', $pg_count_write );
+add_action( 'woocommerce_update_product_variation', $pg_count_write );
+
+// A dry run, then the update it unlocks, for the given products only.
+$pg_preview = function ( array $ids ) {
+	$preview = usdtf_it_create_job(
+		array(
+			'type'  => \USDTF\Job::TYPE_PREVIEW,
+			'scope' => array( 'ids' => $ids ),
+		)
+	);
+	usdtf_it_run_job( (int) $preview['id'] );
+
+	return (int) $preview['id'];
+};
+$pg_update  = function ( array $ids ) {
+	$GLOBALS['usdtf_it_price_writes'] = 0;
+
+	$update = usdtf_it_create_job( array( 'scope' => array( 'ids' => $ids ) ) );
+	usdtf_it_run_job( (int) $update['id'] );
+
+	return (int) $update['id'];
+};
+$pg_sync    = function ( array $ids ) use ( $pg_preview, $pg_update ) {
+	$pg_preview( $ids );
+
+	return $pg_update( $ids );
+};
+$pg_item    = function ( $job_id, $object_id ) use ( $pg_jobs ) {
+	foreach ( $pg_jobs->items( $job_id, array( 'limit' => 200 ) ) as $item ) {
+		if ( (int) $item['object_id'] === (int) $object_id ) {
+			return $item;
+		}
+	}
+
+	return array();
+};
+$pg_status  = function ( $job_id, $object_id ) {
+	$statuses = usdtf_it_item_statuses( $job_id );
+
+	return isset( $statuses[ (int) $object_id ] ) ? $statuses[ (int) $object_id ] : '';
+};
+$pg_set_woo = function ( $product_id, $regular, $sale = null ) {
+	$product = wc_get_product( $product_id );
+	$product->set_regular_price( (string) $regular );
+
+	if ( null !== $sale ) {
+		$product->set_sale_price( (string) $sale );
+	}
+
+	$product->save();
+};
+
+// 1. The first run only generates the USD anchor.
+$pg_a = usdtf_it_make_priced_product( 'Pegged A', 5000000 )->get_id();
+
+$pg_refused = $runner->create_job( array( 'scope' => array( 'ids' => array( $pg_a ) ) ) );
+usdtf_it_assert_same( 'usdtf_preview_required', is_wp_error( $pg_refused ) ? $pg_refused->get_error_code() : '', 'an update without a dry run is refused' );
+
+$pg_job = $pg_sync( array( $pg_a ) );
+usdtf_it_assert_same( '5000000', usdtf_it_price( $pg_a ), 'the first run leaves the Woo price alone' );
+usdtf_it_assert_same( '18.52', usdtf_it_meta( $pg_a, '_usdtf_usd_regular' ), 'the first run stores the USD anchor' );
+usdtf_it_assert_same( '5000000', usdtf_it_meta( $pg_a, '_usdtf_seen_regular' ), 'the first run stores the seen price' );
+usdtf_it_assert_same( '270000', usdtf_it_meta( $pg_a, '_usdtf_rate' ), 'the first run stores the rate' );
+usdtf_it_assert_same( (string) $pg_job, usdtf_it_meta( $pg_a, '_usdtf_last_job' ), 'the first run records the job' );
+usdtf_it_assert_same( 'generated', $pg_status( $pg_job, $pg_a ), 'the first run reports generated' );
+usdtf_it_assert_same( '18.52', $pg_item( $pg_job, $pg_a )['usd_regular'], 'the item row stores the USD anchor' );
+usdtf_it_assert_same( 1, $pg_jobs->get( $pg_job )->counters()['generated'], 'the job counts one generated product' );
+usdtf_it_assert_same( 0, $pg_jobs->get( $pg_job )->counters()['changed'], 'the job counts no changed product' );
+usdtf_it_assert_same( 0, $GLOBALS['usdtf_it_price_writes'], 'generating the anchor saves no product' );
+usdtf_it_assert_same( 'up', $pg_jobs->get( $pg_job )->data['rounding'], 'the job row keeps the rounding mode' );
+usdtf_it_pass( 'the first run only generates the USD anchor' );
+
+// 2. A second run at the same rate changes nothing.
+$pg_job = $pg_sync( array( $pg_a ) );
+usdtf_it_assert_same( 'unchanged', $pg_status( $pg_job, $pg_a ), 'the second run reports unchanged' );
+usdtf_it_assert_same( 1, $pg_jobs->get( $pg_job )->counters()['unchanged'], 'the job counts one unchanged product' );
+usdtf_it_assert_same( 0, $GLOBALS['usdtf_it_price_writes'], 'the second run saves no product' );
+usdtf_it_assert_same( '5000000', usdtf_it_price( $pg_a ), 'the second run keeps the Woo price' );
+usdtf_it_pass( 'a second run at the same rate writes nothing' );
+
+// 3. A rate change follows the USD anchor.
+$pg_rates->save_rate( 300000 );
+$pg_job = $pg_sync( array( $pg_a ) );
+usdtf_it_assert_same( '5556000', usdtf_it_price( $pg_a ), 'the new price is the USD anchor times the new rate' );
+usdtf_it_assert_same( 'changed', $pg_status( $pg_job, $pg_a ), 'a rate change reports changed' );
+usdtf_it_assert_same( '300000', usdtf_it_meta( $pg_a, '_usdtf_rate' ), 'the new rate is stored' );
+usdtf_it_assert_same( '5556000', usdtf_it_meta( $pg_a, '_usdtf_seen_regular' ), 'the written price is the new seen price' );
+usdtf_it_assert_same( '18.52', usdtf_it_meta( $pg_a, '_usdtf_usd_regular' ), 'the USD anchor is kept' );
+usdtf_it_assert_same( '5000000', $pg_item( $pg_job, $pg_a )['old_regular'], 'the item row keeps the old Woo price' );
+usdtf_it_assert_same( '5556000', $pg_item( $pg_job, $pg_a )['new_regular'], 'the item row keeps the new Woo price' );
+usdtf_it_assert_same( 1, $pg_jobs->get( $pg_job )->counters()['changed'], 'the job counts one changed product' );
+usdtf_it_assert_same( 1, $GLOBALS['usdtf_it_price_writes'], 'the rate change saves the product once' );
+usdtf_it_pass( 'a rate change rewrites the Woo price from the USD anchor' );
+
+// 4. A hand edit re-bases the USD anchor.
+$pg_set_woo( $pg_a, 6000000 );
+$pg_job = $pg_sync( array( $pg_a ) );
+usdtf_it_assert_same( 'rebased', $pg_status( $pg_job, $pg_a ), 'a hand edit reports rebased' );
+usdtf_it_assert_same( '20.00', usdtf_it_meta( $pg_a, '_usdtf_usd_regular' ), 'the USD anchor follows the hand edit' );
+usdtf_it_assert_same( '6000000', usdtf_it_price( $pg_a ), 'the hand-edited Woo price is kept' );
+usdtf_it_assert_same( '6000000', usdtf_it_meta( $pg_a, '_usdtf_seen_regular' ), 'the hand edit is the new seen price' );
+usdtf_it_assert_same( 1, $pg_jobs->get( $pg_job )->counters()['rebased'], 'the job counts one rebased product' );
+usdtf_it_assert_same( 0, $GLOBALS['usdtf_it_price_writes'], 're-basing saves no product' );
+usdtf_it_pass( 'a hand edit re-bases the USD anchor and keeps the Woo price' );
+
+// 5. Sale prices follow their own anchor; an ended sale clears it; the schedule survives.
+$pg_rates->save_rate( 270000 );
+$pg_b = usdtf_it_make_priced_product( 'Pegged sale', 5000000, 4000000 )->get_id();
+
+$pg_job = $pg_sync( array( $pg_b ) );
+usdtf_it_assert_same( 'generated', $pg_status( $pg_job, $pg_b ), 'a product on sale generates both anchors' );
+usdtf_it_assert_same( '18.52', usdtf_it_meta( $pg_b, '_usdtf_usd_regular' ), 'the regular anchor of a sale product' );
+usdtf_it_assert_same( '14.81', usdtf_it_meta( $pg_b, '_usdtf_usd_sale' ), 'the sale anchor of a sale product' );
+usdtf_it_assert_same( '4000000', usdtf_it_meta( $pg_b, '_usdtf_seen_sale' ), 'the seen sale price' );
+usdtf_it_assert_same( '14.81', $pg_item( $pg_job, $pg_b )['usd_sale'], 'the item row stores the USD sale anchor' );
+
+$pg_sale_from = strtotime( '+2 days', time() );
+$pg_sale_to   = strtotime( '+20 days', time() );
+$pg_scheduled = wc_get_product( $pg_b );
+$pg_scheduled->set_date_on_sale_from( $pg_sale_from );
+$pg_scheduled->set_date_on_sale_to( $pg_sale_to );
+$pg_scheduled->save();
+
+$pg_rates->save_rate( 300000 );
+$pg_job = $pg_sync( array( $pg_b ) );
+usdtf_it_assert_same( 'changed', $pg_status( $pg_job, $pg_b ), 'a rate change moves a sale product' );
+usdtf_it_assert_same( '5556000', usdtf_it_price( $pg_b ), 'the regular price follows the rate' );
+usdtf_it_assert_same( '4443000', usdtf_it_sale( $pg_b ), 'the sale price follows the rate' );
+usdtf_it_assert( (float) usdtf_it_sale( $pg_b ) < (float) usdtf_it_price( $pg_b ), 'the sale stays below the regular price' );
+usdtf_it_assert_same( '4443000', usdtf_it_meta( $pg_b, '_usdtf_seen_sale' ), 'the written sale price is the new seen sale price' );
+$pg_scheduled = wc_get_product( $pg_b );
+usdtf_it_assert_same( $pg_sale_from, $pg_scheduled->get_date_on_sale_from( 'edit' ) ? $pg_scheduled->get_date_on_sale_from( 'edit' )->getTimestamp() : 0, 'the scheduled sale start survives' );
+usdtf_it_assert_same( $pg_sale_to, $pg_scheduled->get_date_on_sale_to( 'edit' ) ? $pg_scheduled->get_date_on_sale_to( 'edit' )->getTimestamp() : 0, 'the scheduled sale end survives' );
+
+// The sale ends: WooCommerce clears the sale price and its dates.
+$pg_scheduled->set_sale_price( '' );
+$pg_scheduled->set_date_on_sale_from( '' );
+$pg_scheduled->set_date_on_sale_to( '' );
+$pg_scheduled->save();
+
+$pg_job = $pg_sync( array( $pg_b ) );
+usdtf_it_assert_same( 'rebased', $pg_status( $pg_job, $pg_b ), 'an ended sale reports rebased' );
+usdtf_it_assert_same( '', usdtf_it_meta( $pg_b, '_usdtf_usd_sale' ), 'an ended sale clears the USD sale anchor' );
+usdtf_it_assert_same( '', usdtf_it_meta( $pg_b, '_usdtf_seen_sale' ), 'an ended sale clears the seen sale price' );
+usdtf_it_assert_same( '', usdtf_it_sale( $pg_b ), 'an ended sale stays without a sale price' );
+usdtf_it_assert_same( '18.52', usdtf_it_meta( $pg_b, '_usdtf_usd_regular' ), 'an ended sale keeps the regular anchor' );
+usdtf_it_assert_same( '5556000', usdtf_it_price( $pg_b ), 'an ended sale keeps the regular price' );
+usdtf_it_assert_same( 0, $GLOBALS['usdtf_it_price_writes'], 'an ended sale saves no product' );
+usdtf_it_pass( 'sale prices follow their own anchor, an ended sale clears it, the schedule survives' );
+
+// 6. Variations follow the same rules and the parent range is recalculated.
+$pg_v          = usdtf_it_make_priced_variable_product( 'Pegged variable', array( array( 5000000 ), array( 6000000, 5500000 ) ) )->get_id();
+$pg_variations = usdtf_plugin()->products()->all_variation_ids( $pg_v );
+sort( $pg_variations );
+list( $pg_v1, $pg_v2 ) = $pg_variations;
+
+$pg_job = $pg_sync( array( $pg_v ) );
+usdtf_it_assert_same( 'generated', $pg_status( $pg_job, $pg_v ), 'a variable product generates its variation anchors' );
+usdtf_it_assert_same( '16.67', usdtf_it_meta( $pg_v1, '_usdtf_usd_regular' ), 'the first variation anchor' );
+usdtf_it_assert_same( '20.00', usdtf_it_meta( $pg_v2, '_usdtf_usd_regular' ), 'the second variation anchor' );
+usdtf_it_assert_same( '18.33', usdtf_it_meta( $pg_v2, '_usdtf_usd_sale' ), 'the second variation sale anchor' );
+usdtf_it_assert_same( 0, $GLOBALS['usdtf_it_price_writes'], 'generating variation anchors saves no product' );
+
+$pg_rates->save_rate( 330000 );
+$pg_job = $pg_sync( array( $pg_v ) );
+usdtf_it_assert_same( 'changed', $pg_status( $pg_job, $pg_v ), 'a rate change moves the variations' );
+usdtf_it_assert_same( '5502000', usdtf_it_price( $pg_v1 ), 'the first variation follows the rate' );
+usdtf_it_assert_same( '6600000', usdtf_it_price( $pg_v2 ), 'the second variation follows the rate' );
+usdtf_it_assert_same( '6049000', usdtf_it_sale( $pg_v2 ), 'the second variation sale follows the rate' );
+usdtf_it_assert_same( '330000', usdtf_it_meta( $pg_v1, '_usdtf_rate' ), 'a variation stores the new rate' );
+usdtf_it_assert_same( 2, $pg_jobs->get( $pg_job )->counters()['variations_changed'], 'both variations count as changed' );
+
+$pg_range = array_map( 'strval', get_post_meta( $pg_v, '_price', false ) );
+sort( $pg_range );
+usdtf_it_assert_same( array( '5502000', '6049000' ), $pg_range, 'the parent price range is recalculated' );
+usdtf_it_pass( 'variations follow the same rules and the parent range is recalculated' );
+
+// 7. Excluded, zero and too-low prices are skipped and nothing is written.
+$pg_round = $pg_settings->rounding_args();
+$pg_dry   = function ( $product_id ) use ( $pg_recorder, $pg_round ) {
+	return $pg_recorder->apply(
+		wc_get_product( $product_id ),
+		array(
+			'dry_run'  => true,
+			'rate'     => 330000,
+			'rounding' => $pg_round,
+		)
+	);
+};
+
+$pg_excluded = usdtf_it_make_priced_product( 'Pegged excluded', 5000000, '', 'excluded' )->get_id();
+$pg_zero     = usdtf_it_make_priced_product( 'Pegged zero', '0' )->get_id();
+$pg_tiny     = usdtf_it_make_priced_product( 'Pegged tiny', '1' )->get_id();
+$pg_tiny_s   = usdtf_it_make_priced_product( 'Pegged tiny sale', 5000000, '1' )->get_id();
+$pg_skips    = array(
+	$pg_excluded => array( 'not_managed', '5000000' ),
+	$pg_zero     => array( 'invalid_price', '0' ),
+	$pg_tiny     => array( 'too_low', '1' ),
+	$pg_tiny_s   => array( 'too_low', '5000000' ),
+);
+
+foreach ( $pg_skips as $pg_id => $pg_expect ) {
+	$pg_result = $pg_dry( $pg_id );
+	usdtf_it_assert_same( 'skipped', $pg_result['status'], 'the recorder skips ' . $pg_expect[0] );
+	usdtf_it_assert_same( $pg_expect[0], $pg_result['code'], 'the skip code is ' . $pg_expect[0] );
+}
+
+$pg_job = $pg_sync( array_keys( $pg_skips ) );
+
+foreach ( $pg_skips as $pg_id => $pg_expect ) {
+	usdtf_it_assert_same( 'skipped', $pg_status( $pg_job, $pg_id ), 'the job skips ' . $pg_expect[0] );
+	usdtf_it_assert_same( $pg_expect[1], usdtf_it_price( $pg_id ), 'a skipped product keeps its Woo price (' . $pg_expect[0] . ')' );
+
+	foreach ( \USDTF\Product_Pricing::meta_keys() as $pg_key ) {
+		if ( '_usdtf_mode' !== $pg_key ) {
+			usdtf_it_assert_same( '', usdtf_it_meta( $pg_id, $pg_key ), 'a skipped product gets no ' . $pg_key . ' (' . $pg_expect[0] . ')' );
+		}
+	}
+}
+
+usdtf_it_assert_same( 4, $pg_jobs->get( $pg_job )->counters()['skipped'], 'the job counts four skipped products' );
+usdtf_it_assert_same( 0, $GLOBALS['usdtf_it_price_writes'], 'skipped products are not saved' );
+usdtf_it_pass( 'excluded, zero and too-low prices are skipped and nothing is written' );
+
+// R4: an update that rounds to zero and a sale above the regular price fail without a write.
+$pg_zero_up = usdtf_it_make_priced_product( 'Pegged rounds to zero', 3000 )->get_id();
+usdtf_plugin()->pricing()->save_state(
+	$pg_zero_up,
+	array(
+		'usd_regular'  => '0.01',
+		'seen_regular' => '3000',
+		'rate'         => 300000.0,
+	)
+);
+$pg_down = array(
+	'rounding'  => 'down',
+	'increment' => 10000.0,
+	'decimals'  => 0,
+);
+
+foreach ( array( true, false ) as $pg_dry_run ) {
+	$pg_result = $pg_recorder->apply(
+		wc_get_product( $pg_zero_up ),
+		array(
+			'dry_run'  => $pg_dry_run,
+			'rate'     => 330000,
+			'rounding' => $pg_down,
+		)
+	);
+	usdtf_it_assert_same( 'failed', $pg_result['status'], 'a price that rounds to zero fails' );
+	usdtf_it_assert_same( 'zero_price', $pg_result['code'], 'a price that rounds to zero has the zero_price code' );
+	usdtf_it_assert_same( false, $pg_result['wrote'], 'a price that rounds to zero is not written' );
+}
+
+usdtf_it_assert_same( '3000', usdtf_it_price( $pg_zero_up ), 'a price that rounds to zero keeps the Woo price' );
+usdtf_it_assert_same( '0.01', usdtf_it_meta( $pg_zero_up, '_usdtf_usd_regular' ), 'a price that rounds to zero keeps the anchor' );
+usdtf_it_assert_same( '300000', usdtf_it_meta( $pg_zero_up, '_usdtf_rate' ), 'a price that rounds to zero keeps the stored rate' );
+usdtf_it_assert( '' !== usdtf_it_meta( $pg_zero_up, '_usdtf_last_error' ), 'a price that rounds to zero records an error' );
+
+// WooCommerce drops such a sale price when the product is saved, so it is planted in the meta.
+$pg_above = usdtf_it_make_priced_product( 'Pegged sale above', 5000000 )->get_id();
+update_post_meta( $pg_above, '_sale_price', '6000000' );
+$pg_result = $pg_recorder->apply(
+	wc_get_product( $pg_above ),
+	array(
+		'rate'     => 330000,
+		'rounding' => $pg_round,
+	)
+);
+usdtf_it_assert_same( 'failed', $pg_result['status'], 'a sale above the regular price fails' );
+usdtf_it_assert_same( 'sale_above_regular', $pg_result['code'], 'a sale above the regular price has its code' );
+usdtf_it_assert_same( '', usdtf_it_meta( $pg_above, '_usdtf_usd_regular' ), 'a sale above the regular price stores no anchor' );
+usdtf_it_assert_same( '6000000', usdtf_it_sale( $pg_above ), 'a sale above the regular price keeps the Woo sale price' );
+usdtf_it_pass( 'a price that rounds to zero or a sale above the regular price fails without a write' );
+
+// 8. A Woo price edited between planning and saving is a conflict.
+$pg_c1 = usdtf_it_make_priced_product( 'Pegged conflict meta', 5000000 )->get_id();
+$pg_c2 = usdtf_it_make_priced_product( 'Pegged conflict crud', 5000000 )->get_id();
+$pg_sync( array( $pg_c1, $pg_c2 ) );
+usdtf_it_assert_same( '15.15', usdtf_it_meta( $pg_c1, '_usdtf_usd_regular' ), 'the conflict fixture has an anchor' );
+
+$pg_rates->save_rate( 360000 );
+$pg_preview( array( $pg_c1, $pg_c2 ) );
+
+$GLOBALS['usdtf_it_before_write'] = array();
+$pg_edit_mid_run                  = function ( $product_id ) use ( $pg_c1, $pg_c2 ) {
+	$GLOBALS['usdtf_it_before_write'][] = (int) $product_id;
+
+	if ( $pg_c1 === (int) $product_id ) {
+		update_post_meta( $pg_c1, '_regular_price', '7000000' );
+		update_post_meta( $pg_c1, '_price', '7000000' );
+	}
+
+	if ( $pg_c2 === (int) $product_id ) {
+		$edited = wc_get_product( $pg_c2 );
+		$edited->set_regular_price( '7100000' );
+		$edited->save();
+	}
+};
+add_action( 'usdtf_before_price_write', $pg_edit_mid_run );
+$pg_job = $pg_update( array( $pg_c1, $pg_c2 ) );
+remove_action( 'usdtf_before_price_write', $pg_edit_mid_run );
+
+$pg_fired = $GLOBALS['usdtf_it_before_write'];
+sort( $pg_fired );
+usdtf_it_assert_same( array( $pg_c1, $pg_c2 ), $pg_fired, 'the before-write action fires once per product' );
+
+foreach ( array( $pg_c1 => '7000000', $pg_c2 => '7100000' ) as $pg_id => $pg_edited ) {
+	usdtf_it_assert_same( 'conflict', $pg_status( $pg_job, $pg_id ), 'an edit mid run reports a conflict' );
+	usdtf_it_assert_same( $pg_edited, usdtf_it_price( $pg_id ), 'the edited Woo price is kept' );
+	usdtf_it_assert( '' !== usdtf_it_meta( $pg_id, '_usdtf_conflict' ), 'the conflict is recorded on the product' );
+	usdtf_it_assert_same( '15.15', usdtf_it_meta( $pg_id, '_usdtf_usd_regular' ), 'a conflict keeps the anchor' );
+	usdtf_it_assert_same( '5000000', usdtf_it_meta( $pg_id, '_usdtf_seen_regular' ), 'a conflict keeps the seen price' );
+	usdtf_it_assert_same( '330000', usdtf_it_meta( $pg_id, '_usdtf_rate' ), 'a conflict keeps the stored rate' );
+}
+
+usdtf_it_assert_same( 2, $pg_jobs->get( $pg_job )->counters()['conflicts'], 'the job counts two conflicts' );
+
+$pg_job = $pg_sync( array( $pg_c1, $pg_c2 ) );
+usdtf_it_assert_same( 'rebased', $pg_status( $pg_job, $pg_c1 ), 'the next run re-bases on the edited price' );
+usdtf_it_assert_same( '19.44', usdtf_it_meta( $pg_c1, '_usdtf_usd_regular' ), 'the next run takes the anchor from the edit' );
+usdtf_it_assert_same( '', usdtf_it_meta( $pg_c1, '_usdtf_conflict' ), 'the next run clears the conflict' );
+usdtf_it_pass( 'a Woo price edited mid run is a conflict and nothing is written' );
+
+// 9. A dry run writes no price and no plugin meta.
+$pg_n      = usdtf_it_make_priced_product( 'Pegged preview only', 5000000 )->get_id();
+$pg_before = array(
+	$pg_n  => get_post_meta( $pg_n ),
+	$pg_a  => get_post_meta( $pg_a ),
+	$pg_v1 => get_post_meta( $pg_v1 ),
+	$pg_v  => get_post_meta( $pg_v ),
+);
+
+$GLOBALS['usdtf_it_price_writes'] = 0;
+$pg_job                           = $pg_preview( array( $pg_n, $pg_a, $pg_v1 ) );
+usdtf_it_assert_same( 'generated', $pg_status( $pg_job, $pg_n ), 'the dry run reports the anchor it would generate' );
+usdtf_it_assert_same( 'changed', $pg_status( $pg_job, $pg_a ), 'the dry run reports the price it would change' );
+usdtf_it_assert_same( 'changed', $pg_status( $pg_job, $pg_v1 ), 'the dry run reports the variation price it would change' );
+usdtf_it_assert_same( 1, $pg_jobs->get( $pg_job )->counters()['generated'], 'the dry run counts the generated product' );
+usdtf_it_assert_same( 2, $pg_jobs->get( $pg_job )->counters()['changed'], 'the dry run counts the changed product and variation' );
+usdtf_it_assert_same( 0, $GLOBALS['usdtf_it_price_writes'], 'the dry run saves no product' );
+
+foreach ( $pg_before as $pg_id => $pg_meta ) {
+	usdtf_it_assert_same( $pg_meta, get_post_meta( $pg_id ), 'the dry run writes no meta' );
+}
+
+usdtf_it_assert_same( '', usdtf_it_meta( $pg_n, '_usdtf_usd_regular' ), 'the dry run stores no anchor' );
+usdtf_it_pass( 'a dry run writes no price and no plugin meta' );
+
+// 10. A store currency other than Toman or Rial refuses every job.
+usdtf_it_set_currency( 'USD' );
+$pg_job_count = count( $pg_jobs->query( array( 'limit' => 200 ) ) );
+$pg_a_meta    = get_post_meta( $pg_a );
+
+foreach ( array( \USDTF\Job::TYPE_PREVIEW, \USDTF\Job::TYPE_SYNC ) as $pg_type ) {
+	$pg_refused = $runner->create_job(
+		array(
+			'type'  => $pg_type,
+			'scope' => array( 'ids' => array( $pg_a ) ),
+		)
+	);
+	usdtf_it_assert_same( 'usdtf_unsupported_currency', is_wp_error( $pg_refused ) ? $pg_refused->get_error_code() : '', 'a ' . $pg_type . ' job is refused for a USD store' );
+	usdtf_it_assert_same( 400, $pg_refused->get_error_data()['status'], 'the refusal is a 400' );
+}
+
+$pg_result = $pg_recorder->apply(
+	wc_get_product( $pg_a ),
+	array(
+		'rate'     => 360000,
+		'rounding' => $pg_round,
+	)
+);
+usdtf_it_assert_same( 'skipped', $pg_result['status'], 'the recorder refuses to price a USD store' );
+usdtf_it_assert_same( 'unsupported_currency', $pg_result['code'], 'the recorder names the unsupported currency' );
+usdtf_it_assert_same( $pg_job_count, count( $pg_jobs->query( array( 'limit' => 200 ) ) ), 'a refused job leaves no job row' );
+usdtf_it_assert_same( $pg_a_meta, get_post_meta( $pg_a ), 'a refused job writes nothing' );
+usdtf_it_assert_same( '6000000', usdtf_it_price( $pg_a ), 'a refused job keeps the Woo price' );
+usdtf_it_set_currency( 'IRT' );
+usdtf_it_pass( 'a store currency other than Toman or Rial refuses every job' );
+
+// 11. Woo prices with decimals round-trip without drifting.
+update_option( 'woocommerce_price_num_decimals', 2 );
+$pg_settings->update( array( 'increment' => 1 ) );
+$pg_rates->save_rate( 25 );
+$pg_d = usdtf_it_make_priced_product( 'Pegged decimals', '12.50' )->get_id();
+
+$pg_job = $pg_sync( array( $pg_d ) );
+usdtf_it_assert_same( 'generated', $pg_status( $pg_job, $pg_d ), 'a decimal price generates its anchor' );
+usdtf_it_assert_same( '0.50', usdtf_it_meta( $pg_d, '_usdtf_usd_regular' ), 'the anchor of a decimal price' );
+
+$pg_job = $pg_sync( array( $pg_d ) );
+usdtf_it_assert_same( 'unchanged', $pg_status( $pg_job, $pg_d ), 'a decimal price is unchanged on the second run' );
+
+$pg_rates->save_rate( 30 );
+$pg_job = $pg_sync( array( $pg_d ) );
+usdtf_it_assert_same( 'changed', $pg_status( $pg_job, $pg_d ), 'a decimal price follows the rate' );
+usdtf_it_assert_same( '15.00', usdtf_it_price( $pg_d ), 'the new decimal price keeps the Woo decimals' );
+usdtf_it_assert_same( '15.00', usdtf_it_meta( $pg_d, '_usdtf_seen_regular' ), 'the seen decimal price keeps the Woo decimals' );
+usdtf_it_pass( 'Woo prices with decimals round-trip without drifting' );
+
+if ( false === $pg_decimals ) {
+	delete_option( 'woocommerce_price_num_decimals' );
+} else {
+	update_option( 'woocommerce_price_num_decimals', $pg_decimals );
+}
+
+remove_action( 'woocommerce_update_product', $pg_count_write );
+remove_action( 'woocommerce_update_product_variation', $pg_count_write );
+usdtf_it_reset_plugin_state();
+
 // Leave nothing behind for the legacy scenarios that follow in a full run.
 usdtf_it_set_currency( null );
 usdtf_it_delete_products();
