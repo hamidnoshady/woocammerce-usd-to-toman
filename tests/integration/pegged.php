@@ -1313,6 +1313,62 @@ usdtf_it_assert_same( '19.44', usdtf_it_meta( $pg_c1, '_usdtf_usd_regular' ), 't
 usdtf_it_assert_same( '', usdtf_it_meta( $pg_c1, '_usdtf_conflict' ), 'the next run clears the conflict' );
 usdtf_it_pass( 'a Woo price edited mid run is a conflict and nothing is written' );
 
+// 8b. A price changed in the database behind this request's caches (another
+// request, an import writing SQL) is a conflict too: the re-read skips the cache.
+$pg_db_simple = usdtf_it_make_priced_product( 'Pegged conflict database', 5000000 )->get_id();
+$pg_db_parent = usdtf_it_make_priced_variable_product( 'Pegged conflict database variable', array( array( 6000000 ) ) )->get_id();
+$pg_db_var    = usdtf_plugin()->products()->all_variation_ids( $pg_db_parent )[0];
+$pg_sync( array( $pg_db_simple, $pg_db_parent ) );
+usdtf_it_assert_same( '13.89', usdtf_it_meta( $pg_db_simple, '_usdtf_usd_regular' ), 'the database conflict fixture has an anchor' );
+
+$pg_rates->save_rate( 390000 );
+$pg_preview( array( $pg_db_simple, $pg_db_parent ) );
+
+$pg_db_edits   = array(
+	$pg_db_simple => '7300000',
+	$pg_db_var    => '8300000',
+);
+$pg_db_cached  = array();
+$pg_db_mid_run = function ( $product_id ) use ( $pg_db_edits, &$pg_db_cached ) {
+	global $wpdb;
+
+	if ( ! isset( $pg_db_edits[ (int) $product_id ] ) ) {
+		return;
+	}
+
+	// The cached meta still holds the price this request read.
+	$pg_db_cached[ (int) $product_id ] = (string) get_post_meta( (int) $product_id, '_regular_price', true );
+
+	foreach ( array( '_regular_price', '_price' ) as $pg_db_key ) {
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+		$wpdb->update(
+			$wpdb->postmeta,
+			array( 'meta_value' => $pg_db_edits[ (int) $product_id ] ),
+			array(
+				'post_id'  => (int) $product_id,
+				'meta_key' => $pg_db_key,
+			)
+		);
+	}
+};
+add_action( 'usdtf_before_price_write', $pg_db_mid_run );
+$pg_job = $pg_update( array( $pg_db_simple, $pg_db_parent ) );
+remove_action( 'usdtf_before_price_write', $pg_db_mid_run );
+
+usdtf_it_assert_same( array( $pg_db_simple => '5000000', $pg_db_var => '6000000' ), $pg_db_cached, 'the cache held the old prices when the database changed' );
+usdtf_it_assert_same( 0, $GLOBALS['usdtf_it_price_writes'], 'a price changed behind the cache saves no product' );
+
+foreach ( $pg_db_edits as $pg_id => $pg_edited ) {
+	clean_post_cache( $pg_id );
+	usdtf_it_assert_same( 'conflict', $pg_status( $pg_job, $pg_db_var === $pg_id ? $pg_db_parent : $pg_id ), 'a price changed behind the cache reports a conflict' );
+	usdtf_it_assert_same( $pg_edited, usdtf_it_price( $pg_id ), 'the price changed in the database is kept' );
+	usdtf_it_assert( '' !== usdtf_it_meta( $pg_id, '_usdtf_conflict' ), 'the conflict behind the cache is recorded on the product' );
+}
+
+usdtf_it_assert_same( 2, $pg_jobs->get( $pg_job )->counters()['conflicts'], 'the job counts the product and the variation as conflicts' );
+$pg_rates->save_rate( 360000 );
+usdtf_it_pass( 'a price changed in the database behind the cache is a conflict and nothing is written' );
+
 // 9. A dry run writes no price and no plugin meta.
 $pg_n      = usdtf_it_make_priced_product( 'Pegged preview only', 5000000 )->get_id();
 $pg_before = array(

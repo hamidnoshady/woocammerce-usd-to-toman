@@ -189,7 +189,7 @@ final class Recorder {
 		 */
 		do_action( 'usdtf_before_price_write', $product_id );
 
-		$fresh = wc_get_product( $product_id );
+		$fresh = self::reload( $product, $product_id );
 
 		if ( ! $fresh
 			|| ! Calculator::prices_equal( (string) $fresh->get_regular_price( 'edit' ), $snapshot['current_regular'], $decimals )
@@ -248,6 +248,35 @@ final class Recorder {
 		}
 
 		return $result;
+	}
+
+	/**
+	 * Read a product again from the database, past this request's caches.
+	 *
+	 * The planned prices were read earlier in this request, so the post meta
+	 * cache (and WooCommerce's product instance cache, when it is enabled)
+	 * still holds them: a price changed meanwhile by another request, or by
+	 * a direct database write, would be invisible to the conflict check. The
+	 * meta cache entry is dropped and the product is built anew from its data
+	 * store, with the class it was loaded with, which works for simple
+	 * products and variations alike.
+	 *
+	 * @param \WC_Product $product    The product as it was planned.
+	 * @param int         $product_id Product or variation ID.
+	 * @return \WC_Product|false
+	 */
+	private static function reload( $product, $product_id ) {
+		wp_cache_delete( $product_id, 'post_meta' );
+
+		$class = get_class( $product );
+
+		try {
+			$fresh = new $class( $product_id );
+		} catch ( \Exception $exception ) {
+			return false;
+		}
+
+		return $fresh instanceof \WC_Product && (int) $fresh->get_id() === (int) $product_id ? $fresh : false;
 	}
 
 	/**
