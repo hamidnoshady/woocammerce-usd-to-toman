@@ -122,6 +122,12 @@ final class Price_Planner {
 
 		$new_price = Calculator::to_price_string( $new_price, $decimals );
 
+		// A new rate that rounds to the price the product already has writes
+		// nothing: the product is unchanged and only records the rate.
+		if ( Calculator::prices_equal( $new_price, $current, $decimals ) ) {
+			return self::result( self::ACTION_UNCHANGED, $usd_string, $price, $price );
+		}
+
 		return self::result( self::ACTION_UPDATE, $usd_string, $new_price, $new_price );
 	}
 
