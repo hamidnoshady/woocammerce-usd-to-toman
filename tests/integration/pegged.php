@@ -1588,6 +1588,25 @@ $pa_column = $pa_quiet(
 usdtf_it_assert( false !== strpos( $pa_column, 'Managed' ) && false !== strpos( $pa_column, '18.52' ), 'the list column shows the mode and the USD price' );
 usdtf_it_pass( 'the product panel offers Managed or Excluded, read-only prices and the bulk actions' );
 
+// ---------------------------------------------------------------------------
+// The old Toman helpers are gone and the Persian catalogue knows the new labels.
+// ---------------------------------------------------------------------------
+foreach ( array( 'from_toman', 'from_usd', 'parse_toman', 'format_toman', 'to_persian_digits' ) as $pg_removed ) {
+	usdtf_it_assert( ! method_exists( '\USDTF\Calculator', $pg_removed ), 'the obsolete Calculator::' . $pg_removed . '() is removed' );
+}
+
+$pg_mo = USDTF_DIR . 'languages/usd-to-toman-price-sync-for-woocommerce-fa_IR.mo';
+usdtf_it_assert( load_textdomain( USDTF_SLUG, $pg_mo ), 'the compiled Persian catalogue loads' );
+
+foreach ( array( 'Toman per 1 USD', 'Rial per 1 USD' ) as $pg_label ) {
+	$pg_translated = __( $pg_label, USDTF_SLUG ); // phpcs:ignore WordPress.WP.I18n -- Looking up a catalogue entry in a test.
+	usdtf_it_assert( $pg_translated !== $pg_label, 'the Persian catalogue translates "' . $pg_label . '"' );
+	usdtf_it_assert( 1 === preg_match( '/\p{Arabic}/u', $pg_translated ), 'the translation of "' . $pg_label . '" is Persian text' );
+}
+
+unload_textdomain( USDTF_SLUG );
+usdtf_it_pass( 'the obsolete Toman helpers are gone and the new labels are translated' );
+
 wp_set_current_user( 0 );
 usdtf_it_reset_plugin_state();
 usdtf_it_delete_products();
