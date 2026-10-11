@@ -964,6 +964,7 @@ foreach ( array( true, false ) as $pg_dry_run ) {
 	usdtf_it_assert_same( 'failed', $pg_result['status'], 'a price that rounds to zero fails' );
 	usdtf_it_assert_same( 'zero_price', $pg_result['code'], 'a price that rounds to zero has the zero_price code' );
 	usdtf_it_assert_same( false, $pg_result['wrote'], 'a price that rounds to zero is not written' );
+	usdtf_it_assert_same( $pg_result['old'], $pg_result['new'], 'a price that rounds to zero reports the old Woo prices as new' );
 }
 
 usdtf_it_assert_same( '3000', usdtf_it_price( $pg_zero_up ), 'a price that rounds to zero keeps the Woo price' );
@@ -1026,6 +1027,8 @@ foreach ( array( $pg_c1 => '7000000', $pg_c2 => '7100000' ) as $pg_id => $pg_edi
 	usdtf_it_assert_same( '15.15', usdtf_it_meta( $pg_id, '_usdtf_usd_regular' ), 'a conflict keeps the anchor' );
 	usdtf_it_assert_same( '5000000', usdtf_it_meta( $pg_id, '_usdtf_seen_regular' ), 'a conflict keeps the seen price' );
 	usdtf_it_assert_same( '330000', usdtf_it_meta( $pg_id, '_usdtf_rate' ), 'a conflict keeps the stored rate' );
+	usdtf_it_assert_same( '5000000', $pg_item( $pg_job, $pg_id )['old_regular'], 'a conflict item keeps the old Woo price' );
+	usdtf_it_assert_same( '5000000', $pg_item( $pg_job, $pg_id )['new_regular'], 'a conflict item reports no new Woo price' );
 }
 
 usdtf_it_assert_same( 2, $pg_jobs->get( $pg_job )->counters()['conflicts'], 'the job counts two conflicts' );
@@ -1091,6 +1094,137 @@ usdtf_it_assert_same( $pg_a_meta, get_post_meta( $pg_a ), 'a refused job writes 
 usdtf_it_assert_same( '6000000', usdtf_it_price( $pg_a ), 'a refused job keeps the Woo price' );
 usdtf_it_set_currency( 'IRT' );
 usdtf_it_pass( 'a store currency other than Toman or Rial refuses every job' );
+
+// A removed regular price skips the product and keeps its anchor.
+$pg_gone = usdtf_it_make_priced_product( 'Pegged removed price', 5000000 )->get_id();
+$pg_sync( array( $pg_gone ) );
+usdtf_it_assert_same( '13.89', usdtf_it_meta( $pg_gone, '_usdtf_usd_regular' ), 'the removed-price fixture has an anchor' );
+
+$pg_set_woo( $pg_gone, '' );
+$pg_result = $pg_dry( $pg_gone );
+usdtf_it_assert_same( 'skipped', $pg_result['status'], 'a removed regular price skips the product' );
+usdtf_it_assert_same( 'no_price', $pg_result['code'], 'a removed regular price has the no_price code' );
+
+$pg_job = $pg_sync( array( $pg_gone ) );
+usdtf_it_assert_same( 'skipped', $pg_status( $pg_job, $pg_gone ), 'the job skips a product whose regular price was removed' );
+usdtf_it_assert_same( '13.89', usdtf_it_meta( $pg_gone, '_usdtf_usd_regular' ), 'a removed regular price keeps the anchor' );
+usdtf_it_assert_same( '5000000', usdtf_it_meta( $pg_gone, '_usdtf_seen_regular' ), 'a removed regular price keeps the seen price' );
+usdtf_it_assert_same( '', usdtf_it_price( $pg_gone ), 'a removed regular price is not written back' );
+usdtf_it_assert_same( 0, $GLOBALS['usdtf_it_price_writes'], 'a removed regular price saves no product' );
+
+$pg_set_woo( $pg_gone, 5400000 );
+$pg_job = $pg_sync( array( $pg_gone ) );
+usdtf_it_assert_same( 'rebased', $pg_status( $pg_job, $pg_gone ), 'a price entered again re-bases' );
+usdtf_it_assert_same( '15.00', usdtf_it_meta( $pg_gone, '_usdtf_usd_regular' ), 'a price entered again sets the anchor' );
+usdtf_it_assert_same( '5400000', usdtf_it_price( $pg_gone ), 'a price entered again is kept' );
+usdtf_it_pass( 'a removed regular price is skipped and keeps its anchor' );
+
+// (a) A hand edit of the sale price only re-bases the sale and leaves the regular price alone.
+$pg_m = usdtf_it_make_priced_product( 'Pegged mixed', 5000000, 4000000 )->get_id();
+$pg_sync( array( $pg_m ) );
+usdtf_it_assert_same( '11.11', usdtf_it_meta( $pg_m, '_usdtf_usd_sale' ), 'the mixed fixture has a sale anchor' );
+
+$pg_set_woo( $pg_m, 5000000, 3600000 );
+$pg_job = $pg_sync( array( $pg_m ) );
+usdtf_it_assert_same( 'rebased', $pg_status( $pg_job, $pg_m ), 'a sale-only hand edit reports rebased' );
+usdtf_it_assert_same( '10.00', usdtf_it_meta( $pg_m, '_usdtf_usd_sale' ), 'a sale-only hand edit re-bases the sale anchor' );
+usdtf_it_assert_same( '3600000', usdtf_it_meta( $pg_m, '_usdtf_seen_sale' ), 'a sale-only hand edit is the new seen sale price' );
+usdtf_it_assert_same( '13.89', usdtf_it_meta( $pg_m, '_usdtf_usd_regular' ), 'a sale-only hand edit keeps the regular anchor' );
+usdtf_it_assert_same( '5000000', usdtf_it_price( $pg_m ), 'a sale-only hand edit keeps the regular price' );
+usdtf_it_assert_same( '3600000', usdtf_it_sale( $pg_m ), 'a sale-only hand edit keeps the edited sale price' );
+usdtf_it_assert_same( 0, $GLOBALS['usdtf_it_price_writes'], 'a sale-only hand edit saves no product' );
+
+// (b) Regular follows the rate while a hand-edited sale re-bases: only the regular field is written.
+$pg_set_woo( $pg_m, 5000000, 3780000 );
+$pg_rates->save_rate( 400000 );
+$pg_job = $pg_sync( array( $pg_m ) );
+usdtf_it_assert_same( 'changed', $pg_status( $pg_job, $pg_m ), 'an update next to a sale re-base reports changed' );
+usdtf_it_assert_same( '5556000', usdtf_it_price( $pg_m ), 'the regular price follows the rate' );
+usdtf_it_assert_same( '3780000', usdtf_it_sale( $pg_m ), 'the hand-edited sale price stays' );
+usdtf_it_assert_same( '9.45', usdtf_it_meta( $pg_m, '_usdtf_usd_sale' ), 'the sale anchor re-bases at the new rate' );
+usdtf_it_assert_same( '3780000', usdtf_it_meta( $pg_m, '_usdtf_seen_sale' ), 'the hand-edited sale is the seen sale price' );
+usdtf_it_assert_same( '5556000', usdtf_it_meta( $pg_m, '_usdtf_seen_regular' ), 'the written regular price is the seen price' );
+usdtf_it_assert_same( 1, $GLOBALS['usdtf_it_price_writes'], 'the product is saved once' );
+
+// (c) A sale pushed above a hand-lowered regular price by a rate rise fails and writes nothing.
+$pg_up = usdtf_it_make_priced_product( 'Pegged sale overtakes', 5000000, 4800000 )->get_id();
+$pg_sync( array( $pg_up ) );
+usdtf_it_assert_same( '12.00', usdtf_it_meta( $pg_up, '_usdtf_usd_sale' ), 'the overtaking fixture has a sale anchor' );
+
+$pg_set_woo( $pg_up, 4900000 );
+$pg_rates->save_rate( 440000 );
+$pg_job = $pg_sync( array( $pg_up ) );
+usdtf_it_assert_same( 'failed', $pg_status( $pg_job, $pg_up ), 'a sale pushed above the regular price fails' );
+usdtf_it_assert_same( '4900000', usdtf_it_price( $pg_up ), 'the hand-lowered regular price stays' );
+usdtf_it_assert_same( '4800000', usdtf_it_sale( $pg_up ), 'the sale price stays' );
+usdtf_it_assert_same( '12.50', usdtf_it_meta( $pg_up, '_usdtf_usd_regular' ), 'the regular anchor stays' );
+usdtf_it_assert_same( '400000', usdtf_it_meta( $pg_up, '_usdtf_rate' ), 'the stored rate stays' );
+usdtf_it_assert_same( $pg_item( $pg_job, $pg_up )['old_regular'], $pg_item( $pg_job, $pg_up )['new_regular'], 'a failed item reports no new regular price' );
+usdtf_it_assert_same( $pg_item( $pg_job, $pg_up )['old_sale'], $pg_item( $pg_job, $pg_up )['new_sale'], 'a failed item reports no new sale price' );
+usdtf_it_assert_same( 0, $GLOBALS['usdtf_it_price_writes'], 'a sale pushed above the regular price saves no product' );
+usdtf_it_pass( 'mixed regular and sale actions write only the fields that follow the rate' );
+
+// R8: a computed sale equal to the computed regular price fails (WooCommerce would drop it).
+$pg_equal = usdtf_it_make_priced_product( 'Pegged sale equal', 5000000, 4997000 )->get_id();
+usdtf_plugin()->pricing()->save_state(
+	$pg_equal,
+	array(
+		'usd_regular'  => '18.52',
+		'usd_sale'     => '18.51',
+		'seen_regular' => '5000000',
+		'seen_sale'    => '4997000',
+		'rate'         => 270000.0,
+	)
+);
+$pg_equal_meta = get_post_meta( $pg_equal );
+$pg_coarse     = array(
+	'rounding'  => 'up',
+	'increment' => 10000.0,
+	'decimals'  => 0,
+);
+
+foreach ( array( true, false ) as $pg_dry_run ) {
+	$pg_result = $pg_recorder->apply(
+		wc_get_product( $pg_equal ),
+		array(
+			'dry_run'  => $pg_dry_run,
+			'rate'     => 300000,
+			'rounding' => $pg_coarse,
+		)
+	);
+	usdtf_it_assert_same( 'failed', $pg_result['status'], 'a sale equal to the regular price fails' );
+	usdtf_it_assert_same( 'sale_above_regular', $pg_result['code'], 'a sale equal to the regular price has the sale_above_regular code' );
+	usdtf_it_assert_same( false, $pg_result['wrote'], 'a sale equal to the regular price is not written' );
+	usdtf_it_assert_same( $pg_result['old'], $pg_result['new'], 'a sale equal to the regular price reports the old Woo prices as new' );
+
+	if ( $pg_dry_run ) {
+		usdtf_it_assert_same( $pg_equal_meta, get_post_meta( $pg_equal ), 'a dry run with an equal sale writes no meta' );
+	}
+}
+
+usdtf_it_assert_same( '5000000', usdtf_it_price( $pg_equal ), 'a sale equal to the regular price keeps the regular price' );
+usdtf_it_assert_same( '4997000', usdtf_it_sale( $pg_equal ), 'a sale equal to the regular price keeps the sale price' );
+usdtf_it_assert_same( '18.51', usdtf_it_meta( $pg_equal, '_usdtf_usd_sale' ), 'a sale equal to the regular price keeps the sale anchor' );
+usdtf_it_assert_same( '270000', usdtf_it_meta( $pg_equal, '_usdtf_rate' ), 'a sale equal to the regular price keeps the stored rate' );
+usdtf_it_assert( '' !== usdtf_it_meta( $pg_equal, '_usdtf_last_error' ), 'a sale equal to the regular price records an error' );
+usdtf_it_pass( 'a computed sale equal to the regular price fails without a write' );
+
+// R9: a hand edit between a completed Preview and its Update re-bases on the edit.
+$pg_between = usdtf_it_make_priced_product( 'Pegged edit between jobs', 5000000 )->get_id();
+$pg_sync( array( $pg_between ) );
+usdtf_it_assert_same( '11.36', usdtf_it_meta( $pg_between, '_usdtf_usd_regular' ), 'the between-jobs fixture has an anchor' );
+
+$pg_rates->save_rate( 480000 );
+$pg_job = $pg_preview( array( $pg_between ) );
+usdtf_it_assert_same( 'changed', $pg_status( $pg_job, $pg_between ), 'the Preview plans a rate update' );
+
+$pg_set_woo( $pg_between, 6000000 );
+$pg_job = $pg_update( array( $pg_between ) );
+usdtf_it_assert_same( 'rebased', $pg_status( $pg_job, $pg_between ), 'an edit after the Preview re-bases in the Update' );
+usdtf_it_assert_same( '6000000', usdtf_it_price( $pg_between ), 'the edit made after the Preview survives' );
+usdtf_it_assert_same( '12.50', usdtf_it_meta( $pg_between, '_usdtf_usd_regular' ), 'the anchor is recalculated from the edit' );
+usdtf_it_assert_same( 0, $GLOBALS['usdtf_it_price_writes'], 'the Update saves no product after an edit between jobs' );
+usdtf_it_pass( 'a hand edit between the Preview and the Update re-bases on the edit' );
 
 // 11. Woo prices with decimals round-trip without drifting.
 update_option( 'woocommerce_price_num_decimals', 2 );

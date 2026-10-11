@@ -137,6 +137,14 @@ final class Recorder {
 			'sale'    => Price_Planner::plan( $snapshot['current_sale'], $snapshot['seen_sale'], $snapshot['usd_sale'], $snapshot['rate'], $args['rate'], $rounding ),
 		);
 
+		// A removed regular price skips the product and keeps its anchor: a price
+		// entered again later differs from the seen price and re-bases. Only the
+		// sale price may be cleared (a sale that ended).
+		if ( Price_Planner::ACTION_CLEAR === $plans['regular']['action'] ) {
+			$plans['regular']['action'] = Price_Planner::ACTION_SKIP;
+			$plans['regular']['code']   = 'no_price';
+		}
+
 		foreach ( $plans as $field => $plan ) {
 			// A product without a sale price is normal: only the regular price must exist.
 			if ( Price_Planner::ACTION_SKIP === $plan['action'] && ( 'regular' === $field || 'no_price' !== $plan['code'] ) ) {
@@ -147,18 +155,20 @@ final class Recorder {
 			}
 		}
 
-		$result['new']    = self::pair( $plans['regular']['price'], $plans['sale']['price'] );
+		// The planned prices are reported as "new" only once nothing stops the
+		// write: a failed or conflicting product keeps its old Woo prices.
+		$planned          = self::pair( $plans['regular']['price'], $plans['sale']['price'] );
 		$result['usd']    = self::pair( $plans['regular']['usd'], $plans['sale']['usd'] );
 		$result['status'] = self::status_for( $plans );
 
-		$failure = self::validate( $plans, $result['new'] );
+		$failure = self::validate( $plans, $planned );
 
 		if ( '' !== $failure ) {
 			$result['status']  = Job_Repository::ITEM_FAILED;
 			$result['code']    = $failure;
 			$result['message'] = 'zero_price' === $failure
 				? __( 'The new price would round to zero, so nothing was written. Choose a smaller rounding increment or check the USD price.', 'usd-to-toman-price-sync-for-woocommerce' )
-				: __( 'The sale price cannot be higher than the regular price.', 'usd-to-toman-price-sync-for-woocommerce' );
+				: __( 'The sale price must stay below the regular price, so nothing was written.', 'usd-to-toman-price-sync-for-woocommerce' );
 
 			if ( ! $args['dry_run'] ) {
 				$this->pricing->mark_error( $product_id, $result['message'] );
@@ -170,6 +180,10 @@ final class Recorder {
 		/**
 		 * Fires once per product just before its Woo prices are read again to
 		 * detect an edit made while the product was being planned.
+		 *
+		 * It fires whenever a planned product is about to be re-read, in a dry
+		 * run too and for generate, rebase and unchanged outcomes, not only
+		 * when a price will be written.
 		 *
 		 * @param int $product_id Product or variation ID.
 		 */
@@ -191,6 +205,7 @@ final class Recorder {
 			return $result;
 		}
 
+		$result['new']     = $planned;
 		$result['message'] = $this->status_message( $plans, $snapshot, $decimals, (bool) $args['dry_run'] );
 
 		if ( $args['dry_run'] ) {
@@ -211,6 +226,7 @@ final class Recorder {
 			} catch ( \Throwable $exception ) {
 				$result['status']  = Job_Repository::ITEM_FAILED;
 				$result['code']    = 'exception';
+				$result['new']     = $result['old'];
 				$result['message'] = sprintf(
 					/* translators: %s: error message. */
 					__( 'WooCommerce could not save the price: %s', 'usd-to-toman-price-sync-for-woocommerce' ),
@@ -272,7 +288,8 @@ final class Recorder {
 			}
 		}
 
-		if ( null !== $after['regular'] && null !== $after['sale'] && (float) $after['sale'] > (float) $after['regular'] ) {
+		// WooCommerce drops a sale price that is not below the regular price on save.
+		if ( null !== $after['regular'] && null !== $after['sale'] && (float) $after['sale'] >= (float) $after['regular'] ) {
 			return 'sale_above_regular';
 		}
 
