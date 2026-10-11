@@ -1,6 +1,6 @@
 <?php
 /**
- * Storefront, rounding, retention, status and capability scenarios.
+ * Rounding, retention, status and capability scenarios.
  *
  * Included by run.php, which boots WordPress and WooCommerce and exposes the
  * plugin services the scenarios below reuse ($settings, $rates, $runner,
@@ -12,91 +12,48 @@
 // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Test fixtures.
 
 // ---------------------------------------------------------------------------
-// 15. Storefront display: Toman for managed products, untouched USD otherwise.
-// ---------------------------------------------------------------------------
-usdtf_it_delete_products();
-usdtf_it_reset_plugin_state();
-$rates->save_rate( 270000 );
-$settings->update(
-	array(
-		'display_toman'    => true,
-		'persian_digits'   => false,
-		'display_toman_cart' => true,
-	)
-);
-
-$display_product = usdtf_it_make_simple_product( 'Displayed simple product', 5000000 );
-$display_job     = usdtf_it_create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
-usdtf_it_run_job( (int) $display_job['id'] );
-
-// This is what WooCommerce hands to the shop loop, the single product page, the
-// related/upsell loops and the Store API `price_html` field.
-$usd_html = '<span class="woocommerce-Price-amount amount"><bdi><span class="woocommerce-Price-currencySymbol">$</span>19</bdi></span>';
-$shown    = apply_filters( 'woocommerce_get_price_html', $usd_html, $display_product );
-
-usdtf_it_assert( false !== strpos( $shown, '5,000,000 تومان' ), 'the storefront price must show the stored Toman value' );
-usdtf_it_assert( false === strpos( $shown, 'woocommerce-Price-currencySymbol' ), 'the derived USD price must not leak into the storefront price' );
-
-$variable_display = usdtf_it_make_variable_product( 'Displayed variable product', array( array( 2000000 ), array( 5000000 ) ) );
-$variable_job     = usdtf_it_create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
-usdtf_it_run_job( (int) $variable_job['id'] );
-
-$range = apply_filters( 'woocommerce_get_price_html', $usd_html, $variable_display );
-
-usdtf_it_assert( false !== strpos( $range, '2,000,000 تومان' ), 'a variable product must show its lowest Toman variation' );
-usdtf_it_assert( false !== strpos( $range, '5,000,000 تومان' ), 'a variable product must show its highest Toman variation' );
-usdtf_it_assert( false !== strpos( $range, 'usdtf-price-range' ), 'a variable product must render a Toman range' );
-
-$cart_price = apply_filters( 'woocommerce_cart_item_price', $usd_html, array( 'data' => $display_product ), 'usdtf-cart-key' );
-usdtf_it_assert( false !== strpos( $cart_price, '5,000,000 تومان' ), 'the mini cart and cart must show the Toman value next to the USD price' );
-
-$native_product = usdtf_it_make_simple_product( 'Native USD product', '', '', \USDTF\Product_Pricing::MODE_NATIVE );
-$native_product = wc_get_product( $native_product->get_id() );
-$native_product->set_regular_price( '42' );
-$native_product->save();
-
-usdtf_it_assert_same(
-	$usd_html,
-	apply_filters( 'woocommerce_get_price_html', $usd_html, $native_product ),
-	'a native USD product must keep its USD price on the storefront'
-);
-usdtf_it_pass( 'the storefront shows Toman for managed products only' );
-
-// ---------------------------------------------------------------------------
 // 16. Rounding modes, increments and the guards around the settings.
 // ---------------------------------------------------------------------------
 usdtf_it_delete_products();
 usdtf_it_reset_plugin_state();
 $rates->save_rate( 270000 );
 
-// 1,000,000 / 270,000 = 3.7037, so the three modes are easy to tell apart.
+// 1,000,000 / 270,000 gives 3.70 USD. Each mode then runs at a new rate, so
+// the product is repriced from the same USD price every time, and the
+// 10,000 Toman increment makes the three modes easy to tell apart.
 $rounding_product = usdtf_it_make_simple_product( 'Rounding mode product', 1000000 );
+$rounding_job     = usdtf_it_create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
+usdtf_it_run_job( (int) $rounding_job['id'] );
+usdtf_it_assert_same( '3.70', usdtf_it_meta( $rounding_product->get_id(), \USDTF\Product_Pricing::META_USD_REGULAR ), 'the product must get its USD price first' );
 
 $settings->update(
 	array(
 		'rounding'  => \USDTF\Calculator::ROUND_NEAREST,
-		'increment' => 1,
+		'increment' => 10000,
 	)
 );
+$rates->save_rate( 280000 );
 $rounding_job = usdtf_it_create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
 usdtf_it_run_job( (int) $rounding_job['id'] );
-usdtf_it_assert_same( '4', usdtf_it_price( $rounding_product->get_id() ), 'the nearest mode must round 3.70 up to 4' );
+usdtf_it_assert_same( '1040000', usdtf_it_price( $rounding_product->get_id() ), 'the nearest mode must round 1,036,000 up to 1,040,000' );
 
 $settings->update( array( 'rounding' => \USDTF\Calculator::ROUND_DOWN ) );
+$rates->save_rate( 281000 );
 $rounding_job = usdtf_it_create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
 usdtf_it_run_job( (int) $rounding_job['id'] );
-usdtf_it_assert_same( '3', usdtf_it_price( $rounding_product->get_id() ), 'the downward mode must round 3.70 down to 3' );
+usdtf_it_assert_same( '1030000', usdtf_it_price( $rounding_product->get_id() ), 'the downward mode must round 1,039,700 down to 1,030,000' );
 
 $settings->update(
 	array(
 		'rounding'  => \USDTF\Calculator::ROUND_UP,
-		'increment' => 5,
+		'increment' => 10000,
 	)
 );
+$rates->save_rate( 282000 );
 $rounding_job = usdtf_it_create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
 usdtf_it_run_job( (int) $rounding_job['id'] );
-usdtf_it_assert_same( '5', usdtf_it_price( $rounding_product->get_id() ), 'a $5 increment must round 3.70 up to 5' );
-usdtf_it_assert_same( '1000000', usdtf_it_meta( $rounding_product->get_id(), \USDTF\Product_Pricing::META_SOURCE_REGULAR ), 'every mode must keep converting from the same Toman source' );
+usdtf_it_assert_same( '1050000', usdtf_it_price( $rounding_product->get_id() ), 'a 10,000 Toman increment must round 1,043,400 up to 1,050,000' );
+usdtf_it_assert_same( '3.70', usdtf_it_meta( $rounding_product->get_id(), \USDTF\Product_Pricing::META_USD_REGULAR ), 'every mode must keep converting from the same USD price' );
 
 // Dangerous values must not be storable, even if they arrive from a request.
 $settings->update(
@@ -107,7 +64,7 @@ $settings->update(
 	)
 );
 usdtf_it_assert_same( 10, $settings->batch_size(), 'an unsafe batch size must fall back to the documented default' );
-usdtf_it_assert_same( 1.0, (float) $settings->get( 'increment' ), 'an unsupported increment must fall back to $1' );
+usdtf_it_assert_same( 1000.0, (float) $settings->get( 'increment' ), 'an unsupported increment must fall back to 1,000 Toman' );
 usdtf_it_assert_same( \USDTF\Calculator::ROUND_UP, (string) $settings->get( 'rounding' ), 'an unknown rounding mode must fall back to upward' );
 usdtf_it_assert_same( array( 5, 10, 15, 20, 25 ), array_map( 'intval', \USDTF\Settings::allowed_batch_sizes() ), 'only the documented batch sizes must be offered' );
 usdtf_it_pass( 'rounding modes, increments and settings guards' );
@@ -180,12 +137,16 @@ $trashed_edit->set_regular_price( '77' );
 $trashed_edit->save();
 wp_trash_post( $trashed->get_id() );
 
+// The first update generates the USD prices, the second one writes a new rate.
+$status_job = usdtf_it_create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
+usdtf_it_run_job( (int) $status_job['id'] );
+$rates->save_rate( 300000 );
 $status_job = usdtf_it_create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
 usdtf_it_run_job( (int) $status_job['id'] );
 
-usdtf_it_assert_same( '10', usdtf_it_price( $published->get_id() ), 'a published product must be synchronized' );
-usdtf_it_assert_same( '20', usdtf_it_price( $draft->get_id() ), 'a draft product must be synchronized' );
-usdtf_it_assert_same( '30', usdtf_it_price( $private->get_id() ), 'a private product must be synchronized' );
+usdtf_it_assert_same( '3000000', usdtf_it_price( $published->get_id() ), 'a published product must be synchronized' );
+usdtf_it_assert_same( '6000000', usdtf_it_price( $draft->get_id() ), 'a draft product must be synchronized' );
+usdtf_it_assert_same( '9000000', usdtf_it_price( $private->get_id() ), 'a private product must be synchronized' );
 usdtf_it_assert_same( '77', usdtf_it_price( $trashed->get_id() ), 'a trashed product must keep its price' );
 
 $statuses = usdtf_it_item_statuses( (int) $status_job['id'] );
@@ -276,7 +237,13 @@ $rate_row = $rates->history( 1 );
 usdtf_it_assert_same( $audit_admin, (int) $rate_row[0]['user_id'], 'the rate history must record which admin saved the rate' );
 
 $audit_product = usdtf_it_make_simple_product( 'Audited product', 2700000 );
-$audit_job     = usdtf_it_create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
+
+// The first update only generates the USD price; the audited one changes the Woo price.
+$audit_job = usdtf_it_create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
+usdtf_it_run_job( (int) $audit_job['id'] );
+$rates->save_rate( 300000 );
+
+$audit_job = usdtf_it_create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
 
 usdtf_it_assert_same( $audit_admin, (int) $audit_job['user_id'], 'the job must remember who started it' );
 
@@ -309,6 +276,11 @@ $rates->save_rate( 270000 );
 $untouched = usdtf_it_make_simple_product( 'Untouched since the last sync', 2700000 );
 $modified  = usdtf_it_make_simple_product( 'Modified since the last sync', 5400000 );
 
+// Both products get their USD price; the scoped job then runs at a new rate.
+$changed_job = usdtf_it_create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
+usdtf_it_run_job( (int) $changed_job['id'] );
+$rates->save_rate( 300000 );
+
 $three_days_ago = gmdate( 'Y-m-d H:i:s', time() - ( 3 * DAY_IN_SECONDS ) );
 
 $wpdb->update(
@@ -334,8 +306,8 @@ usdtf_it_run_job( (int) $changed_job['id'] );
 
 $changed_ids = usdtf_it_item_statuses( (int) $changed_job['id'] );
 
-usdtf_it_assert_same( '20', usdtf_it_price( $modified->get_id() ), 'a product changed since the last sync must be updated' );
-usdtf_it_assert_same( '', usdtf_it_price( $untouched->get_id() ), 'a product that did not change must be left alone' );
+usdtf_it_assert_same( '6000000', usdtf_it_price( $modified->get_id() ), 'a product changed since the last sync must be updated' );
+usdtf_it_assert_same( '2700000', usdtf_it_price( $untouched->get_id() ), 'a product that did not change must be left alone' );
 usdtf_it_assert( isset( $changed_ids[ $modified->get_id() ] ), 'the changed product must appear in the job' );
 usdtf_it_assert( ! isset( $changed_ids[ $untouched->get_id() ] ), 'the untouched product must not be queued at all' );
 
