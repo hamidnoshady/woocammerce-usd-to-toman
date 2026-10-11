@@ -6,7 +6,7 @@ Tested up to: 7.1
 Requires PHP: 7.4
 WC requires at least: 7.0
 WC tested up to: 9.9
-Stable tag: 1.1.4
+Stable tag: 1.1.5
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -131,6 +131,9 @@ Yes. Every string uses the `usd-to-toman-price-sync-for-woocommerce` text domain
 
 == Changelog ==
 
+= 1.1.5 =
+* Fixed: Declare compatibility with WordPress 7.1
+
 = 1.1.4 =
 * Fixed: Tolerate the by-design concurrent-only skip
 
@@ -200,6 +203,9 @@ Production audit release: every finding of the production audit is fixed and cov
 * Diagnostics for the queue, the lock and the configured batch size.
 
 == Upgrade Notice ==
+
+= 1.1.5 =
+Declare compatibility with WordPress 7.1
 
 = 1.1.4 =
 Tolerate the by-design concurrent-only skip
