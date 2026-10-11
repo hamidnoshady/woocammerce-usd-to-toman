@@ -351,6 +351,10 @@ msgstr "نرخ ارز را وارد کنید: یک دلار آمریکا چند 
 msgid "Every five minutes (USD/Toman pricing maintenance)"
 msgstr "هر پنج دقیقه (نگهداری قیمت‌گذاری دلار/تومان)"
 
+#: includes/class-cron.php:61
+msgid "Every minute (USD/Toman lease recovery)"
+msgstr "هر دقیقه (بازیابی قفل کار دلار/تومان)"
+
 #: includes/class-health.php:289
 msgid "Every job either finished or is progressing normally."
 msgstr "هر کار یا تمام شده یا به‌طور عادی پیش می‌رود."
