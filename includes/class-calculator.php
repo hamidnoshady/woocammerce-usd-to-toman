@@ -309,6 +309,95 @@ final class Calculator {
 	}
 
 	/**
+	 * Derive the USD anchor from a store price.
+	 *
+	 * @param float|int|string $price Store price in the store currency.
+	 * @param float|int|string $rate  Store currency units per 1 USD.
+	 * @return float|null USD rounded half up to 2 decimals, null when not computable.
+	 */
+	public static function usd_from_price( $price, $rate ) {
+		$price = (float) $price;
+		$rate  = (float) $rate;
+
+		if ( $price <= 0 || $rate <= 0 ) {
+			return null;
+		}
+
+		return (float) round( $price / $rate, 2 );
+	}
+
+	/**
+	 * Derive a store price from a USD anchor.
+	 *
+	 * @param float|int|string $usd  USD anchor.
+	 * @param float|int|string $rate Store currency units per 1 USD.
+	 * @param array            $args {
+	 *     Optional. Conversion options.
+	 *
+	 *     @type string $rounding  Rounding mode. Default ROUND_UP.
+	 *     @type float  $increment Rounding increment. Default 1.
+	 *     @type int    $decimals  Stored decimal places. Default 0.
+	 * }
+	 * @return float|null Null when the conversion is not possible.
+	 */
+	public static function price_from_usd( $usd, $rate, $args = array() ) {
+		$args = wp_parse_args(
+			$args,
+			array(
+				'rounding'  => self::ROUND_UP,
+				'increment' => 1.0,
+				'decimals'  => 0,
+			)
+		);
+
+		$usd  = (float) $usd;
+		$rate = (float) $rate;
+
+		if ( $usd <= 0 || $rate <= 0 ) {
+			return null;
+		}
+
+		$price = self::round_amount( $usd * $rate, $args['rounding'], $args['increment'] );
+
+		return self::trim_to_decimals( $price, (int) $args['decimals'] );
+	}
+
+	/**
+	 * Rounding increments offered for a store currency unit.
+	 *
+	 * @param string $unit Store currency unit, 'toman' or 'rial'.
+	 * @return float[]
+	 */
+	public static function increments_for_unit( $unit ) {
+		if ( 'rial' === $unit ) {
+			return array( 10.0, 1000.0, 10000.0, 100000.0 );
+		}
+
+		return array( 1.0, 100.0, 1000.0, 10000.0 );
+	}
+
+	/**
+	 * Default rounding increment for a store currency unit.
+	 *
+	 * @param string $unit Store currency unit, 'toman' or 'rial'.
+	 * @return float
+	 */
+	public static function default_increment( $unit ) {
+		return 'rial' === $unit ? 10000.0 : 1000.0;
+	}
+
+	/**
+	 * Format a store price or USD amount for display with locale separators.
+	 *
+	 * @param float|int|string $amount   Amount.
+	 * @param int              $decimals Decimal places.
+	 * @return string
+	 */
+	public static function format_price( $amount, $decimals = 0 ) {
+		return number_format_i18n( (float) $amount, max( 0, min( 6, (int) $decimals ) ) );
+	}
+
+	/**
 	 * Round a value to a fixed number of decimals.
 	 *
 	 * @param float $value    Value.
