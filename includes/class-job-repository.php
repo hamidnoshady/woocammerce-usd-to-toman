@@ -144,7 +144,7 @@ final class Job_Repository {
 				'created_at'    => $now,
 				'updated_at'    => $now,
 			),
-			array( '%s', '%s', '%s', '%s', '%f', '%f', '%s', '%f', '%d', '%s', '%d', '%s', '%s' )
+			array( '%s', '%s', '%s', '%f', '%f', '%s', '%f', '%d', '%s', '%d', '%s', '%s' )
 		);
 	}
 
