@@ -4,6 +4,51 @@ All notable changes to this plugin are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-10-11
+
+This release changes how the plugin behaves: prices are now dollar-pegged, and the plugin no longer
+shows or forces a currency. See "Changed" and "Removed" before upgrading.
+
+### Added
+
+- A USD price per product (and per variation, regular and sale price), generated from the
+  WooCommerce price and the rate. From then on the USD price is the anchor: a rate change rewrites
+  the WooCommerce price as USD price x rate, rounded by the rounding mode and increment.
+- Re-basing: a price edited by hand in WooCommerce is detected on the next run and the product's USD
+  price is recalculated from the edited price at the current rate. The edit is kept.
+- New item statuses and job counters "Generated" and "Re-based"; dry run, jobs table, dashboard and
+  CSV export (`usd_regular`, `usd_sale`, `old_price`, `new_price`) show the current price, the USD price
+  and the new price.
+- The unit (Toman or Rial) is read from the WooCommerce currency (`IRT` or `IRR`) and shown in the
+  settings and the diagnostics. With any other currency the plugin shows a notice and starts no job.
+- Rounding increments per unit: Toman 1, 100, 1,000, 10,000 (default 1,000); Rial 10, 1,000, 10,000,
+  100,000 (default 10,000).
+
+### Changed
+
+- The first run only records USD prices and never changes a WooCommerce price. A rate change that
+  rounds to the current price writes nothing.
+- Products are managed by default; a product or variation is only left alone when it is set to
+  Excluded. The product panel shows the pricing mode and, read-only, the WooCommerce price, the USD
+  price, the rate used and the last sync time.
+- Rolling back a rate change recalculates USD price x previous rate; a product edited by hand in the
+  meantime keeps its edit and is listed as re-based.
+- A product edited during a running job is recorded as a conflict (detected by comparing the stored
+  prices) and nothing is written for it.
+- "Outdated only" means no USD price yet, or a stored rate that differs from the current rate.
+- The Persian translation follows the new wording.
+
+### Removed
+
+- The Toman-store and USD-store modes, the currency override and the Toman display on the storefront,
+  the cart, the checkout and the Store API, including the Persian digits and Toman suffix options.
+- The reference Toman regular and sale price fields, the "import current price as source" action and
+  the product revision counter.
+- The settings `currency_mode`, `display_toman`, `display_toman_cart`, `persian_digits`,
+  `toman_suffix`, `decimals` and `auto_manage_new_products`.
+- On upgrade the obsolete settings and product meta are deleted and a stored `native` mode becomes
+  `excluded`. Old job history rows are kept; the plugin never deletes WooCommerce prices.
+
 ## [1.1.5] - 2026-10-11
 
 ### Fixed

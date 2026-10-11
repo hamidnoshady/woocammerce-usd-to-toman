@@ -1,73 +1,72 @@
 === USD to Toman Price Sync for WooCommerce ===
 Contributors: hamidnoshady
-Tags: woocommerce, toman, iran, currency, price sync
+Tags: woocommerce, toman, rial, iran, currency
 Requires at least: 6.2
 Tested up to: 7.1
 Requires PHP: 7.4
 WC requires at least: 7.0
 WC tested up to: 9.9
-Stable tag: 1.1.5
+Stable tag: 1.2.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-Keep product prices in Iranian Toman and derive the WooCommerce USD price from a manual USD/Toman rate, with a dry run and safe background updates.
+Peg your Toman or Rial prices to the dollar: enter the USD rate and WooCommerce prices follow it, with a dry run, rollback and safe queued updates.
 
 == Description ==
 
-Many Iranian stores think in Toman but sell in USD. Doing that conversion by hand is slow, and doing it badly is expensive: when you recalculate a price from the previously rounded dollar value, rounding errors pile up on every rate change and your margins quietly shrink.
+If your store is in Toman or Rial but your costs follow the dollar, every change of the exchange rate means editing prices by hand. This plugin does it for you, and it does it safely.
 
-This plugin takes the opposite approach. The Toman price is the source of truth and it is stored separately, so it is never lost. The WooCommerce price is a derived value:
+**How it works**
 
-`USD price = ceil( Toman price / USD_Toman rate )`
+1. The plugin reads the price already in your WooCommerce price fields. Your store currency must be Iranian Toman (IRT) or Iranian Rial (IRR); the plugin takes the unit from the WooCommerce currency setting and does not change it.
+2. You enter the current rate, for example 270,000 Toman per dollar. The plugin generates a **USD price** for every product from its current price: 5,000,000 Toman at 270,000 is $18.52.
+3. From then on the **USD price is the anchor**. When you enter a new rate, the WooCommerce price becomes `USD price × new rate`, rounded the way you chose. At 300,000 the same product moves to 5,556,000 Toman.
 
-A 5,000,000 Toman product with a rate of 270,000 Toman per dollar becomes $19 (18.52 rounded up). Every update recalculates from the stored Toman value, never from the old dollar value, so a price can never drift.
+The first run only records the USD prices. It never changes a WooCommerce price: prices change when the rate changes.
+
+**If you edit a price yourself**
+
+If you type a new price into WooCommerce by hand, the plugin notices on the next run and re-bases that product: its USD price is recalculated from the price you entered at the current rate, and your price is kept. Nothing you type is overwritten.
 
 **The workflow**
 
-1. Enter the current USD/Toman rate on **WooCommerce → USD / Toman Pricing** and save it. Saving the rate does **not** touch a single product price.
-2. Run **Preview Changes** (a dry run). You get the exact numbers: products scanned, products that will change, products already correct, skipped products, invalid prices, conflicts and how many variations are affected. Nothing is written.
-3. Confirm the update. Prices are recalculated in the background through the WooCommerce Action Scheduler queue, in small batches, and you can watch the progress, pause it or cancel it. You can close the browser: the queue keeps working.
+1. Enter the rate on **WooCommerce → USD / Toman Pricing** and save it. Saving the rate does **not** touch a single product price.
+2. Run a **Dry run**. You see exactly what would happen, product by product: which USD prices would be set, which prices would change and to what, which products are unchanged, skipped or in conflict. Nothing is written.
+3. Confirm with **Update prices now**. Prices are written in the background through the WooCommerce Action Scheduler queue, in small batches. You can watch the progress, pause or cancel it, and close the browser: the queue keeps working.
 
 **Why it is safe**
 
-* **No surprises from a typo.** A rate move of about 15% (configurable) is blocked until you type `UPDATE` to confirm. It shows the old rate, the new rate, the percentage change and how many products are affected. Zero, negative and non-numeric rates are rejected.
-* **No half-updated catalog.** Only one synchronization can run at a time. Every job stores its own cursor, so an interrupted job resumes where it stopped instead of starting over. Each product is written once, and retries cannot apply a change twice.
-* **No lost edits.** If a Toman price is edited while the job is running, that product is skipped and recorded as a conflict. You can review the conflicts at the end of the job and recalculate them.
-* **No broken prices.** Empty, zero, negative, malformed prices and a sale price above the regular price are reported instead of being written, and they never crash the job.
-* **No unnecessary writes.** If the rounded dollar price does not change, the product is not saved at all. A rate change that does not move any price writes nothing and reports "No synchronization required".
+* **Preview before every update.** An update only starts after a completed dry run with the same rate, rounding settings and scope.
+* **No surprises from a typo.** A rate move of about 15% (configurable) is blocked until you type `UPDATE` to confirm. It shows the old rate, the new rate and the percentage change. Zero, negative and non-numeric rates are rejected.
+* **Rollback.** "Roll back last rate change" restores the previous rate and recalculates the prices from the stored USD values as a normal queued job. A product whose price you edited by hand keeps your edit and is re-based on it.
+* **No lost edits.** If a price is edited while a job is running, that product is skipped and recorded as a conflict, and you can review it at the end of the job.
+* **No broken prices.** Empty, zero, negative and malformed prices, and a sale price that is not below the regular price, are reported instead of being written, and they never crash the job.
+* **No unnecessary writes.** If the rounded new price equals the current price, nothing is saved. A failed or skipped product keeps its old price.
+* **One job at a time.** Every job stores its own cursor, so an interrupted job resumes where it stopped instead of starting over, and retries cannot apply a change twice.
 
-**Manual and automatic at the same time**
+**Excluded products**
 
-Every product has a pricing mode:
+Every product is managed by default, so an existing catalog is picked up without any per-product work. To keep a product (or a single variation) out of every job, set it to **Excluded** in the product panel, or use the bulk actions in the products list (set Managed, set Excluded, Recalculate selected). Excluded products are never changed. The product panel also shows the current WooCommerce price, the USD price, the rate used and the last sync time.
 
-* **Toman managed** – the Toman price is the source, the dollar price is derived.
-* **Native USD** – the product keeps its own dollar price and is never touched.
-* **Excluded** – the product is ignored by every job.
+**Sale prices and variations**
 
-New products are managed by default (configurable). The product editor and the products list have a panel that shows the pricing mode, the stored Toman regular and sale price, the derived dollar price, the rate that was used, the last sync time, a "Recalculate this product" button and bulk actions to switch the mode.
+Regular and sale prices each have their own USD price and follow the same rules. A product without a sale price keeps an empty sale price, and scheduled sale dates are never touched. Variable products are processed variation by variation.
 
 **Rounding**
 
-The default is always rounding **up** to the next whole dollar, which protects your margin. Advanced settings also offer rounding to the nearest value and rounding down, with $1, $5 or $10 price steps.
-
-**Two ways to charge**
-
-* **Mode B – Toman transactions (the default).** The store really transacts in Toman: the price fields hold the canonical Toman price, so the cart, the checkout, the order currency, WooCommerce Blocks, the Store API and the amount sent to the gateway are all in Toman, and the derived dollar price is kept as a reference. This is usually the safest option with Iranian payment gateways, and switching to it is what a fresh install does.
-* **Mode A – USD transactions with a Toman display.** WooCommerce stores and charges dollars, orders and gateways work in USD, and the storefront shows the stored Toman price: the shop and archive pages, single product pages, variable price ranges, related products, upsells and cross-sells, the mini cart, the classic cart and checkout, and the `price_html` field of the Store API (so WooCommerce Blocks product grids and headless front ends show it too). The charged amount stays in USD, and the Toman number shown is the stored source value, never a value rebuilt from the rounded dollar price.
-
-Mode A shows Toman next to USD prices; it never fakes a Toman amount for a dollar total. Switching the mode always shows the change as pending and requires a full update, so an existing store keeps the mode it was already using until you change it yourself.
+New prices are rounded **up** by default, which protects your margin. You can also round to the nearest value or down, in steps that depend on the unit: 1, 100, 1,000 or 10,000 for Toman (default 1,000), and 10, 1,000, 10,000 or 100,000 for Rial (default 10,000).
 
 **Scopes**
 
-You can update everything, selected products, a product category, a product type, only products whose price looks outdated, or only products changed since the last sync.
+You can update every managed product, selected products, selected categories, selected product types, or only products whose price may be outdated (no USD price yet, or last synchronized at a different rate).
 
 **Audit trail**
 
-Every rate change is stored permanently with the time and the administrator who made it, together with the results of the update it triggered. Each job keeps a per product log with the old price, the new price and the Toman source, exportable as CSV. Logs are kept for 30 days by default (configurable). "Rollback last rate update" restores the previous rate as a normal queued job, so it is just as safe and resumable as any other update.
+Every rate change is stored permanently with the time and the administrator who made it, together with the results of the update it triggered. Each job keeps a per product log with the current price, the USD price and the new price, exportable as CSV. Logs are kept for 30 days by default (configurable).
 
 **Server friendly**
 
-Jobs run in small batches (10 products per run by default, 5 for low resource hosting, up to 25) with a fresh queued action per batch, a time budget, a lock and a heartbeat. Nothing depends on the browser being open, and the Diagnostics section reports the queue health, the failed actions, the current lock and the configured batch size.
+Jobs run in small batches (10 products per run by default, 5 for low resource hosting, up to 25) with a fresh queued action per batch, a time budget, a lock and a heartbeat. Nothing depends on the browser being open, and the Diagnostics section reports the queue health, the failed actions, the current lock, the configured batch size and the detected store currency.
 
 **Privacy**
 
@@ -76,38 +75,45 @@ This plugin does not send any data anywhere. There is no external exchange rate 
 == Installation ==
 
 1. Install WooCommerce and make sure it is active.
-2. Upload the plugin zip through **Plugins → Add New → Upload Plugin**, or copy the plugin folder to `wp-content/plugins/`.
-3. Activate **USD to Toman Price Sync for WooCommerce**.
-4. Open **WooCommerce → USD / Toman Pricing** and enter your current USD/Toman rate.
-5. Run **Preview Changes**, review the numbers, then confirm the update.
-
-Before you start, it is worth knowing how your Toman prices are stored today. If your products already contain Toman prices in the WooCommerce price fields (for example because you typed them by hand or imported them), the "Import current price as source" action stores those values as the Toman source before the first conversion.
+2. In **WooCommerce → Settings → General**, set the currency to **Iranian toman** or **Iranian rial**. The plugin does not work with any other currency and shows a notice until you do.
+3. Upload the plugin zip through **Plugins → Add New → Upload Plugin**, or copy the plugin folder to `wp-content/plugins/`.
+4. Activate **USD to Toman Price Sync for WooCommerce**.
+5. Open **WooCommerce → USD / Toman Pricing** and enter your current rate (Toman or Rial per 1 USD).
+6. Run a **Dry run** and review the numbers. The first update only records the USD prices and does not change any WooCommerce price.
 
 == Frequently Asked Questions ==
 
 = Does saving the rate change my prices? =
 
-No. Saving the rate only records it. Prices change after you run the update, and only if you confirmed the preview first.
+No. Saving the rate only records it. Prices change after you run the update, and only if you ran a dry run first.
 
 = What happens to my existing prices when I activate the plugin? =
 
-Nothing is changed automatically. Products become managed either when you switch them on (individually or with a bulk action) or when the "manage new products automatically" setting applies. Products that are not managed keep their price exactly as it is.
+Nothing is changed. The first update only records a USD price for each product, calculated from its current price and the rate. A WooCommerce price is rewritten only on a later update with a different rate.
 
-= Can I keep some products priced in dollars? =
+= Which store currencies are supported? =
 
-Yes. Set those products to **Native USD** and no job will ever write to them.
+Iranian Toman (IRT) and Iranian Rial (IRR). The plugin reads the unit from the WooCommerce currency setting, shows it on its settings screen and uses it for the labels and the rounding steps. It never changes the store currency, its position or its decimals. With any other currency it shows a notice and does not start jobs.
+
+= Does the plugin show prices in dollars to my customers? =
+
+No. Customers see the normal WooCommerce price in Toman or Rial. The USD price is only the anchor the plugin uses to recalculate that price when the rate changes.
+
+= What if I change a price by hand? =
+
+On the next run the plugin sees that the price is not the one it last wrote, treats your price as the new truth and recalculates that product's USD price from it at the current rate. Your price is not overwritten.
+
+= Can I keep some products out of the updates? =
+
+Yes. Set those products or variations to **Excluded** and no job will ever write to them.
 
 = Can I undo a rate update? =
 
-Yes. **Rollback last rate update** restores the previous rate and runs a queued synchronization that recalculates every price from the stored Toman source.
+Yes. **Roll back last rate change** restores the previous rate and runs a queued update that recalculates the prices from the stored USD values. Products you edited by hand in the meantime keep their edited price.
 
 = What if the queue stalls? =
 
 Open the Diagnostics tab. It shows whether Action Scheduler is available, how many actions are pending or failed, whether a job holds the lock and the last error. If your host disabled WP-Cron, the plugin can fall back to a token protected loopback request.
-
-= Why does the cart total show dollars while the product shows Toman? =
-
-Because the store still transacts in USD (mode A). Product prices display the stored Toman value, but cart, checkout and order totals are the real USD amounts that the gateway will charge, so they are never converted on screen. If the totals themselves should be in Toman, choose **Toman transactions** in the settings and run a full update.
 
 = Are prices written with SQL? =
 
@@ -119,17 +125,26 @@ No. Every price is written with the WooCommerce CRUD API (`wc_get_product()`, `s
 
 = Is the plugin translatable? =
 
-Yes. Every string uses the `usd-to-toman-price-sync-for-woocommerce` text domain, a `.pot` template ships with the plugin, and a complete **Persian (`fa_IR`)** translation is bundled, so an Iranian store gets a Persian admin and storefront without installing a language pack.
+Yes. Every string uses the `usd-to-toman-price-sync-for-woocommerce` text domain, a `.pot` template ships with the plugin, and a complete **Persian (`fa_IR`)** translation is bundled, so an Iranian store gets a Persian admin without installing a language pack.
 
 == Screenshots ==
 
 1. The rate screen: the manual rate, the typo warning, the rate history and the background queue diagnostics.
-2. Preview changes (dry run): what would change, what is unchanged, what is skipped, which variations are affected — with no write performed.
-3. Jobs & history: the running job with its progress and the per product log with the old price, the new price, the status and the Toman source.
+2. Dry run: what would change, what is unchanged, what is skipped, which variations are affected, with no write performed.
+3. Jobs & history: the running job with its progress and the per product log with the current price, the USD price, the new price and the status.
 4. The same screen in Persian, with the bundled `fa_IR` translation.
-5. The product panel: the pricing mode, the canonical Toman regular and sale price, the derived dollar price, the rate used and the bulk actions.
+5. The product panel: the pricing mode (Managed or Excluded), the WooCommerce price, the USD price, the rate used and the bulk actions.
 
 == Changelog ==
+
+= 1.2.0 =
+* Changed: the plugin is dollar-pegged. It reads each product's price from the WooCommerce price fields (Toman or Rial, taken from the WooCommerce currency), generates a USD price from it and the rate, and from then on recalculates the WooCommerce price as USD price x rate when the rate changes.
+* Changed: the first run only records the USD prices and never changes a WooCommerce price. A price edited by hand is re-based: its USD price is recalculated from the edited price.
+* Changed: products are managed by default; set a product to Excluded to keep it out of every job. Rollback re-bases hand-edited products instead of overwriting them.
+* Changed: rounding steps depend on the unit (Toman 1, 100, 1,000, 10,000; Rial 10, 1,000, 10,000, 100,000). Previews, jobs and CSV exports show the current price, the USD price and the new price, with new statuses "Generated" and "Re-based".
+* Added: the plugin requires the store currency to be Toman (IRT) or Rial (IRR) and shows a notice, without starting jobs, otherwise. The detected currency is shown in the settings and the diagnostics.
+* Removed: the Toman-store and USD-store modes, the reference Toman price fields, the currency override, the Toman display on the storefront, the Persian digits and Toman suffix options, and the "manage new products automatically" setting.
+* Removed: the upgrade deletes the obsolete settings and product data. Old job history rows are kept.
 
 = 1.1.5 =
 * Fixed: Declare compatibility with WordPress 7.1
@@ -203,6 +218,9 @@ Production audit release: every finding of the production audit is fixed and cov
 * Diagnostics for the queue, the lock and the configured batch size.
 
 == Upgrade Notice ==
+
+= 1.2.0 =
+Behaviour change: pricing is now dollar-pegged. The plugin no longer shows or forces a currency, the old Toman-store and USD-store modes and the reference Toman price fields are gone, and every product is managed by default. The store currency must be Toman or Rial. The upgrade removes the obsolete settings and product data. The first run only records USD prices and changes no price; run a dry run before your first update.
 
 = 1.1.5 =
 Declare compatibility with WordPress 7.1
