@@ -20,6 +20,26 @@ final class Installer {
 	const VERSION_OPTION = 'usdtf_db_version';
 
 	/**
+	 * Settings keys only the 1.0.x and 1.1.x models wrote.
+	 *
+	 * Every release of those lines stored the full settings array, so an old
+	 * install holds at least one of them. A key a later release drops from the
+	 * settings is no sign of an old install, which is why this list is fixed
+	 * instead of derived from the current defaults.
+	 *
+	 * @var string[]
+	 */
+	private const OLD_MODEL_SETTINGS_KEYS = array(
+		'currency_mode',
+		'display_toman',
+		'display_toman_cart',
+		'persian_digits',
+		'toman_suffix',
+		'decimals',
+		'auto_manage_new_products',
+	);
+
+	/**
 	 * Runs on plugin activation.
 	 *
 	 * @return void
@@ -138,12 +158,14 @@ final class Installer {
 	 * IRT, no decimals and the symbol after the price through option filters,
 	 * at runtime only. 1.2.0 reads the real WooCommerce options, so for such a
 	 * store they are written once, and only the ones that differ. A store in
-	 * the removed USD-store mode keeps its WooCommerce options. Either way a
-	 * one-time notice tells the owner what happened.
+	 * the removed USD-store mode keeps its WooCommerce options. A one-time
+	 * notice tells the owner what happened; a Toman store that needed no
+	 * write gets none, unless its prices still hold USD amounts.
 	 *
-	 * Only an old install is touched: its settings still hold keys of the old
-	 * model, or the old synced-mode option still exists. A fresh install has
-	 * no settings, and a migrated one has neither, so a second run changes
+	 * Only an old install is touched: its settings still hold a key of the old
+	 * model (OLD_MODEL_SETTINGS_KEYS), or the old synced-mode option still
+	 * exists. A fresh install has no
+	 * settings, and a migrated one has neither, so a second run changes
 	 * nothing even when the schema version marker is lost.
 	 *
 	 * @param mixed $stored The stored settings, before the obsolete keys are dropped.
@@ -155,7 +177,7 @@ final class Installer {
 		}
 
 		$synced    = get_option( 'usdtf_synced_currency_mode', null );
-		$old_shape = (bool) array_diff_key( $stored, Settings::defaults() ) || null !== $synced;
+		$old_shape = (bool) array_intersect_key( $stored, array_flip( self::OLD_MODEL_SETTINGS_KEYS ) ) || null !== $synced;
 
 		if ( ! $old_shape ) {
 			return;
@@ -182,15 +204,22 @@ final class Installer {
 			'woocommerce_currency_pos'       => 'right_space',
 		);
 
+		$written = false;
+
 		foreach ( $toman_store as $option => $value ) {
 			if ( (string) get_option( $option, '' ) !== $value ) {
 				update_option( $option, $value );
+				$written = true;
 			}
 		}
 
 		// Prices last written for the USD-store mode while the Toman mode was
 		// already selected still hold USD amounts: the owner reviews them.
-		update_option( Database::OPTION_UPGRADE_NOTICE, 'usd' === $synced ? 'toman_review' : 'toman', false );
+		if ( 'usd' === $synced ) {
+			update_option( Database::OPTION_UPGRADE_NOTICE, 'toman_review', false );
+		} elseif ( $written ) {
+			update_option( Database::OPTION_UPGRADE_NOTICE, 'toman', false );
+		}
 	}
 
 	/**

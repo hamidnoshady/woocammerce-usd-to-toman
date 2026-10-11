@@ -638,7 +638,7 @@ final class Admin {
 				$message = __( 'The store currency was set to Iranian Toman (IRT, no decimals) to keep the storefront as it was. Earlier versions applied this only while the plugin was active; it is now a normal WooCommerce setting.', 'usd-to-toman-price-sync-for-woocommerce' );
 
 				if ( 'toman_review' === $kind ) {
-					$message .= ' ' . __( 'Your prices were last written for the removed USD-store mode, so review them before you run an update.', 'usd-to-toman-price-sync-for-woocommerce' );
+					$message .= ' ' . __( 'Your prices were last written for the removed USD-store mode, so review them before you run an update. The Toman prices are kept in hidden product meta (_usdtf_source_regular and _usdtf_source_sale).', 'usd-to-toman-price-sync-for-woocommerce' );
 				}
 				break;
 

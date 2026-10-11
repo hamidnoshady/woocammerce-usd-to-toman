@@ -541,6 +541,52 @@ list( $up_after, $up_notice ) = $up_migrate( \USDTF\Settings::defaults(), null )
 usdtf_it_assert_same( $up_usd, $up_after, 'an install already on the new settings changes no WooCommerce option' );
 usdtf_it_assert_same( false, $up_notice, 'an install already on the new settings leaves no upgrade notice' );
 
+// A key a future release dropped from the settings is no sign of an old
+// install: only the keys of the removed model are.
+delete_option( \USDTF\Settings::OPTION_RATE_UNIT );
+list( $up_after, $up_notice ) = $up_migrate( array_merge( \USDTF\Settings::defaults(), array( 'a_key_a_later_release_dropped' => 'x' ) ), null );
+usdtf_it_assert_same( $up_usd, $up_after, 'a settings array with an unknown extra key is no old install and changes no WooCommerce option' );
+usdtf_it_assert_same( false, $up_notice, 'a settings array with an unknown extra key leaves no upgrade notice' );
+usdtf_it_assert_same( '', (string) get_option( \USDTF\Settings::OPTION_RATE_UNIT, '' ), 'a settings array with an unknown extra key records no rate unit' );
+
+$up_old_keys = array(
+	'currency_mode'            => 'toman',
+	'display_toman'            => true,
+	'display_toman_cart'       => false,
+	'persian_digits'           => true,
+	'toman_suffix'             => 'تومان',
+	'decimals'                 => 0,
+	'auto_manage_new_products' => true,
+);
+
+foreach ( $up_old_keys as $up_key => $up_value ) {
+	list( $up_after, $up_notice ) = $up_migrate( array_merge( \USDTF\Settings::defaults(), array( $up_key => $up_value ) ), null );
+
+	usdtf_it_assert_same( $up_toman, $up_after, 'a settings array with the old key ' . $up_key . ' is an old Toman install' );
+	usdtf_it_assert_same( 'toman', $up_notice, 'a settings array with the old key ' . $up_key . ' gets the Toman notice' );
+}
+
+list( $up_after, $up_notice ) = $up_migrate( \USDTF\Settings::defaults(), 'toman' );
+usdtf_it_assert_same( $up_toman, $up_after, 'the old synced-mode option alone marks an old install' );
+
+// An old Toman store that already is on IRT, no decimals, symbol on the right
+// has nothing to migrate: it gets no "currency was set" notice, but the
+// review notice for prices written for the USD mode still stands.
+$up_set_store( 'IRT', '0', 'right_space' );
+delete_option( \USDTF\Database::OPTION_UPGRADE_NOTICE );
+delete_option( 'usdtf_synced_currency_mode' );
+update_option( 'usdtf_settings', array_merge( $up_legacy, array( 'currency_mode' => 'toman' ) ) );
+\USDTF\Installer::migrate_to_pegged_model();
+usdtf_it_assert_same( false, get_option( \USDTF\Database::OPTION_UPGRADE_NOTICE, false ), 'an old Toman store already on IRT/0/right_space gets no notice' );
+
+$up_set_store( 'IRT', '0', 'right_space' );
+update_option( 'usdtf_settings', array_merge( $up_legacy, array( 'currency_mode' => 'toman' ) ) );
+update_option( 'usdtf_synced_currency_mode', 'usd', false );
+\USDTF\Installer::migrate_to_pegged_model();
+usdtf_it_assert_same( 'toman_review', get_option( \USDTF\Database::OPTION_UPGRADE_NOTICE, false ), 'an old Toman store on IRT whose prices were written in USD mode still gets the review notice' );
+delete_option( \USDTF\Database::OPTION_UPGRADE_NOTICE );
+$up_set_store( 'USD', '2', 'left' );
+
 // A rate saved before the unit was stored is adopted in the current unit.
 delete_option( \USDTF\Settings::OPTION_RATE_UNIT );
 \USDTF\Installer::seed_options();
@@ -596,6 +642,10 @@ foreach ( $up_texts as $up_kind => $up_text ) {
 	$up_html = $up_notice();
 	usdtf_it_assert( false !== strpos( $up_html, $up_text ), 'the ' . $up_kind . ' upgrade notice is shown on the WordPress dashboard' );
 	usdtf_it_assert( false !== strpos( $up_html, 'action=usdtf_dismiss_upgrade_notice' ), 'the ' . $up_kind . ' upgrade notice can be dismissed' );
+
+	if ( 'toman_review' === $up_kind || 'usd' === $up_kind ) {
+		usdtf_it_assert( false !== strpos( $up_html, '_usdtf_source_regular and _usdtf_source_sale' ), 'the ' . $up_kind . ' upgrade notice says where the Toman prices are kept' );
+	}
 }
 
 usdtf_it_assert( false !== strpos( $up_notice(), 'hidden product meta' ), 'the USD-mode notice says the old Toman prices are kept' );
@@ -1752,6 +1802,18 @@ usdtf_it_assert_same( 'generated', $pg_status( $pg_u_job, $pg_u ), 'saving the r
 
 $pg_rates->save_rate( 280000 );
 usdtf_it_assert_same( 270000.0, $pg_rates->previous_rate(), 'a later rate in the same unit can be rolled back to' );
+
+// A rollback in a store of an unsupported currency is refused before the
+// previous rate is saved: the stored rate and its unit stay as they are.
+usdtf_it_set_currency( 'USD' );
+$pg_u_jobs = count( $pg_jobs->query( array( 'limit' => 200 ) ) );
+$pg_refused = $runner->rollback();
+usdtf_it_assert_same( 'usdtf_unsupported_currency', is_wp_error( $pg_refused ) ? $pg_refused->get_error_code() : '', 'a rollback is refused for an unsupported store currency' );
+usdtf_it_assert_same( 280000.0, $pg_rates->get_rate(), 'a refused rollback of an unsupported store keeps the saved rate' );
+usdtf_it_assert_same( 'rial', $pg_rates->rate_unit(), 'a refused rollback of an unsupported store keeps the rate unit' );
+usdtf_it_assert_same( 270000.0, $pg_rates->previous_rate(), 'a refused rollback of an unsupported store keeps the previous rate' );
+usdtf_it_assert_same( $pg_u_jobs, count( $pg_jobs->query( array( 'limit' => 200 ) ) ), 'a refused rollback of an unsupported store leaves no job row' );
+usdtf_it_set_currency( 'IRT' );
 
 wp_set_current_user( 0 );
 usdtf_it_set_currency( 'IRT' );

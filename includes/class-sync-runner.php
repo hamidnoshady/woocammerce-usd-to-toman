@@ -178,11 +178,7 @@ final class Sync_Runner {
 		// Prices are pegged in Toman or Rial only: any other store currency would
 		// turn a rate into a nonsense price, so nothing is even queued.
 		if ( ! Store_Currency::is_supported() ) {
-			return new \WP_Error(
-				'usdtf_unsupported_currency',
-				__( 'Set the store currency to Iranian Toman or Rial before updating prices.', 'usd-to-toman-price-sync-for-woocommerce' ),
-				array( 'status' => 400 )
-			);
+			return $this->unsupported_currency_error();
 		}
 
 		$unit_changed = $this->unit_changed_error();
@@ -457,6 +453,19 @@ final class Sync_Runner {
 				'status'      => 428,
 				'fingerprint' => $fingerprint,
 			)
+		);
+	}
+
+	/**
+	 * The refusal for a store currency other than Toman or Rial.
+	 *
+	 * @return \WP_Error
+	 */
+	private function unsupported_currency_error() {
+		return new \WP_Error(
+			'usdtf_unsupported_currency',
+			__( 'Set the store currency to Iranian Toman or Rial before updating prices.', 'usd-to-toman-price-sync-for-woocommerce' ),
+			array( 'status' => 400 )
 		);
 	}
 
@@ -1768,8 +1777,13 @@ final class Sync_Runner {
 	 * @return array|\WP_Error
 	 */
 	public function rollback() {
-		// Checked before the previous rate is saved: saving it would record the
-		// new unit and clear the guard with a rate of the old one.
+		// Both guards run before the previous rate is saved: a refused rollback
+		// never changes the stored rate. Saving it would also record the new
+		// unit and clear the unit guard with a rate of the old one.
+		if ( ! Store_Currency::is_supported() ) {
+			return $this->unsupported_currency_error();
+		}
+
 		$unit_changed = $this->unit_changed_error();
 
 		if ( $unit_changed ) {
