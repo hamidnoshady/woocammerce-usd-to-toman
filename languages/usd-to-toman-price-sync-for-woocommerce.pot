@@ -9,16 +9,16 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-10-11 18:29+0000\n"
+"POT-Creation-Date: 2026-10-11 19:07+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: bin/make-pot.php\n"
 "X-Domain: usd-to-toman-price-sync-for-woocommerce\n"
 
-#: includes/class-sync-runner.php:1424
+#: includes/class-sync-runner.php:1433
 msgid "#%1$d %2$s"
 msgstr ""
 
-#: includes/class-sync-runner.php:1413
+#: includes/class-sync-runner.php:1422
 msgid "#%d (deleted)"
 msgstr ""
 
@@ -154,7 +154,7 @@ msgstr ""
 msgid "Another plugin that changes the WooCommerce currency can change the unit this plugin prices in. Keep the store currency at Iranian Toman or Rial while this plugin manages prices."
 msgstr ""
 
-#: includes/class-sync-runner.php:228 includes/class-sync-runner.php:532
+#: includes/class-sync-runner.php:224 includes/class-sync-runner.php:541
 msgid "Another price update is already running. Only one update can run at a time."
 msgstr ""
 
@@ -199,11 +199,11 @@ msgstr ""
 msgid "Cancelled"
 msgstr ""
 
-#: includes/class-sync-runner.php:1638
+#: includes/class-sync-runner.php:1647
 msgid "Cancelled by an administrator."
 msgstr ""
 
-#: includes/class-sync-runner.php:1627
+#: includes/class-sync-runner.php:1636
 msgid "Cancelled by an administrator. Prices that were already written are kept."
 msgstr ""
 
@@ -400,7 +400,7 @@ msgstr ""
 msgid "Every managed product"
 msgstr ""
 
-#: includes/class-sync-runner.php:1802
+#: includes/class-sync-runner.php:1816
 msgid "Every managed product (rate rollback)"
 msgstr ""
 
@@ -641,7 +641,7 @@ msgstr ""
 msgid "No price update is running right now."
 msgstr ""
 
-#: includes/class-sync-runner.php:1832
+#: includes/class-sync-runner.php:1846
 msgid "No products were selected."
 msgstr ""
 
@@ -709,7 +709,7 @@ msgstr ""
 msgid "Paused"
 msgstr ""
 
-#: includes/class-sync-runner.php:1543
+#: includes/class-sync-runner.php:1552
 msgid "Paused by an administrator. The job can be resumed and continues from the saved cursor."
 msgstr ""
 
@@ -737,7 +737,7 @@ msgstr ""
 msgid "Previous"
 msgstr ""
 
-#: includes/class-sync-runner.php:1795
+#: includes/class-sync-runner.php:1809
 msgid "Previous rate restored."
 msgstr ""
 
@@ -787,7 +787,7 @@ msgstr ""
 msgid "Queued"
 msgstr ""
 
-#: includes/class-sync-runner.php:1744
+#: includes/class-sync-runner.php:1753
 msgid "Queued again after a conflict review."
 msgstr ""
 
@@ -816,7 +816,7 @@ msgstr ""
 msgid "Rate moves above this percentage need explicit confirmation before they are stored."
 msgstr ""
 
-#: includes/class-sync-runner.php:1805
+#: includes/class-sync-runner.php:1819
 msgid "Rate rollback."
 msgstr ""
 
@@ -836,7 +836,7 @@ msgstr ""
 msgid "Read from WooCommerce. Store prices, the exchange rate and the rounding increment use this unit."
 msgstr ""
 
-#: includes/class-sync-runner.php:1842
+#: includes/class-sync-runner.php:1856
 #. %d: number of products.
 msgid "Recalculate %d product"
 msgid_plural "Recalculate %d products"
@@ -927,7 +927,7 @@ msgstr ""
 msgid "Rounding"
 msgstr ""
 
-#: includes/class-sync-runner.php:455
+#: includes/class-sync-runner.php:451
 msgid "Run a dry run first: an update may only start after a completed dry run that used the same exchange rate, rounding settings and scope."
 msgstr ""
 
@@ -943,7 +943,7 @@ msgstr ""
 msgid "Sale price"
 msgstr ""
 
-#: includes/class-sync-runner.php:217
+#: includes/class-sync-runner.php:213
 msgid "Save a USD/Toman exchange rate before updating prices."
 msgstr ""
 
@@ -995,7 +995,7 @@ msgstr ""
 msgid "Set the store currency to Iranian Toman or Rial"
 msgstr ""
 
-#: includes/class-sync-runner.php:183
+#: includes/class-sync-runner.php:467
 msgid "Set the store currency to Iranian Toman or Rial before updating prices."
 msgstr ""
 
@@ -1105,11 +1105,11 @@ msgstr ""
 msgid "The background job was queued."
 msgstr ""
 
-#: includes/class-sync-runner.php:609
+#: includes/class-sync-runner.php:618
 msgid "The background queue could not be reached, so the job was paused. Open the jobs screen and resume it once the queue works again."
 msgstr ""
 
-#: includes/class-sync-runner.php:1943
+#: includes/class-sync-runner.php:1957
 msgid "The background worker stopped several times. The job is paused and can be resumed from the saved progress."
 msgstr ""
 
@@ -1125,11 +1125,11 @@ msgstr ""
 msgid "The exchange rate was saved. Product prices are updated only when you run an update."
 msgstr ""
 
-#: includes/class-sync-runner.php:294 includes/class-sync-runner.php:340 includes/class-sync-runner.php:366
+#: includes/class-sync-runner.php:290 includes/class-sync-runner.php:336 includes/class-sync-runner.php:362
 msgid "The job could not be created."
 msgstr ""
 
-#: includes/class-sync-runner.php:277
+#: includes/class-sync-runner.php:273
 msgid "The job could not be created. Check the plugin log for details."
 msgstr ""
 
@@ -1170,7 +1170,7 @@ msgstr ""
 msgid "The product could not be loaded."
 msgstr ""
 
-#: includes/class-sync-runner.php:1158
+#: includes/class-sync-runner.php:1167
 msgid "The product no longer exists."
 msgstr ""
 
@@ -1187,7 +1187,7 @@ msgstr ""
 msgid "The rate is valid."
 msgstr ""
 
-#: includes/class-sync-runner.php:416
+#: includes/class-sync-runner.php:412
 msgid "The referenced dry run could not be found. Run the dry run again and start the update from its result."
 msgstr ""
 
@@ -1207,7 +1207,7 @@ msgstr ""
 msgid "The store currency is not Iranian Toman or Rial, so no price was calculated."
 msgstr ""
 
-#: includes/class-sync-runner.php:484
+#: includes/class-sync-runner.php:493
 #. 1: unit the rate was saved in (Toman or Rial), 2: unit of the store currency now (Toman or Rial).
 msgid "The store currency unit changed from %1$s to %2$s since the rate was saved. Save the rate again in the new unit."
 msgstr ""
@@ -1224,7 +1224,7 @@ msgstr ""
 msgid "The worker stops before the PHP execution limit and lets the next queued run continue where it stopped."
 msgstr ""
 
-#: includes/class-sync-runner.php:1784
+#: includes/class-sync-runner.php:1798
 msgid "There is no previous exchange rate to restore."
 msgstr ""
 
@@ -1248,7 +1248,7 @@ msgstr ""
 msgid "This rate is a very large move. Confirm it explicitly before it is stored."
 msgstr ""
 
-#: includes/class-sync-runner.php:1213 includes/class-sync-runner.php:1237
+#: includes/class-sync-runner.php:1222 includes/class-sync-runner.php:1246
 msgid "This variable product has no variations, so there is nothing to synchronize."
 msgstr ""
 
@@ -1375,12 +1375,12 @@ msgstr ""
 msgid "Variations"
 msgstr ""
 
-#: includes/class-sync-runner.php:1303
+#: includes/class-sync-runner.php:1312
 #. 1: processed variations, 2: total variations, 3: updated, 4: USD price set, 5: re-based, 6: unchanged, 7: skipped, 8: failed.
 msgid "Variations %1$d/%2$d — updated: %3$d, USD price set: %4$d, re-based: %5$d, unchanged: %6$d, skipped: %7$d, failed: %8$d."
 msgstr ""
 
-#: includes/class-sync-runner.php:1174
+#: includes/class-sync-runner.php:1183
 msgid "Variations are excluded from this update, so this variable product was skipped. Select its variations directly to update them anyway."
 msgstr ""
 
@@ -1472,7 +1472,7 @@ msgid "You are not allowed to recalculate prices."
 msgstr ""
 
 #: includes/admin/class-admin.php:641
-msgid "Your prices were last written for the removed USD-store mode, so review them before you run an update."
+msgid "Your prices were last written for the removed USD-store mode, so review them before you run an update. The Toman prices are kept in hidden product meta (_usdtf_source_regular and _usdtf_source_sale)."
 msgstr ""
 
 #: includes/admin/views/product-panel.php:133
@@ -1496,7 +1496,7 @@ msgstr ""
 msgid "variation"
 msgstr ""
 
-#: includes/class-sync-runner.php:1420
+#: includes/class-sync-runner.php:1429
 msgid "variation #%1$d %2$s"
 msgstr ""
 

@@ -16,76 +16,76 @@ msgstr ""
 "X-Generator: bin/make-pot.php\n"
 "X-Domain: usd-to-toman-price-sync-for-woocommerce\n"
 
-#: includes/class-sync-runner.php:1424
+#: includes/class-sync-runner.php:1433
 msgid "#%1$d %2$s"
 msgstr "#%1$d %2$s"
 
-#: includes/class-sync-runner.php:1413
+#: includes/class-sync-runner.php:1422
 msgid "#%d (deleted)"
 msgstr "#%d (حذف‌شده)"
 
-#: includes/class-health.php:369
 #. 1: managed products, 2: managed variations, 3: excluded products.
+#: includes/class-health.php:369
 msgid "%1$d managed products and %2$d managed variations. %3$d products are excluded."
 msgstr "%1$d محصول مدیریت‌شده و %2$d گونهٔ مدیریت‌شده. %3$d محصول کنار گذاشته شده‌اند."
 
-#: includes/class-health.php:325
 #. 1: batch size, 2: time budget, 3: PHP execution limit.
+#: includes/class-health.php:325
 msgid "%1$d products per worker run, %2$d seconds budget, PHP max_execution_time: %3$s."
 msgstr "%1$d محصول در هر اجرای کارگر، بودجهٔ زمانی %2$d ثانیه، max_execution_time پی‌اچ‌پی: %3$s."
 
-#: includes/class-health.php:237
 #. 1: pending actions, 2: failed actions.
+#: includes/class-health.php:237
 msgid "%1$d worker actions are queued and %2$d failed. A long queue can mean that WP-Cron is not running."
 msgstr "%1$d کنش کارگر در صف است و %2$d ناموفق. صف طولانی می‌تواند نشان دهد که WP-Cron اجرا نمی‌شود."
 
-#: includes/admin/views/settings.php:59
 #. 1: increment value, 2: unit name (Toman or Rial).
+#: includes/admin/views/settings.php:59
 msgid "%1$s %2$s"
 msgstr "%1$s %2$s"
 
-#: includes/admin/views/dashboard.php:152
 #. 1: rate with its unit, 2: percentage change, 3: user name.
+#: includes/admin/views/dashboard.php:152
 msgid "%1$s (%2$s%% change) submitted by %3$s."
 msgstr "%1$s (%2$s%% تغییر) توسط %3$s ثبت شد."
 
-#: includes/admin/class-admin.php:426
 #. 1: unit name (Toman or Rial), 2: WooCommerce currency code (IRT or IRR).
+#: includes/admin/class-admin.php:426
 msgid "%1$s (%2$s)"
 msgstr "%1$s (%2$s)"
 
-#: includes/admin/views/jobs.php:183
 #. 1: failed, 2: conflicts.
+#: includes/admin/views/jobs.php:183
 msgid "%1$s / %2$s"
 msgstr "%1$s / %2$s"
 
-#: includes/admin/views/dashboard.php:287
 #. 1: processed items, 2: total items, 3: percentage.
+#: includes/admin/views/dashboard.php:287
 msgid "%1$s / %2$s items (%3$s%%)"
 msgstr "%1$s / %2$s مورد (%3$s%%)"
 
-#: includes/admin/views/dashboard.php:465
 #. 1: checked, 2: changed.
+#: includes/admin/views/dashboard.php:465
 msgid "%1$s checked / %2$s changed"
 msgstr "%1$s بررسی‌شده / %2$s تغییرکرده"
 
-#: includes/class-recorder.php:466
 #. 1: price field (regular or sale price), 2: reason.
+#: includes/class-recorder.php:466
 msgid "%1$s: %2$s"
 msgstr "%1$s: %2$s"
 
-#: includes/class-recorder.php:491
 #. 1: price field, 2: old price, 3: new price, 4: USD price.
+#: includes/class-recorder.php:491
 msgid "%1$s: %2$s to %3$s (%4$s USD)."
 msgstr "%1$s: از %2$s به %3$s (%4$s دلار)."
 
-#: includes/class-recorder.php:501
 #. 1: price field, 2: USD price.
+#: includes/class-recorder.php:501
 msgid "%1$s: USD price set to %2$s."
 msgstr "%1$s: قیمت دلاری روی %2$s تنظیم شد."
 
-#: includes/class-recorder.php:509
 #. 1: price field, 2: USD price.
+#: includes/class-recorder.php:509
 msgid "%1$s: edited by hand, USD price re-based to %2$s."
 msgstr "%1$s: دستی ویرایش شده بود، قیمت دلاری بر پایهٔ آن دوباره روی %2$s تنظیم شد."
 
@@ -93,18 +93,18 @@ msgstr "%1$s: دستی ویرایش شده بود، قیمت دلاری بر پ�
 msgid "%d product per run"
 msgstr "%d محصول در هر اجرا"
 
-#: includes/class-product-repository.php:146
 #. %d: number of selected products.
+#: includes/class-product-repository.php:146
 msgid "%d selected product"
 msgstr "%d محصول انتخاب‌شده"
 
-#: includes/class-recorder.php:517
 #. %s: price field.
+#: includes/class-recorder.php:517
 msgid "%s: removed, USD price cleared."
 msgstr "%s: حذف شده بود، قیمت دلاری پاک شد."
 
-#: includes/admin/views/dashboard.php:105
 #. %s: percentage threshold.
+#: includes/admin/views/dashboard.php:105
 msgid "A change larger than %s%% must be confirmed explicitly. Saving a rate never rewrites product prices by itself."
 msgstr "تغییری بزرگ‌تر از %s%% باید صریحاً تأیید شود. ذخیرهٔ نرخ هرگز خودبه‌خود قیمت محصولات را بازنویسی نمی‌کند."
 
@@ -152,7 +152,7 @@ msgstr "افزونهٔ دیگری برای ارز فعال است"
 msgid "Another plugin that changes the WooCommerce currency can change the unit this plugin prices in. Keep the store currency at Iranian Toman or Rial while this plugin manages prices."
 msgstr "افزونه‌ای دیگر که ارز ووکامرس را تغییر می‌دهد می‌تواند واحدی را که این افزونه با آن قیمت‌گذاری می‌کند عوض کند. تا زمانی که این افزونه قیمت‌ها را مدیریت می‌کند، ارز فروشگاه را روی تومان یا ریال ایران نگه دارید."
 
-#: includes/class-sync-runner.php:228 includes/class-sync-runner.php:532
+#: includes/class-sync-runner.php:224 includes/class-sync-runner.php:541
 msgid "Another price update is already running. Only one update can run at a time."
 msgstr "یک به‌روزرسانی قیمت دیگر در حال اجراست. هر بار فقط یک به‌روزرسانی می‌تواند اجرا شود."
 
@@ -160,8 +160,8 @@ msgstr "یک به‌روزرسانی قیمت دیگر در حال اجراست.
 msgid "Another price update is already running. Showing it instead."
 msgstr "یک به‌روزرسانی قیمت دیگر در حال اجراست. به‌جایش همان نمایش داده می‌شود."
 
-#: includes/admin/views/items-table.php:77 assets/js/admin.js:946
 #. %d: attempts.
+#: includes/admin/views/items-table.php:77 assets/js/admin.js:946
 msgid "Attempts: %d"
 msgstr "تلاش‌ها: %d"
 
@@ -197,11 +197,11 @@ msgstr "این کار لغو شود؟ قیمت‌هایی که نوشته شده
 msgid "Cancelled"
 msgstr "لغوشده"
 
-#: includes/class-sync-runner.php:1638
+#: includes/class-sync-runner.php:1647
 msgid "Cancelled by an administrator."
 msgstr "توسط مدیر لغو شد."
 
-#: includes/class-sync-runner.php:1627
+#: includes/class-sync-runner.php:1636
 msgid "Cancelled by an administrator. Prices that were already written are kept."
 msgstr "توسط مدیر لغو شد. قیمت‌هایی که پیش‌تر نوشته شده‌اند حفظ می‌شوند."
 
@@ -381,8 +381,8 @@ msgstr "برای پیش‌نمایش یک نرخ وارد کنید."
 msgid "Enter the exchange rate: how many Toman one US dollar costs."
 msgstr "نرخ ارز را وارد کنید: یک دلار آمریکا چند تومان است."
 
-#: includes/class-health.php:287
 #. %s: REST namespace.
+#: includes/class-health.php:287
 msgid "Every admin route is registered under %s."
 msgstr "همهٔ مسیرهای مدیریت زیر %s ثبت شده‌اند."
 
@@ -398,7 +398,7 @@ msgstr "هر کار یا تمام شده یا به‌طور عادی پیش می
 msgid "Every managed product"
 msgstr "همهٔ محصولات مدیریت‌شده"
 
-#: includes/class-sync-runner.php:1802
+#: includes/class-sync-runner.php:1816
 msgid "Every managed product (rate rollback)"
 msgstr "همهٔ محصولات مدیریت‌شده (بازگردانی نرخ)"
 
@@ -458,8 +458,8 @@ msgstr "تاریخچهٔ کامل و خروجی CSV"
 msgid "Grouped products"
 msgstr "محصولات گروهی"
 
-#: includes/admin/views/health.php:58
 #. 1: job ID, 2: age in seconds.
+#: includes/admin/views/health.php:58
 msgid "Held by job #%1$d, heartbeat %2$ds ago"
 msgstr "در دست کار #%1$d، آخرین ضربان %2$d ثانیه پیش"
 
@@ -487,18 +487,18 @@ msgstr "کارهای نیمه‌کاره"
 msgid "Job"
 msgstr "کار"
 
-#: assets/js/admin.js:451
 #. 1: job ID, 2: job status.
+#: assets/js/admin.js:451
 msgid "Job #%1$d finished: %2$s"
 msgstr "کار شمارهٔ %1$d تمام شد: %2$s"
 
-#: includes/class-health.php:265
 #. 1: job ID, 2: age in seconds.
+#: includes/class-health.php:265
 msgid "Job #%1$d holds the synchronization lock (heartbeat %2$d seconds ago)."
 msgstr "کار #%1$d قفل همگام‌سازی را در دست دارد (آخرین ضربان %2$d ثانیه پیش)."
 
-#: includes/admin/views/jobs.php:42
 #. 1: job ID, 2: job type.
+#: includes/admin/views/jobs.php:42
 msgid "Job #%1$d — %2$s"
 msgstr "کار #%1$d — %2$s"
 
@@ -586,8 +586,8 @@ msgstr "هرگز"
 msgid "New Woo price"
 msgstr "قیمت تازهٔ ووکامرس"
 
-#: includes/admin/views/dashboard.php:85
 #. %s: unit of the rate, "Toman per 1 USD" or "Rial per 1 USD".
+#: includes/admin/views/dashboard.php:85
 msgid "New rate (%s)"
 msgstr "نرخ تازه (%s)"
 
@@ -639,7 +639,7 @@ msgstr "هنوز نرخ پیشینی ذخیره نشده است."
 msgid "No price update is running right now."
 msgstr "در این لحظه هیچ به‌روزرسانی قیمتی در حال اجرا نیست."
 
-#: includes/class-sync-runner.php:1832
+#: includes/class-sync-runner.php:1846
 msgid "No products were selected."
 msgstr "هیچ محصولی انتخاب نشد."
 
@@ -707,7 +707,7 @@ msgstr "توقف موقت"
 msgid "Paused"
 msgstr "متوقف‌شده"
 
-#: includes/class-sync-runner.php:1543
+#: includes/class-sync-runner.php:1552
 msgid "Paused by an administrator. The job can be resumed and continues from the saved cursor."
 msgstr "توسط مدیر متوقف شد. کار قابل ادامه است و از نشانگر ذخیره‌شده ادامه می‌یابد."
 
@@ -735,12 +735,12 @@ msgstr "پیش‌نمایش تغییرها"
 msgid "Previous"
 msgstr "پیشین"
 
-#: includes/class-sync-runner.php:1795
+#: includes/class-sync-runner.php:1809
 msgid "Previous rate restored."
 msgstr "نرخ پیشین بازگردانده شد."
 
-#: includes/admin/views/dashboard.php:70
 #. %s: previous rate.
+#: includes/admin/views/dashboard.php:70
 msgid "Previous rate: %s"
 msgstr "نرخ پیشین: %s"
 
@@ -760,8 +760,8 @@ msgstr "پردازش‌شده"
 msgid "Product"
 msgstr "محصول"
 
-#: includes/admin/class-rest-controller.php:940 includes/admin/views/items-table.php:48 assets/js/admin.js:885
 #. %d: product ID.
+#: includes/admin/class-rest-controller.php:940 includes/admin/views/items-table.php:48 assets/js/admin.js:885
 msgid "Product #%d"
 msgstr "محصول #%d"
 
@@ -785,7 +785,7 @@ msgstr "پیشرفت"
 msgid "Queued"
 msgstr "در صف"
 
-#: includes/class-sync-runner.php:1744
+#: includes/class-sync-runner.php:1753
 msgid "Queued again after a conflict review."
 msgstr "پس از بازبینی تعارض دوباره در صف قرار گرفت."
 
@@ -797,8 +797,8 @@ msgstr "مسیرهای REST API"
 msgid "Rate"
 msgstr "نرخ"
 
-#: assets/js/admin.js:541
 #. 1: previous rate, 2: new rate, 3: change in percent, 4: number of affected products.
+#: assets/js/admin.js:541
 msgid "Rate %1$s → %2$s (%3$s%%). Managed products that would be affected: about %4$s."
 msgstr "نرخ %1$s → %2$s (%3$s%%). محصول‌های مدیریت‌شده‌ای که تحت تأثیر قرار می‌گیرند: حدود %4$s."
 
@@ -814,7 +814,7 @@ msgstr "تاریخچهٔ نرخ"
 msgid "Rate moves above this percentage need explicit confirmation before they are stored."
 msgstr "جابه‌جایی نرخ بیش از این درصد، پیش از ذخیره به تأیید صریح نیاز دارد."
 
-#: includes/class-sync-runner.php:1805
+#: includes/class-sync-runner.php:1819
 msgid "Rate rollback."
 msgstr "بازگردانی نرخ."
 
@@ -834,8 +834,8 @@ msgstr "بازپایه‌گذاری‌شده"
 msgid "Read from WooCommerce. Store prices, the exchange rate and the rounding increment use this unit."
 msgstr "از ووکامرس خوانده می‌شود. قیمت‌های فروشگاه، نرخ ارز و پلهٔ گرد کردن از این واحد استفاده می‌کنند."
 
-#: includes/class-sync-runner.php:1842
 #. %d: number of products.
+#: includes/class-sync-runner.php:1856
 msgid "Recalculate %d product"
 msgstr "محاسبهٔ دوبارهٔ %d محصول"
 
@@ -923,7 +923,7 @@ msgstr "نزدیک‌ترین"
 msgid "Rounding"
 msgstr "گرد کردن"
 
-#: includes/class-sync-runner.php:455
+#: includes/class-sync-runner.php:451
 msgid "Run a dry run first: an update may only start after a completed dry run that used the same exchange rate, rounding settings and scope."
 msgstr "اول یک اجرای آزمایشی انجام دهید: به‌روزرسانی فقط پس از یک اجرای آزمایشی کامل‌شده که همان نرخ ارز، تنظیمات گرد کردن و دامنه را به کار برده باشد، می‌تواند آغاز شود."
 
@@ -939,7 +939,7 @@ msgstr "ایمنی"
 msgid "Sale price"
 msgstr "قیمت حراج"
 
-#: includes/class-sync-runner.php:217
+#: includes/class-sync-runner.php:213
 msgid "Save a USD/Toman exchange rate before updating prices."
 msgstr "پیش از به‌روزرسانی قیمت‌ها، یک نرخ ارز دلار/تومان ذخیره کنید."
 
@@ -991,7 +991,7 @@ msgstr "محصولات انتخاب‌شده"
 msgid "Set the store currency to Iranian Toman or Rial"
 msgstr "ارز فروشگاه را روی تومان یا ریال ایران بگذارید"
 
-#: includes/class-sync-runner.php:183
+#: includes/class-sync-runner.php:467
 msgid "Set the store currency to Iranian Toman or Rial before updating prices."
 msgstr "پیش از به‌روزرسانی قیمت‌ها، ارز فروشگاه را روی تومان یا ریال ایران بگذارید."
 
@@ -1039,8 +1039,8 @@ msgstr "شروع"
 msgid "Status"
 msgstr "وضعیت"
 
-#: includes/admin/views/jobs.php:53
 #. 1: status, 2: rate with its unit, 3: user, 4: scope label.
+#: includes/admin/views/jobs.php:53
 msgid "Status: %1$s · Rate: %2$s · Started by %3$s · Scope: %4$s"
 msgstr "وضعیت: %1$s · نرخ: %2$s · آغازشده توسط %3$s · دامنه: %4$s"
 
@@ -1048,8 +1048,8 @@ msgstr "وضعیت: %1$s · نرخ: %2$s · آغازشده توسط %3$s · دا
 msgid "Store currency"
 msgstr "ارز فروشگاه"
 
-#: includes/admin/views/dashboard.php:213
 #. 1: store currency, such as "Toman (IRT)", 2: product count.
+#: includes/admin/views/dashboard.php:213
 msgid "Store currency: %1$s. Products in the catalog: %2$s."
 msgstr "ارز فروشگاه: %1$s. محصولات فهرست: %2$s."
 
@@ -1065,8 +1065,8 @@ msgstr "سامانه"
 msgid "Test background trigger"
 msgstr "آزمایش محرک پس‌زمینه"
 
-#: assets/js/admin.js:103
 #. %s: REST route, for example GET /usdtf/v1/state.
+#: assets/js/admin.js:103
 msgid "The REST route %s was not found on this site. Open the Diagnostics tab to see which routes are missing, then resave the permalink settings or reinstall the plugin."
 msgstr "مسیر REST %s در این سایت پیدا نشد. برای دیدن مسیرهای غایب به زبانهٔ عیب‌یابی بروید، سپس تنظیمات پیوندهای یکتا را دوباره ذخیره کنید یا افزونه را از نو نصب کنید."
 
@@ -1078,13 +1078,13 @@ msgstr "حالت فروشگاه دلاری حذف شد. ارز فروشگاه و
 msgid "The WooCommerce price fields hold the store price. The first price update records a USD price from it; after that, a new exchange rate rewrites the store price from the USD price. Editing the store price by hand re-bases the USD price on the next update."
 msgstr "فیلدهای قیمت ووکامرس قیمت فروشگاه را نگه می‌دارند. نخستین به‌روزرسانی قیمت، یک قیمت دلاری از روی آن ثبت می‌کند؛ پس از آن، هر نرخ ارز تازه قیمت فروشگاه را از روی قیمت دلاری بازنویسی می‌کند. اگر قیمت فروشگاه را دستی ویرایش کنید، قیمت دلاری در به‌روزرسانی بعدی بر پایهٔ آن دوباره تنظیم می‌شود."
 
-#: includes/class-health.php:355
 #. %s: WooCommerce currency code.
+#: includes/class-health.php:355
 msgid "The WooCommerce store currency is %s, so no price update can run. Set the store currency to Iranian Toman or Rial."
 msgstr "ارز فروشگاه ووکامرس %s است، پس هیچ به‌روزرسانی قیمتی اجرا نمی‌شود. ارز فروشگاه را روی تومان یا ریال ایران بگذارید."
 
-#: includes/class-health.php:350
 #. %s: store currency, such as "Toman (IRT)".
+#: includes/class-health.php:350
 msgid "The WooCommerce store currency is %s. Prices and the exchange rate use this unit."
 msgstr "ارز فروشگاه ووکامرس %s است. قیمت‌ها و نرخ ارز از این واحد استفاده می‌کنند."
 
@@ -1092,8 +1092,8 @@ msgstr "ارز فروشگاه ووکامرس %s است. قیمت‌ها و نر�
 msgid "The action could not be applied to this job. Reload the page and try again."
 msgstr "این کنش به این کار اعمال نشد. برگه را دوباره بارگذاری کنید و تلاش کنید."
 
-#: includes/class-health.php:282
 #. %s: list of missing routes.
+#: includes/class-health.php:282
 msgid "The admin screen cannot reach these routes: %s. Every admin action would fail with \"no route found\". Reinstall the plugin or resave the permalink settings, then reload this screen."
 msgstr "صفحهٔ مدیریت به این مسیرها دسترسی ندارد: %s. هر اقدامی در مدیریت با خطای «مسیری پیدا نشد» شکست می‌خورد. افزونه را از نو نصب کنید یا تنظیمات پیوندهای یکتا را دوباره ذخیره کنید و این صفحه را تازه‌سازی کنید."
 
@@ -1101,11 +1101,11 @@ msgstr "صفحهٔ مدیریت به این مسیرها دسترسی ندارد
 msgid "The background job was queued."
 msgstr "کار پس‌زمینه در صف قرار گرفت."
 
-#: includes/class-sync-runner.php:609
+#: includes/class-sync-runner.php:618
 msgid "The background queue could not be reached, so the job was paused. Open the jobs screen and resume it once the queue works again."
 msgstr "به صف پس‌زمینه دسترسی نشد، بنابراین کار متوقف موقت شد. وقتی صف دوباره کار کند، از صفحهٔ کارها آن را ادامه دهید."
 
-#: includes/class-sync-runner.php:1943
+#: includes/class-sync-runner.php:1957
 msgid "The background worker stopped several times. The job is paused and can be resumed from the saved progress."
 msgstr "کارگر پس‌زمینه چند بار متوقف شد. کار به‌صورت موقت متوقف شده و می‌توان آن را از پیشرفت ذخیره‌شده ادامه داد."
 
@@ -1121,11 +1121,11 @@ msgstr "نرخ ارز باید عددی مثبت مانند 270000 باشد."
 msgid "The exchange rate was saved. Product prices are updated only when you run an update."
 msgstr "نرخ ارز ذخیره شد. قیمت محصولات فقط زمانی به‌روزرسانی می‌شود که خودتان به‌روزرسانی را اجرا کنید."
 
-#: includes/class-sync-runner.php:294 includes/class-sync-runner.php:340 includes/class-sync-runner.php:366
+#: includes/class-sync-runner.php:290 includes/class-sync-runner.php:336 includes/class-sync-runner.php:362
 msgid "The job could not be created."
 msgstr "کار ساخته نشد."
 
-#: includes/class-sync-runner.php:277
+#: includes/class-sync-runner.php:273
 msgid "The job could not be created. Check the plugin log for details."
 msgstr "کار ساخته نشد. برای جزئیات گزارش افزونه را بررسی کنید."
 
@@ -1133,8 +1133,8 @@ msgstr "کار ساخته نشد. برای جزئیات گزارش افزونه 
 msgid "The job could not be found."
 msgstr "کار پیدا نشد."
 
-#: includes/class-health.php:194
 #. 1: formatted rate, 2: its unit, "Toman per 1 USD" or "Rial per 1 USD".
+#: includes/class-health.php:194
 msgid "The manual rate is %1$s (%2$s)."
 msgstr "نرخ دستی %1$s (%2$s) است."
 
@@ -1166,12 +1166,12 @@ msgstr "حالت قیمت‌گذاری تغییر نکرد: مدیریت‌شد�
 msgid "The product could not be loaded."
 msgstr "محصول بارگذاری نشد."
 
-#: includes/class-sync-runner.php:1158
+#: includes/class-sync-runner.php:1167
 msgid "The product no longer exists."
 msgstr "محصول دیگر وجود ندارد."
 
-#: includes/class-health.php:211
 #. 1: pending rate, 2: percentage change.
+#: includes/class-health.php:211
 msgid "The rate %1$s was submitted but is a %2$s%% move and waits for explicit confirmation. Until then the active rate stays unchanged."
 msgstr "نرخ %1$s ثبت شد اما جابه‌جایی %2$s%% است و در انتظار تأیید صریح می‌ماند. تا آن زمان نرخ فعال تغییر نمی‌کند."
 
@@ -1183,7 +1183,7 @@ msgstr "نرخ پس از نمایش پیام تأیید تغییر کرد. نر�
 msgid "The rate is valid."
 msgstr "نرخ معتبر است."
 
-#: includes/class-sync-runner.php:416
+#: includes/class-sync-runner.php:412
 msgid "The referenced dry run could not be found. Run the dry run again and start the update from its result."
 msgstr "اجرای آزمایشی ارجاع‌شده پیدا نشد. اجرای آزمایشی را دوباره انجام دهید و به‌روزرسانی را از نتیجهٔ آن آغاز کنید."
 
@@ -1203,8 +1203,8 @@ msgstr "سایت به درخواست خودش پاسخ داد. کارگرهای 
 msgid "The store currency is not Iranian Toman or Rial, so no price was calculated."
 msgstr "ارز فروشگاه تومان یا ریال ایران نیست، پس قیمتی محاسبه نشد."
 
-#: includes/class-sync-runner.php:484
 #. 1: unit the rate was saved in (Toman or Rial), 2: unit of the store currency now (Toman or Rial).
+#: includes/class-sync-runner.php:493
 msgid "The store currency unit changed from %1$s to %2$s since the rate was saved. Save the rate again in the new unit."
 msgstr "واحد ارز فروشگاه پس از ذخیرهٔ نرخ از %1$s به %2$s تغییر کرده است. نرخ را دوباره با واحد جدید ذخیره کنید."
 
@@ -1220,7 +1220,7 @@ msgstr "کارگر دسته‌های کوچک را پردازش می‌کند، 
 msgid "The worker stops before the PHP execution limit and lets the next queued run continue where it stopped."
 msgstr "کارگر پیش از رسیدن به محدودیت اجرای پی‌اچ‌پی متوقف می‌شود و اجرای بعدی از همان‌جا ادامه می‌دهد."
 
-#: includes/class-sync-runner.php:1784
+#: includes/class-sync-runner.php:1798
 msgid "There is no previous exchange rate to restore."
 msgstr "نرخ ارز پیشینی برای بازگردانی وجود ندارد."
 
@@ -1244,7 +1244,7 @@ msgstr "این محصول از قیمت‌گذاری دلاری کنار گذا�
 msgid "This rate is a very large move. Confirm it explicitly before it is stored."
 msgstr "این نرخ جابه‌جایی بسیار بزرگی است. پیش از ذخیره، آن را صریحاً تأیید کنید."
 
-#: includes/class-sync-runner.php:1213 includes/class-sync-runner.php:1237
+#: includes/class-sync-runner.php:1222 includes/class-sync-runner.php:1246
 msgid "This variable product has no variations, so there is nothing to synchronize."
 msgstr "این محصول متغیر هیچ گونه‌ای ندارد، پس چیزی برای همگام‌سازی نیست."
 
@@ -1268,13 +1268,13 @@ msgstr "اجرای کارگرهای در صف با یک درخواست loopback 
 msgid "Type"
 msgstr "نوع"
 
-#: includes/admin/class-rest-controller.php:614
 #. %s: the word the admin has to type.
+#: includes/admin/class-rest-controller.php:614
 msgid "Type %s in the confirmation field to confirm a large rate change."
 msgstr "برای تأیید یک تغییر بزرگ نرخ، عبارت %s را در فیلد تأیید بنویسید."
 
-#: includes/admin/views/dashboard.php:127
 #. %s: confirmation word.
+#: includes/admin/views/dashboard.php:127
 msgid "Type %s to confirm this large rate change"
 msgstr "برای تأیید این تغییر بزرگ نرخ، عبارت %s را بنویسید"
 
@@ -1354,8 +1354,8 @@ msgstr "همین حالا قیمت‌ها را به‌روز کن"
 msgid "Updated"
 msgstr "به‌روزرسانی‌شده"
 
-#: includes/class-job.php:359
 #. %d: user ID.
+#: includes/class-job.php:359
 msgid "User #%d"
 msgstr "کاربر #%d"
 
@@ -1371,12 +1371,12 @@ msgstr "گونه"
 msgid "Variations"
 msgstr "گونه‌ها"
 
-#: includes/class-sync-runner.php:1303
 #. 1: processed variations, 2: total variations, 3: updated, 4: USD price set, 5: re-based, 6: unchanged, 7: skipped, 8: failed.
+#: includes/class-sync-runner.php:1312
 msgid "Variations %1$d/%2$d — updated: %3$d, USD price set: %4$d, re-based: %5$d, unchanged: %6$d, skipped: %7$d, failed: %8$d."
 msgstr "گونه‌ها %1$d/%2$d — به‌روزرسانی‌شده: %3$d، قیمت دلاری تنظیم‌شده: %4$d، بازپایه‌گذاری‌شده: %5$d، بدون تغییر: %6$d، نادیده‌گرفته‌شده: %7$d، ناموفق: %8$d."
 
-#: includes/class-sync-runner.php:1174
+#: includes/class-sync-runner.php:1183
 msgid "Variations are excluded from this update, so this variable product was skipped. Select its variations directly to update them anyway."
 msgstr "گونه‌ها از این به‌روزرسانی کنار گذاشته شده‌اند، پس این محصول متغیر رد شد. برای به‌روزرسانی در هر حال، گونه‌های آن را مستقیم انتخاب کنید."
 
@@ -1388,8 +1388,8 @@ msgstr "گونه‌های تغییرکرده"
 msgid "Variations processed"
 msgstr "گونه‌های پردازش‌شده"
 
-#: includes/admin/views/items-table.php:65 assets/js/admin.js:937
 #. 1: processed variations, 2: total variations.
+#: includes/admin/views/items-table.php:65 assets/js/admin.js:937
 msgid "Variations processed: %1$d / %2$d"
 msgstr "گونه‌های پردازش‌شده: %1$d / %2$d"
 
@@ -1433,8 +1433,8 @@ msgstr "ووکامرس"
 msgid "WooCommerce Action Scheduler is available. Big updates run in the background queue and do not need an open browser tab."
 msgstr "Action Scheduler ووکامرس در دسترس است. به‌روزرسانی‌های بزرگ در صف پس‌زمینه اجرا می‌شوند و به باز بودن زبانهٔ مرورگر نیاز ندارند."
 
-#: includes/class-recorder.php:232
 #. %s: error message.
+#: includes/class-recorder.php:232
 msgid "WooCommerce could not save the price: %s"
 msgstr "ووکامرس نتوانست قیمت را ذخیره کند: %s"
 
@@ -1446,8 +1446,8 @@ msgstr "نسخهٔ ووکامرس"
 msgid "Working…"
 msgstr "در حال کار…"
 
-#: includes/admin/views/dashboard.php:368
 #. 1: updated, 2: USD set, 3: re-based, 4: unchanged, 5: skipped, 6: failed, 7: conflicts.
+#: includes/admin/views/dashboard.php:368
 msgid "Would update: %1$s · USD set: %2$s · re-based: %3$s · unchanged: %4$s · skipped: %5$s · failed: %6$s · conflicts: %7$s"
 msgstr "به‌روزرسانی می‌شد: %1$s · قیمت دلاری تنظیم‌شده: %2$s · بازپایه‌گذاری‌شده: %3$s · بدون تغییر: %4$s · نادیده‌گرفته‌شده: %5$s · ناموفق: %6$s · تعارض‌ها: %7$s"
 
@@ -1468,8 +1468,8 @@ msgid "You are not allowed to recalculate prices."
 msgstr "شما اجازهٔ محاسبهٔ دوبارهٔ قیمت‌ها را ندارید."
 
 #: includes/admin/class-admin.php:641
-msgid "Your prices were last written for the removed USD-store mode, so review them before you run an update."
-msgstr "قیمت‌های شما آخرین بار برای حالت حذف‌شدهٔ فروشگاه دلاری نوشته شده‌اند؛ پیش از اجرای به‌روزرسانی آن‌ها را بازبینی کنید."
+msgid "Your prices were last written for the removed USD-store mode, so review them before you run an update. The Toman prices are kept in hidden product meta (_usdtf_source_regular and _usdtf_source_sale)."
+msgstr "قیمت‌های شما آخرین بار برای حالت حذف‌شدهٔ فروشگاه دلاری نوشته شده‌اند؛ پیش از اجرای به‌روزرسانی آن‌ها را بازبینی کنید. قیمت‌های تومانی در فرادادهٔ پنهان محصول (_usdtf_source_regular و _usdtf_source_sale) نگه داشته شده‌اند."
 
 #: includes/admin/views/product-panel.php:133
 msgid "conflict"
@@ -1479,8 +1479,8 @@ msgstr "تعارض"
 msgid "days"
 msgstr "روز"
 
-#: includes/admin/views/dashboard.php:309
 #. %s: user name.
+#: includes/admin/views/dashboard.php:309
 msgid "started by %s"
 msgstr "آغازشده توسط %s"
 
@@ -1492,7 +1492,7 @@ msgstr "بی‌نهایت"
 msgid "variation"
 msgstr "گونه"
 
-#: includes/class-sync-runner.php:1420
+#: includes/class-sync-runner.php:1429
 msgid "variation #%1$d %2$s"
 msgstr "گونهٔ #%1$d %2$s"
 
