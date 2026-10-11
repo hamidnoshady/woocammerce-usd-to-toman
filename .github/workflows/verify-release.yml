@@ -301,9 +301,14 @@ jobs:
           status=$?
           set -e
 
-          if grep -q '^skip - ' "${log}"; then
+          # The autonomous (passive) HTTP scenarios need a concurrent server, so
+          # the ordinary run skips them by design and the concurrent integration
+          # job in CI runs them. ci-run.sh tolerates exactly that skip; any other
+          # skipped scenario still means the release is not verified.
+          unexplained_skips="$(grep '^skip - ' "${log}" | grep -v 'requires USDTF_CONCURRENT' || true)"
+          if [ -n "${unexplained_skips}" ]; then
             echo "::error::The suite skipped scenarios, so the release is not verified:"
-            grep '^skip - ' "${log}" || true
+            echo "${unexplained_skips}"
             exit 1
           fi
 
