@@ -28,8 +28,27 @@ usdtf_it_assert_same(
 	'the loopback endpoint must only expose the three worker hooks'
 );
 
+// The products of this scenario get their USD price first, through a job whose
+// leftover worker actions are cleared again, so each job below writes a new price.
+$ui_generate = static function ( array $ids ) {
+	$job = usdtf_it_create_job(
+		array(
+			'type'  => \USDTF\Job::TYPE_SYNC,
+			'scope' => array( 'ids' => $ids ),
+		)
+	);
+	usdtf_it_run_job( (int) $job['id'] );
+
+	foreach ( array( \USDTF\Sync_Runner::HOOK_DISCOVER, \USDTF\Sync_Runner::HOOK_PROCESS, \USDTF\Sync_Runner::HOOK_FINALIZE ) as $hook ) {
+		\USDTF\Scheduler::unschedule_all( $hook, array( (int) $job['id'] ) );
+	}
+};
+
 $queue_product = usdtf_it_make_simple_product( 'Queue product', 2700000 );
-$baseline      = $scheduler_under_test->pending_count();
+$ui_generate( array( $queue_product->get_id() ) );
+$rates->save_rate( 300000 );
+
+$baseline = $scheduler_under_test->pending_count();
 
 $queue_job = usdtf_it_create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
 
@@ -95,7 +114,7 @@ usdtf_it_assert( ! empty( $health['next_tick'] ), 'the diagnostics must report t
 // The whole job still runs.
 usdtf_it_run_job( $queue_job_id );
 
-usdtf_it_assert_same( '10', usdtf_it_price( $queue_product->get_id() ), 'the queued job must still process its product' );
+usdtf_it_assert_same( '3000000', usdtf_it_price( $queue_product->get_id() ), 'the queued job must still process its product' );
 
 // This harness runs the workers directly, so the actions it queued are still
 // pending. Clearing them must leave the queue exactly as it was.
@@ -109,6 +128,9 @@ usdtf_it_assert_same( $baseline, $scheduler_under_test->pending_count(), 'unsche
 // An action left over from a job that was cancelled in the meantime must do
 // nothing when it finally runs.
 $cancel_product = usdtf_it_make_simple_product( 'Cancelled queue product', 8100000 );
+$ui_generate( array( $cancel_product->get_id() ) );
+$rates->save_rate( 330000 );
+
 $cancel_job     = usdtf_it_create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
 $cancel_job_id  = (int) $cancel_job['id'];
 
@@ -120,10 +142,13 @@ $runner->handle_batch( $cancel_job_id );
 $runner->handle_finalize( $cancel_job_id );
 
 usdtf_it_assert_same( \USDTF\Job::STATUS_CANCELLED, $jobs->get( $cancel_job_id )->status(), 'a leftover worker action must not resurrect a cancelled job' );
-usdtf_it_assert_same( '', usdtf_it_price( $cancel_product->get_id() ), 'a leftover worker action must not write a price' );
+usdtf_it_assert_same( '8100000', usdtf_it_price( $cancel_product->get_id() ), 'a leftover worker action must not write a price' );
 
 // A paused job, on the other hand, continues where it stopped.
 $pause_queue_product = usdtf_it_make_simple_product( 'Paused queue product', 5400000 );
+$ui_generate( array( $pause_queue_product->get_id() ) );
+$rates->save_rate( 360000 );
+
 $pause_queue_job     = usdtf_it_create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
 $pause_queue_id      = (int) $pause_queue_job['id'];
 
@@ -132,12 +157,12 @@ $runner->pause( $pause_queue_id );
 
 $runner->handle_batch( $pause_queue_id );
 
-usdtf_it_assert_same( '', usdtf_it_price( $pause_queue_product->get_id() ), 'a paused job must not process a batch' );
+usdtf_it_assert_same( '5400000', usdtf_it_price( $pause_queue_product->get_id() ), 'a paused job must not process a batch' );
 
 $runner->resume( $pause_queue_id );
 usdtf_it_run_job( $pause_queue_id );
 
-usdtf_it_assert_same( '20', usdtf_it_price( $pause_queue_product->get_id() ), 'a resumed job must finish the work it paused' );
+usdtf_it_assert_same( '5890000', usdtf_it_price( $pause_queue_product->get_id() ), '5,400,000 / 330,000 = 16.36 USD x 360,000 must be written once the job resumes' );
 
 \USDTF\Scheduler::unschedule_all( \USDTF\Sync_Runner::HOOK_DISCOVER, array( $cancel_job_id ) );
 \USDTF\Scheduler::unschedule_all( \USDTF\Sync_Runner::HOOK_PROCESS, array( $cancel_job_id ) );
@@ -274,12 +299,8 @@ foreach ( $tabs as $tab ) {
 $settings_html = $render( 'settings' );
 
 $boolean_fields = array(
-	'auto_manage_new_products',
 	'loopback_fallback',
 	'require_preview',
-	'display_toman',
-	'display_toman_cart',
-	'persian_digits',
 	'delete_data_on_uninstall',
 );
 
@@ -381,11 +402,8 @@ require_once ABSPATH . 'wp-admin/includes/user.php';
 wp_delete_user( (int) $ui_subscriber );
 wp_set_current_user( $ui_admin );
 
-// The stale currency mode notice is shown to the administrator.
-$settings->update( array( 'currency_mode' => \USDTF\Settings::MODE_USD ) );
-$settings->set_synced_currency_mode( \USDTF\Settings::MODE_TOMAN );
-
-usdtf_it_assert( $settings->currency_mode_is_stale(), 'the currency mode must be reported as stale after a change' );
+// A store currency the plugin cannot price in is announced to the administrator.
+usdtf_it_set_currency( 'USD' );
 
 require_once ABSPATH . 'wp-admin/includes/screen.php';
 
@@ -395,11 +413,17 @@ ob_start();
 $admin->render_notices();
 $notices = (string) ob_get_clean();
 
-usdtf_it_assert( false !== strpos( $notices, 'notice-warning' ), 'a stale currency mode must produce an admin notice' );
+usdtf_it_assert( false !== strpos( $notices, 'notice-error' ) && false !== strpos( $notices, 'Set the store currency to Iranian Toman or Rial' ), 'an unsupported store currency must produce an admin notice' );
 
-$settings->set_synced_currency_mode( \USDTF\Settings::MODE_USD );
+usdtf_it_set_currency( null );
 
-usdtf_it_assert( ! $settings->currency_mode_is_stale(), 'a matching currency mode must not be reported as stale' );
+ob_start();
+$admin->render_notices();
+$notices = (string) ob_get_clean();
+
+usdtf_it_assert( false === strpos( $notices, 'Set the store currency to Iranian Toman or Rial' ), 'a Toman store must not be told to change its currency' );
+
+$GLOBALS['current_screen'] = null;
 
 usdtf_it_pass( 'the admin screen renders every tab, escapes output and honours capabilities' );
 
@@ -427,78 +451,83 @@ $panel_object->render_meta_box( get_post( $panel_product->get_id() ) );
 $meta_box = (string) ob_get_clean();
 
 usdtf_it_assert( false !== strpos( $meta_box, 'usdtf_mode' ), 'the meta box must offer the pricing mode' );
-usdtf_it_assert( false !== strpos( $meta_box, 'usdtf_source_regular' ), 'the meta box must offer the Toman regular price' );
+usdtf_it_assert( false !== strpos( $meta_box, '5,000,000' ), 'the meta box must show the WooCommerce price it reads' );
+usdtf_it_assert( false === strpos( $meta_box, 'usdtf_source_regular' ), 'the meta box must not offer a price field of its own' );
 usdtf_it_assert( false !== strpos( $meta_box, 'usdtf_panel_nonce' ), 'the meta box must carry a nonce' );
-usdtf_it_assert( false !== strpos( $meta_box, '19' ), 'the meta box must show the derived USD price' );
+usdtf_it_assert( false !== strpos( $meta_box, '18.52' ), 'the meta box must show the derived USD price' );
 
 // A save without the nonce must not change anything.
 $_POST = array(
-	'usdtf_mode'           => \USDTF\Product_Pricing::MODE_NATIVE,
+	'usdtf_mode'           => \USDTF\Product_Pricing::MODE_EXCLUDED,
 	'usdtf_source_regular' => '999',
 );
 
 $panel_object->save_product( $panel_product->get_id() );
 
 usdtf_it_assert_same( \USDTF\Product_Pricing::MODE_MANAGED, $pricing->get_mode( $panel_product->get_id() ), 'a save without a nonce must be ignored' );
-usdtf_it_assert_same( '5000000', usdtf_it_meta( $panel_product->get_id(), \USDTF\Product_Pricing::META_SOURCE_REGULAR ), 'a save without a nonce must not touch the source' );
+usdtf_it_assert_same( '18.52', usdtf_it_meta( $panel_product->get_id(), \USDTF\Product_Pricing::META_USD_REGULAR ), 'a save without a nonce must not touch the USD price' );
 
-// A real save updates the mode and the Toman source.
-$revision_before = $pricing->get_revision( $panel_product->get_id() );
-
+// A real save updates the mode; a stray price field is ignored, prices are edited in WooCommerce.
 $_POST = array(
 	'usdtf_panel_nonce'    => wp_create_nonce( $panel::NONCE ),
-	'usdtf_mode'           => \USDTF\Product_Pricing::MODE_MANAGED,
+	'usdtf_mode'           => \USDTF\Product_Pricing::MODE_EXCLUDED,
 	'usdtf_source_regular' => '5,400,000',
 	'usdtf_source_sale'    => '4,000,000',
 );
 
 $panel_object->save_product( $panel_product->get_id() );
 
-usdtf_it_assert_same( '5400000', usdtf_it_meta( $panel_product->get_id(), \USDTF\Product_Pricing::META_SOURCE_REGULAR ), 'the panel must store the Toman regular price it was given' );
-usdtf_it_assert_same( '4000000', usdtf_it_meta( $panel_product->get_id(), \USDTF\Product_Pricing::META_SOURCE_SALE ), 'the panel must store the Toman sale price it was given' );
-usdtf_it_assert( $pricing->get_revision( $panel_product->get_id() ) > $revision_before, 'saving the source must bump the revision' );
+usdtf_it_assert_same( \USDTF\Product_Pricing::MODE_EXCLUDED, $pricing->get_mode( $panel_product->get_id() ), 'the panel must store the mode it was given' );
+usdtf_it_assert_same( '5000000', usdtf_it_price( $panel_product->get_id() ), 'the panel must not write a WooCommerce price' );
+usdtf_it_assert_same( '18.52', usdtf_it_meta( $panel_product->get_id(), \USDTF\Product_Pricing::META_USD_REGULAR ), 'the panel must not write a USD price' );
 
-// An invalid pair is refused and reported to the editor.
+// An invalid mode is refused and reported to the editor.
 $_POST = array(
-	'usdtf_panel_nonce'    => wp_create_nonce( $panel::NONCE ),
-	'usdtf_mode'           => \USDTF\Product_Pricing::MODE_MANAGED,
-	'usdtf_source_regular' => '1000000',
-	'usdtf_source_sale'    => '2000000',
+	'usdtf_panel_nonce' => wp_create_nonce( $panel::NONCE ),
+	'usdtf_mode'        => 'native',
 );
 
 $panel_object->save_product( $panel_product->get_id() );
 
-usdtf_it_assert_same( '5400000', usdtf_it_meta( $panel_product->get_id(), \USDTF\Product_Pricing::META_SOURCE_REGULAR ), 'a sale price above the regular price must be refused' );
+usdtf_it_assert_same( \USDTF\Product_Pricing::MODE_EXCLUDED, usdtf_it_meta( $panel_product->get_id(), \USDTF\Product_Pricing::META_MODE ), 'a mode other than Managed or Excluded must be refused' );
 usdtf_it_assert( false !== get_transient( 'usdtf_panel_error_' . $ui_admin ), 'a refused save must leave a message for the editor' );
 
 delete_transient( 'usdtf_panel_error_' . $ui_admin );
 
-// Switching the product to native USD keeps the Toman source but stops syncing.
+// Switching the product back to managed keeps its USD price.
 $_POST = array(
 	'usdtf_panel_nonce' => wp_create_nonce( $panel::NONCE ),
-	'usdtf_mode'        => \USDTF\Product_Pricing::MODE_NATIVE,
+	'usdtf_mode'        => \USDTF\Product_Pricing::MODE_MANAGED,
 );
 
 $panel_object->save_product( $panel_product->get_id() );
 
-usdtf_it_assert_same( \USDTF\Product_Pricing::MODE_NATIVE, $pricing->get_mode( $panel_product->get_id() ), 'the panel must be able to switch the pricing mode' );
-usdtf_it_assert_same( '5400000', usdtf_it_meta( $panel_product->get_id(), \USDTF\Product_Pricing::META_SOURCE_REGULAR ), 'switching the mode must not destroy the Toman source' );
+usdtf_it_assert_same( \USDTF\Product_Pricing::MODE_MANAGED, $pricing->get_mode( $panel_product->get_id() ), 'the panel must be able to switch the pricing mode' );
+usdtf_it_assert_same( '18.52', usdtf_it_meta( $panel_product->get_id(), \USDTF\Product_Pricing::META_USD_REGULAR ), 'switching the mode must not destroy the USD price' );
 
-// Bulk actions map to the three modes, and "enable" imports the current price.
+// Bulk actions map to the two modes and the recalculation; "enable" lets the
+// next job generate the USD price from the price that is already there.
 $bulk_actions = $panel_object->register_bulk_actions( array() );
 
-usdtf_it_assert( isset( $bulk_actions['usdtf_enable'], $bulk_actions['usdtf_native'], $bulk_actions['usdtf_exclude'] ), 'the three bulk actions must be registered' );
+usdtf_it_assert( isset( $bulk_actions['usdtf_enable'], $bulk_actions['usdtf_exclude'], $bulk_actions['usdtf_recalculate'] ), 'the three bulk actions must be registered' );
 
-$bulk_product = usdtf_it_make_simple_product( 'Bulk product', '', '', \USDTF\Product_Pricing::MODE_NATIVE );
-$bulk_product = wc_get_product( $bulk_product->get_id() );
-$bulk_product->set_regular_price( '7500000' );
-$bulk_product->save();
+$bulk_product = usdtf_it_make_simple_product( 'Bulk product', 7500000, '', \USDTF\Product_Pricing::MODE_EXCLUDED );
 
 $redirect = $panel_object->handle_bulk_actions( 'edit.php?post_type=product', 'usdtf_enable', array( $bulk_product->get_id() ) );
 
-usdtf_it_assert_same( \USDTF\Product_Pricing::MODE_MANAGED, $pricing->get_mode( $bulk_product->get_id() ), 'the bulk action must enable Toman pricing' );
-usdtf_it_assert_same( '7500000', usdtf_it_meta( $bulk_product->get_id(), \USDTF\Product_Pricing::META_SOURCE_REGULAR ), 'enabling must import the price that is already there' );
+usdtf_it_assert_same( \USDTF\Product_Pricing::MODE_MANAGED, $pricing->get_mode( $bulk_product->get_id() ), 'the bulk action must enable USD pricing' );
 usdtf_it_assert( false !== strpos( $redirect, 'usdtf_bulk_done=1' ), 'the bulk action must report what it did' );
+
+$bulk_job = usdtf_it_create_job(
+	array(
+		'type'  => \USDTF\Job::TYPE_SYNC,
+		'scope' => array( 'ids' => array( $bulk_product->get_id() ) ),
+	)
+);
+usdtf_it_run_job( (int) $bulk_job['id'] );
+
+usdtf_it_assert_same( '27.78', usdtf_it_meta( $bulk_product->get_id(), \USDTF\Product_Pricing::META_USD_REGULAR ), 'enabling must import the price that is already there' );
+usdtf_it_assert_same( '7500000', usdtf_it_price( $bulk_product->get_id() ), 'importing the price must keep it' );
 
 $panel_object->handle_bulk_actions( 'edit.php?post_type=product', 'usdtf_exclude', array( $bulk_product->get_id() ) );
 
@@ -507,10 +536,10 @@ usdtf_it_assert_same( \USDTF\Product_Pricing::MODE_EXCLUDED, $pricing->get_mode(
 // The list column shows the mode of the product.
 $columns = $panel_object->add_column( array( 'title' => 'Title' ) );
 
-usdtf_it_assert( isset( $columns['usdtf_toman'] ), 'the product list must gain a Toman price column' );
+usdtf_it_assert( isset( $columns[ $panel::COLUMN ] ), 'the product list must gain a USD price column' );
 
 ob_start();
-$panel_object->render_column( 'usdtf_toman', $panel_product->get_id() );
+$panel_object->render_column( $panel::COLUMN, $panel_product->get_id() );
 $column = (string) ob_get_clean();
 
 usdtf_it_assert( '' !== trim( wp_strip_all_tags( $column ) ), 'the product list column must show something for a managed product' );
@@ -538,59 +567,6 @@ $_POST = array();
 $_GET  = array();
 
 usdtf_it_pass( 'the product panel saves, refuses invalid input and drives the bulk actions' );
-
-// ---------------------------------------------------------------------------
-// 30. A fresh install transacts in Toman, an upgrade keeps the stored mode.
-// ---------------------------------------------------------------------------
-usdtf_it_delete_products();
-
-// Simulate a brand new site: no settings option at all, then the installer runs.
-delete_option( \USDTF\Settings::OPTION );
-delete_option( \USDTF\Settings::OPTION_SYNCED_CURRENCY_MODE );
-delete_option( \USDTF\Settings::OPTION_RATE );
-
-\USDTF\Installer::seed_options();
-
-// Force the shared instance to re-read the option, the way a new request would.
-usdtf_plugin()->settings()->all( true );
-
-// The fresh install restores every default, including the dry-run-first rule.
-// This scenario is about the currency semantics; the gate itself is covered by
-// the dry-run scenarios, so it is pinned off like in every other scenario.
-usdtf_plugin()->settings()->update( array( 'require_preview' => false ) );
-$fresh = new \USDTF\Settings();
-
-usdtf_it_assert_same( \USDTF\Settings::MODE_TOMAN, $fresh->get( 'currency_mode' ), 'a fresh install must transact in Toman' );
-usdtf_it_assert( ! $fresh->currency_mode_is_stale(), 'a fresh install must not look like a pending currency switch' );
-usdtf_it_assert_same(
-	\USDTF\Settings::MODE_TOMAN,
-	get_option( \USDTF\Settings::OPTION_SYNCED_CURRENCY_MODE ),
-	'the recorded price field currency must follow the default'
-);
-usdtf_it_assert_same( 'IRT', get_woocommerce_currency(), 'a fresh install must charge in Toman' );
-usdtf_it_assert_same( 'تومان', get_woocommerce_currency_symbol(), 'the default currency symbol must be the Toman label' );
-
-// Products then hold their canonical Toman price in the normal price fields.
-$rates->save_rate( 270000 );
-$fresh_product = usdtf_it_make_simple_product( 'Fresh install product', 5400000 );
-$fresh_job     = usdtf_it_create_job( array( 'type' => \USDTF\Job::TYPE_SYNC ) );
-usdtf_it_run_job( (int) $fresh_job['id'] );
-
-usdtf_it_assert_same( '5400000', usdtf_it_price( $fresh_product->get_id() ), 'the price field must hold the canonical Toman price' );
-usdtf_it_assert_same( '20', usdtf_it_meta( $fresh_product->get_id(), \USDTF\Product_Pricing::META_DERIVED_REGULAR ), 'the derived USD price must stay a reference' );
-
-// An existing store keeps the mode it stored, whatever the new default is.
-update_option( \USDTF\Settings::OPTION, array( 'currency_mode' => \USDTF\Settings::MODE_USD ) );
-update_option( \USDTF\Settings::OPTION_SYNCED_CURRENCY_MODE, \USDTF\Settings::MODE_USD );
-
-\USDTF\Installer::seed_options();
-
-$kept = new \USDTF\Settings();
-usdtf_it_assert_same( \USDTF\Settings::MODE_USD, $kept->get( 'currency_mode' ), 'an upgrade must not switch an existing store to Toman' );
-usdtf_it_assert_same( 10, (int) $kept->get( 'batch_size' ), 'the rest of the defaults must be backfilled' );
-usdtf_it_assert( ! $kept->currency_mode_is_stale(), 'an upgrade must not report a pending currency switch for a stored mode' );
-
-usdtf_it_pass( 'a fresh install transacts in Toman and an upgrade keeps the stored mode' );
 
 // ---------------------------------------------------------------------------
 // 31. The bundled Persian catalogue covers the template and loads.
