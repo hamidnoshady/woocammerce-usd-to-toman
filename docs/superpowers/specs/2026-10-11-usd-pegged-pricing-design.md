@@ -84,7 +84,7 @@ by the same rules; the pair is validated afterwards (section 5.2).
 Inputs: current Woo price `P` (regular or sale), stored USD `U`, stored `seen` value `S`, stored rate
 `R_p`, job rate `R`.
 
-```
+```text
 if product excluded                        -> skipped   (reason shown)
 if P missing, zero, negative or not a number -> skipped (reason shown)
 if U is empty                              -> GENERATED: U = round2(P / R); seen = P; R_p = R; Woo price untouched
@@ -137,6 +137,7 @@ Removed: `currency_mode`, `display_toman`, `display_toman_cart`, `persian_digits
 `usdtf_synced_currency_mode`.
 
 Changed:
+
 - **Store currency** (new, read-only row): shows "Toman (IRT)" or "Rial (IRR)" with a link to
   WooCommerce → Settings → General.
 - **Rounding mode:** up / nearest / down (unchanged). Default stays *up*.

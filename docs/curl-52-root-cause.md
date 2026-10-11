@@ -23,7 +23,7 @@ Branch: `arena/25782cb8-woocammerce-usd-to-toman`. Updated after CI runs
   `Address already in use` after the previous `stop` — the socket was still
   held (no wait/port-listening guard, no exit-status or process-group
   evidence captured). Fixed by the 3 s drain + `usdtf_port_listening` guard
-  + `ps -o pid,ppid,pgid,cmd` diagnostics now in `server.sh`.
+  and the `ps -o pid,ppid,pgid,cmd` diagnostics now in `server.sh`.
 
 ### Post-squash runs (workers=4 concurrent server, barrier 1507 ms < 2500 ms)
 
@@ -84,7 +84,7 @@ Branch: `arena/25782cb8-woocammerce-usd-to-toman`. Updated after CI runs
    60 s via the new `usdtf_one_minute` recurrence, 300 s fallback) and in
    the gated `POST /usdtf/v1/test/tick` route used by the integration
    suite, which fires the same production recovery: `resume_orphaned_jobs`
-   + `recover_stale_jobs` + the lease pass + the production Action Scheduler
+   and `recover_stale_jobs` + the lease pass + the production Action Scheduler
    queue runner (`ActionScheduler_QueueRunner::run()`, exactly what AS's
    own wp-cron event does). No CLI wake, no token loopback, no
    `POST /jobs/{id}/resume`.
@@ -109,7 +109,7 @@ Branch: `arena/25782cb8-woocammerce-usd-to-toman`. Updated after CI runs
    unassisted (`usdtf_it_http_wait_job_passive`, polls + the recovery tick
    only) are separate helpers; the passive helper logs the HTTP code and
    body of failed polls and stashes them for assertions; the autonomous
-   skip is now a visible `skip - ` line that only the concurrent job
+   skip is now a visible `skip -` line that only the concurrent job
    treats as required; A2 demands `completed` (the weakened
    accept-`running` assertion is gone); the update retry loop logs every
    failed attempt for attributable evidence.
@@ -203,7 +203,7 @@ to `PHP_CLI_SERVER_WORKERS=4 php -S`.
 The fpm error log, finally captured by the extended diagnostics, names the
 killer directly:
 
-```
+```text
 WARNING: [pool usdtf] child 2500 exited on signal 11 (SIGSEGV - core dumped) after 31.52s
 WARNING: [pool usdtf] child 2491 exited on signal 11 (SIGSEGV - core dumped) after 32.67s
 WARNING: [pool usdtf] child 2493 exited on signal 11 (SIGSEGV - core dumped) after 32.68s

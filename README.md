@@ -8,7 +8,7 @@ USD price is the anchor: when the rate changes, the WooCommerce price is rewritt
 This repository is the plugin source, the test suite, the CI configuration and the release tooling.
 Store owners only need the zip from the [releases page](../../releases).
 
-```
+```text
 first run:    USD price = round2( Woo price / rate )      (records USD only, writes no price)
 rate change:  Woo price = round( USD price x new rate )   (rounded by the mode and increment setting)
 ```
@@ -50,7 +50,7 @@ upload them.
 
 ## Repository layout
 
-```
+```text
 usd-to-toman-price-sync-for-woocommerce.php   Plugin header and bootstrap
 uninstall.php                                 Cleanup on uninstall
 includes/                                     Plugin classes (USDTF\ namespace)

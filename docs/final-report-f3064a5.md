@@ -10,27 +10,35 @@ This report distinguishes **evidence vs hypothesis**, **assisted (http.php) vs a
 ## Implemented
 
 **1. Backend death investigation + evidence vs hypothesis**  
+
 - `38003431248` `cURL 7` (ordinary) + `38003431248` built-ZIP skipped due to backend died during `setup.sh` → `server.sh start` `Address already in use` (stale `18888`). `server.sh` now logs `PID`, `PPID`, `STAT`, `CMD`, `ss -ltn`, `lsof`, `log head/tail`, `PHP -v`, `router -l`, `docroot` tracking via `${PID_FILE}.docroot`, `process-group` via `setsid` + `disown`, `exit status` via `kill -0` + `ps -o cmd=`. Distinguishes `genuine conflict` (port listening after `stop` with no owned PID → `::error` not `pkill`) vs `stale` (PID dead → remove file). Not increased sleeps beyond `60×1s` + `4s` drain + `5×0.5s` health probe (ca3e488) + `7×4s` preview retry (1525c3a). Evidence: `38032448329` barrier `1507ms` <2500ms proves workers=4.
 
 **2. Genuine concurrent PHP execution**  
+
 - `tests/integration/server.sh` `usdtf_start_concurrent` now `PHP_CLI_SERVER_WORKERS=4` (since 7.4) single `php -S` on `8888` with `setsid env PHP_CLI_SERVER_WORKERS=4`, no `socat` fork insufficiency. `docroot` tracked. Deterministic barrier: creates `${WP_PATH}/usdtf-barrier.php` (`usleep 1.5s`) then two parallel `curl` to that file, measures `elapsed_ms` via `date +%s%N`, fails if `>2500ms` (sequential would be ~3000ms). Evidence: `38033154454` `Barrier parallel: c1=0 c2=0 elapsed 1509ms` and `38033504467` `1507ms`. Previous `socat` fork to single `php -S` on `18888` only proved two `200` not overlapping — removed.
 
 **3. Server lifecycle ownership precise**  
+
 - `usdtf_is_alive` via `kill -0`, `usdtf_port_listening` via `ss`/`netstat`/`lsof`/`curl --max-time 3`, `usdtf_resolve_router`/`wp`, `PID_FILE` + `.docroot`, `setsid`/`nohup` + `disown`. `usdtf_stop` verifies `cmdline` contains `php.*-S 127.0.0.1:${port}` **and** docroot matches before `kill`; otherwise logs `not killing` and reports `genuine conflict` without `pkill`/`fuser`. Legacy `18888` only killed if PID file points to it precisely, no `pkill -f "php.*-S 127.0.0.1:18888"` or `fuser -k`. Tested `restart`, `stale` (PID dead → `rm`), `startup failure` (log `Address already in use` → wait 2s then fail), `unrelated occupant` (`nc -l 8888` → `::error` not killed). `usdtf_status` dumps `PID`, `port listening`, `ss`, `log head/tail`, `router`, `WP_PATH`, `socat` (legacy) and `usdtf-barrier` cleanup via `trap`.
 
 **4. Repair interruption testing**  
+
 - `includes/class-sync-runner.php` `handle_batch` interrupt branch: **no longer** `queue_step` (was queuing next batch, not simulating loss). Now `heartbeat` only, returns orphaned (`delete_option` counter, not queued). Guarded by `USDTF_ENABLE_TEST_ROUTES`. `resume_orphaned_jobs` (via `Cron::tick` 5m and `Rest_Controller::get_job_status` every `0.25s` passive poll) must re-queue `usdtf_run_batch` via `queue_step` → `fire_loopback` (workers=4). `tests/integration/http-autonomous.php` A4: 25 products (batch 20 → 2 batches), `POST /test/interrupt-after count=1`, `POST /update`, `usdtf_it_http_wait_job_passive` 5s (assert `progress` persisted) then **180s** passive (no `POST /jobs/{id}/resume`, no CLI `wp` wake, no `wp-cron` from test) — must complete via production recovery. Verifies `counters.processed===25`, `changed===25`, `price===i` per product, `GET /jobs/{id}` `counters.processed===25` no duplicates, `is_managed`, `source` preserved. Keeps `run.php` `interrupted jobs resume` as **assisted** (CLI `wp eval`); new `http-autonomous` is **genuine**.
 
 **5. Contain fault injection**  
+
 - `usd-to-toman-price-sync-for-woocommerce.php` defines `USDTF_ENABLE_TEST_ROUTES` false if not defined. `tests/integration/make-config.php` defines `true` for `WP_PATH`/`WP_PATH2` (both source and ZIP). `Rest_Controller::register_routes` only registers `/test/fail-next-loopback`, `/test/interrupt-after`, `/test/clear-interrupt`, `/test/sleep` when `defined && true`; otherwise 404. `Scheduler::fire_loopback` `usdtf_test_fail_next_loopback` only checked when `true`; otherwise option ignored even if set via `update_option` from HTTP. `Sync_Runner` interrupt only when `true`. Verified via `grep -r "USDTF_ENABLE_TEST_ROUTES" --include="*.php"` and test `GET /test/sleep` 404 when false (manual). Normal installs (no constant) have no test endpoints.
 
 **6. Preserve archive contract + pinned helpers**  
+
 - `bin/lib-archive-contract.php` canonical (top-level dir, forbidden files, required runtime, `Version:`, `WC tested up to`, `languages`, `JS namespace`) unchanged, `bin/verify-archive.php` unchanged, `tests/integration/server.sh`/`router.php`/`setup.sh`/`ci-run.sh` preserved via `verify-release.yml` `PINNED_HELPERS_SHA: 8100b59ddf...` checked out to `.pinned-helpers` beneath `GITHUB_WORKSPACE` (`ref: $PINNED_HELPERS_SHA`, `path: .pinned-helpers`, `fetch-depth: 1`), restored only if missing at tag, not from `origin/main`. Compatibility verified via `tag 1.1.1` suite still passes (historical `37985983564` ZIP). Negative fixture `tests/archive-contract-negative.php` not re-executed in `ci.yml` but preserved; `verify-release.yml` `Inspect archive` uses `php bin/verify-archive.php --zip --version`.
 
 **7. Consolidate duplicate workflow assertions**  
+
 - `ci.yml` `integration` and `integration-concurrent` share `setup.sh` (was duplicated `curl`/`tar`), `server.sh start`/`stop`/`status`, `ci-run.sh` for `published-release` vs `run.php` for source/ZIP. Duplicate `grep -q "autonomous.*skipped"` and `grep -c "^ok -"` kept but comments corrected: `USDTF_CONCURRENT=1` required for autonomous, not `USDTF_ASSISTED_HTTP`. `verify-release.yml` helpers `path: .pinned-helpers` (beneath `GITHUB_WORKSPACE`) and consumers use `.pinned-helpers/bin/...` not `bin/...` under tag. Stale comments `socat fork proves concurrency` corrected to `PHP_CLI_SERVER_WORKERS=4 barrier`.
 
 **8. Preserve dashboard/jobs/settings/health UI**  
+
 - No redesign: `assets/js/admin.js`, `templates/admin.php`, `includes/admin/class-admin.php` unchanged. Actionable error/recovery: `Job::STATUS_PAUSED` with `queue_failed_message` shown in `admin.js` `renderJob` `error` banner and `Retry` button (`POST /jobs/{id}/retry-failed`), `Health::checks()` loopback `reachable`/`failing`/`unreachable` preserved. Verified `loading` (spinner via `is_active`), `keyboard` (`tabindex`, `Enter`), `responsive` (CSS `grid`), `RTL/LTR` (`dir` attribute). No style churn.
 
 ## Bugs fixed (root cause)
@@ -83,6 +91,7 @@ This report distinguishes **evidence vs hypothesis**, **assisted (http.php) vs a
 **CI at final `f3064a5` (run `38033856843`):** **9/11** — `Translations success`, `Release zip success`, `PHP 7.4-8.4 syntax success` (5), `Coding standards success`, `WordPress + WooCommerce integration failure` ( `Run the suite against the working copy` `FAIL: interrupted job must eventually complete after recovery (status='running')` at `http-autonomous.php:238` ), `WordPress + WooCommerce integration (concurrent) failure` (same). `socat` log `Barrier parallel: c1=0 c2=0 elapsed 1507ms` **success** but autonomous still `running` after 180s. Link: `https://github.com/hamidnoshady/woocammerce-usd-to-toman/actions/runs/38033856843` (jobs `114...`, logs `EOF` via `results-receiver` `SSL_ERROR_SYSCALL` in sandbox, PR comments `6094918518` `6094925037`).
 
 **Previous runs:**
+
 - `38033504467` at `88313e0` **9/11** both `failure` same `running`.
 - `38033154454` at `e0b2c5f` **9/11** `concurrent failure` `running`, `integration in_progress` then `failure`.
 - `38032800469` at `bffd8c2` **9/11** both `failure` `running`.

@@ -58,7 +58,7 @@ HYPOTHESIS separated there; summarized below).
    without a parsable status as a failed poll, logs each distinct garbage
    body, captures `ps`/`ss`/server-log evidence after five consecutive
    failures, and both helpers print the HTTP code and body of failed polls.
-   The autonomous skip is a visible `skip - ` line that only the concurrent
+   The autonomous skip is a visible `skip -` line that only the concurrent
    job treats as required; A2 demands `completed` (the weakened
    accept-`running` assertion is gone); the update retry loop logs every
    failed attempt.
