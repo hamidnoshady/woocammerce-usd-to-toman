@@ -76,8 +76,10 @@ final class Installer {
 	/**
 	 * Remove the data of the old currency-mode model.
 	 *
-	 * Deletes the obsolete post meta in one query, reads a stored "native"
-	 * product mode as "excluded", keeps the storefront currency of an old
+	 * Deletes the obsolete post meta in one query (the old Toman source and
+	 * derived prices are kept, unread, because they are the only copy of a
+	 * USD-mode store's Toman prices; the opt-in uninstall purge removes them),
+	 * reads a stored "native" product mode as "excluded", keeps the storefront currency of an old
 	 * Toman-mode install (see carry_over_currency_mode()), and drops the
 	 * obsolete settings keys and options. Safe to run more than once. The
 	 * obsolete table columns stay in place, unused: dbDelta never drops columns.
@@ -87,11 +89,9 @@ final class Installer {
 	public static function migrate_to_pegged_model() {
 		global $wpdb;
 
+		// The old Toman source and derived prices are not in this list: they
+		// stay as inert meta (Product_Pricing::LEGACY_META_KEYS).
 		$obsolete_meta = array(
-			'_usdtf_source_regular',
-			'_usdtf_source_sale',
-			'_usdtf_derived_regular',
-			'_usdtf_derived_sale',
 			'_usdtf_mode_synced',
 			'_usdtf_external_source',
 			'_usdtf_revision',
@@ -340,9 +340,9 @@ final class Installer {
 	 * Remove the plugin's own data. Used by uninstall.php.
 	 *
 	 * Options, cron events, queued worker actions, transients and the plugin
-	 * tables are always removed. Product metadata (the USD prices) is only
-	 * removed when the store owner opted in, because it is real price data
-	 * that a reinstall can reuse.
+	 * tables are always removed. Product metadata (the USD prices, and the
+	 * inert Toman prices a 1.1.x install left) is only removed when the store
+	 * owner opted in, because it is real price data that a reinstall can reuse.
 	 *
 	 * @param bool $purge_product_meta Whether product meta should be deleted too.
 	 * @return void
@@ -416,8 +416,9 @@ final class Installer {
 			return;
 		}
 
-		// Remove per product metadata created by the plugin.
-		foreach ( Product_Pricing::meta_keys() as $meta_key ) {
+		// Remove per product metadata created by the plugin, the inert 1.1.x
+		// Toman prices included.
+		foreach ( array_merge( Product_Pricing::meta_keys(), Product_Pricing::LEGACY_META_KEYS ) as $meta_key ) {
 			// A bulk delete by meta key is the point of the purge and only runs on request.
 			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.SlowDBQuery.slow_db_query_meta_key
 			$wpdb->delete( $wpdb->postmeta, array( 'meta_key' => $meta_key ) );

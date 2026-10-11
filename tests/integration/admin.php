@@ -405,6 +405,11 @@ usdtf_it_assert( \USDTF\Database::table_exists( $jobs_table ), 'the plugin table
 // A meta key the plugin does not own, to prove a purge is scoped.
 update_post_meta( $uninstall_product->get_id(), 'usdtf_it_foreign_key', 'keep me' );
 
+// The inert Toman prices a 1.1.x install left behind.
+foreach ( \USDTF\Product_Pricing::LEGACY_META_KEYS as $legacy_key ) {
+	update_post_meta( $uninstall_product->get_id(), $legacy_key, '5000000' );
+}
+
 // The assertions look at this scenario's own product instead of counting the
 // meta across the whole site: a store that already uses the plugin keeps its
 // own USD prices, and that must not be mistaken for this fixture's.
@@ -414,6 +419,10 @@ usdtf_it_assert( ! \USDTF\Database::table_exists( $jobs_table ), 'uninstalling m
 usdtf_it_assert_same( '', (string) get_option( \USDTF\Settings::OPTION, '' ), 'uninstalling must remove the settings' );
 usdtf_it_assert_same( '5556000', usdtf_it_price( $uninstall_product->get_id() ), 'uninstalling without the opt in must keep the WooCommerce price' );
 usdtf_it_assert_same( '18.52', usdtf_it_meta( $uninstall_product->get_id(), $usd_key ), 'uninstalling without the opt in must keep the USD price' );
+
+foreach ( \USDTF\Product_Pricing::LEGACY_META_KEYS as $legacy_key ) {
+	usdtf_it_assert_same( '5000000', usdtf_it_meta( $uninstall_product->get_id(), $legacy_key ), 'uninstalling without the opt in must keep the legacy ' . $legacy_key );
+}
 
 \USDTF\Installer::create_tables();
 \USDTF\Installer::seed_options();
@@ -427,6 +436,10 @@ usdtf_it_assert( \USDTF\Database::table_exists( $jobs_table ), 'the tables must 
 clean_post_cache( $uninstall_product->get_id() );
 
 usdtf_it_assert_same( '', usdtf_it_meta( $uninstall_product->get_id(), $usd_key ), 'the explicit opt in must remove the plugin metadata' );
+
+foreach ( \USDTF\Product_Pricing::LEGACY_META_KEYS as $legacy_key ) {
+	usdtf_it_assert_same( '', usdtf_it_meta( $uninstall_product->get_id(), $legacy_key ), 'the explicit opt in must remove the legacy ' . $legacy_key );
+}
 usdtf_it_assert_same( '5556000', usdtf_it_price( $uninstall_product->get_id() ), 'the explicit opt in must still keep the WooCommerce price' );
 usdtf_it_assert_same( 'keep me', usdtf_it_meta( $uninstall_product->get_id(), 'usdtf_it_foreign_key' ), 'a purge must not touch meta the plugin does not own' );
 

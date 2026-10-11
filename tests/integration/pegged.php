@@ -381,7 +381,18 @@ delete_option( \USDTF\Database::OPTION_UPGRADE_NOTICE );
 usdtf_it_assert_same( $up_toman, $up_store(), 'the upgrade of a Toman-mode store persists the currency the old plugin forced at runtime' );
 usdtf_it_assert_same( 'toman', get_option( \USDTF\Database::OPTION_UPGRADE_NOTICE ), 'the upgrade of a Toman-mode store leaves a one-time notice' );
 
-foreach ( array_keys( $old_metas ) as $meta_key ) {
+// The old Toman source and derived prices stay as inert meta: for a store in
+// the removed USD-store mode they are the only copy of its Toman prices.
+$legacy_metas = array( '_usdtf_source_regular', '_usdtf_source_sale', '_usdtf_derived_regular', '_usdtf_derived_sale' );
+usdtf_it_assert_same( $legacy_metas, \USDTF\Product_Pricing::LEGACY_META_KEYS, 'the legacy meta keys are listed for the uninstall purge' );
+
+foreach ( $old_metas as $meta_key => $meta_value ) {
+	if ( in_array( $meta_key, $legacy_metas, true ) ) {
+		usdtf_it_assert_same( $meta_value, usdtf_it_meta( $old_pid, $meta_key ), 'the upgrade keeps ' . $meta_key . ' on the first product' );
+		usdtf_it_assert_same( $meta_value, usdtf_it_meta( $kept_pid, $meta_key ), 'the upgrade keeps ' . $meta_key . ' on the second product' );
+		continue;
+	}
+
 	usdtf_it_assert_same( '', usdtf_it_meta( $old_pid, $meta_key ), 'the upgrade deletes ' . $meta_key . ' from the first product' );
 	usdtf_it_assert_same( '', usdtf_it_meta( $kept_pid, $meta_key ), 'the upgrade deletes ' . $meta_key . ' from the second product' );
 }
@@ -865,6 +876,10 @@ usdtf_it_assert_same(
 	\USDTF\Product_Pricing::meta_keys(),
 	'meta_keys() lists exactly the new key set'
 );
+
+foreach ( \USDTF\Product_Pricing::LEGACY_META_KEYS as $legacy_key ) {
+	usdtf_it_assert( ! in_array( $legacy_key, \USDTF\Product_Pricing::meta_keys(), true ), 'the inert legacy key ' . $legacy_key . ' is not part of the model' );
+}
 
 $doomed     = usdtf_it_make_priced_product( 'Doomed product', 5000000, 4320000, 'managed' );
 $doomed_id  = $doomed->get_id();

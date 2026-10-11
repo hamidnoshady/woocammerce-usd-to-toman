@@ -3,8 +3,9 @@
  * Uninstall routine.
  *
  * Removes the plugin's options, cron events and custom tables. The USD prices
- * stored on products are only removed when the store owner explicitly opted
- * in, because they are real price data. WooCommerce prices are never touched.
+ * stored on products, and the inert Toman prices a 1.1.x install left, are
+ * only removed when the store owner explicitly opted in, because they are real
+ * price data. WooCommerce prices are never touched.
  *
  * @package USDTF
  */

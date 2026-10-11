@@ -85,6 +85,16 @@ final class Product_Pricing {
 	const META_LAST_JOB = '_usdtf_last_job';
 
 	/**
+	 * Meta of the 1.1.x model that the upgrade keeps, unread: the Toman
+	 * source prices and the derived prices. For a store in the removed
+	 * USD-store mode they are the only copy of its Toman prices. Only the
+	 * opt-in data purge on uninstall removes them.
+	 *
+	 * @var string[]
+	 */
+	const LEGACY_META_KEYS = array( '_usdtf_source_regular', '_usdtf_source_sale', '_usdtf_derived_regular', '_usdtf_derived_sale' );
+
+	/**
 	 * Settings.
 	 *
 	 * @var Settings
