@@ -7,6 +7,7 @@
 
 namespace USDTF;
 
+use USDTF\Admin\Admin;
 use USDTF\Admin\Rest_Controller;
 
 defined( 'ABSPATH' ) || exit;
@@ -189,9 +190,10 @@ final class Health {
 			'value'       => $rate > 0 ? (string) $rate : '',
 			'description' => $rate > 0
 				? sprintf(
-					/* translators: %s: formatted rate. */
-					__( 'The manual rate is %s Toman per 1 USD.', 'usd-to-toman-price-sync-for-woocommerce' ),
-					Calculator::format_toman( $rate )
+					/* translators: 1: formatted rate, 2: its unit, "Toman per 1 USD" or "Rial per 1 USD". */
+					__( 'The manual rate is %1$s (%2$s).', 'usd-to-toman-price-sync-for-woocommerce' ),
+					Calculator::format_price( $rate ),
+					Admin::rate_label()
 				)
 				: __( 'No exchange rate is stored yet, so no product price can be calculated.', 'usd-to-toman-price-sync-for-woocommerce' ),
 		);
@@ -207,7 +209,7 @@ final class Health {
 				'description' => sprintf(
 					/* translators: 1: pending rate, 2: percentage change. */
 					__( 'The rate %1$s was submitted but is a %2$s%% move and waits for explicit confirmation. Until then the active rate stays unchanged.', 'usd-to-toman-price-sync-for-woocommerce' ),
-					Calculator::format_toman( (float) $pending['rate'] ),
+					Calculator::format_price( (float) $pending['rate'] ),
 					number_format_i18n( (float) $pending['change_percent'], 2 )
 				),
 			);
@@ -335,25 +337,25 @@ final class Health {
 			'description' => __( 'The worker processes small batches, so 128 MB or more keeps variable products with many variations comfortable.', 'usd-to-toman-price-sync-for-woocommerce' ),
 		);
 
-		$checks[] = array(
-			'id'          => 'currency_mode',
-			'label'       => __( 'Transaction currency', 'usd-to-toman-price-sync-for-woocommerce' ),
-			'status'      => 'good',
-			'value'       => (string) $this->settings->get( 'currency_mode' ),
-			'description' => $this->settings->is_toman_mode()
-				? __( 'Mode B: WooCommerce transacts in Toman and the derived USD price is kept as an internal reference.', 'usd-to-toman-price-sync-for-woocommerce' )
-				: __( 'Mode A: WooCommerce transacts in USD and the storefront displays the canonical Toman price.', 'usd-to-toman-price-sync-for-woocommerce' ),
-		);
+		$supported = Store_Currency::is_supported();
 
-		if ( $this->settings->currency_mode_is_stale() ) {
-			$checks[] = array(
-				'id'          => 'currency_mode_stale',
-				'label'       => __( 'Currency mode change pending', 'usd-to-toman-price-sync-for-woocommerce' ),
-				'status'      => 'critical',
-				'value'       => '',
-				'description' => __( 'The transaction currency was switched after the last full synchronization. Run a full update so every price field holds the right currency.', 'usd-to-toman-price-sync-for-woocommerce' ),
-			);
-		}
+		$checks[] = array(
+			'id'          => 'store_currency',
+			'label'       => __( 'Store currency', 'usd-to-toman-price-sync-for-woocommerce' ),
+			'status'      => $supported ? 'good' : 'critical',
+			'value'       => Store_Currency::code(),
+			'description' => $supported
+				? sprintf(
+					/* translators: %s: store currency, such as "Toman (IRT)". */
+					__( 'The WooCommerce store currency is %s. Prices and the exchange rate use this unit.', 'usd-to-toman-price-sync-for-woocommerce' ),
+					Admin::currency_label()
+				)
+				: sprintf(
+					/* translators: %s: WooCommerce currency code. */
+					__( 'The WooCommerce store currency is %s, so no price update can run. Set the store currency to Iranian Toman or Rial.', 'usd-to-toman-price-sync-for-woocommerce' ),
+					Store_Currency::code()
+				),
+		);
 
 		$summary = $this->products->summary( $rate );
 
@@ -363,13 +365,11 @@ final class Health {
 			'status'      => 'good',
 			'value'       => (string) $summary['managed'],
 			'description' => sprintf(
-				/* translators: 1: managed products, 2: managed variations, 3: native products, 4: excluded products, 5: products without a mode. */
-				__( '%1$d managed products and %2$d managed variations. %3$d products keep a native USD price, %4$d are excluded and %5$d have no explicit mode yet.', 'usd-to-toman-price-sync-for-woocommerce' ),
+				/* translators: 1: managed products, 2: managed variations, 3: excluded products. */
+				__( '%1$d managed products and %2$d managed variations. %3$d products are excluded.', 'usd-to-toman-price-sync-for-woocommerce' ),
 				(int) $summary['managed'],
 				(int) $summary['managed_variations'],
-				(int) $summary['native'],
-				(int) $summary['excluded'],
-				(int) $summary['unset']
+				(int) $summary['excluded']
 			),
 		);
 
@@ -381,7 +381,7 @@ final class Health {
 				'label'       => __( 'Another currency plugin is active', 'usd-to-toman-price-sync-for-woocommerce' ),
 				'status'      => 'recommended',
 				'value'       => $conflict_plugin,
-				'description' => __( 'Multiple plugins that change the WooCommerce currency can fight over the same hooks. This plugin should be the only currency switcher with Toman mode enabled.', 'usd-to-toman-price-sync-for-woocommerce' ),
+				'description' => __( 'Another plugin that changes the WooCommerce currency can change the unit this plugin prices in. Keep the store currency at Iranian Toman or Rial while this plugin manages prices.', 'usd-to-toman-price-sync-for-woocommerce' ),
 			);
 		}
 

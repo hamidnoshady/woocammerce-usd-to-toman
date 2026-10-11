@@ -10,7 +10,6 @@
 
 namespace USDTF\Admin;
 
-use USDTF\Calculator;
 use USDTF\Capabilities;
 use USDTF\Health;
 use USDTF\Job;
@@ -579,15 +578,16 @@ final class Rest_Controller {
 	public function get_state() {
 		$state = $this->runner->state();
 
-		$state['rate_history'] = $this->format_history( 10 );
-		$state['jobs']         = array_map(
+		$state['store_currency'] = Admin::store_currency();
+		$state['rate_history']   = $this->format_history( 10 );
+		$state['jobs']           = array_map(
 			static function ( Job $job ) {
 				return $job->to_array();
 			},
 			$this->jobs->query( array( 'limit' => 5 ) )
 		);
-		$state['checks']       = $this->health->checks();
-		$state['can']          = array(
+		$state['checks']         = $this->health->checks();
+		$state['can']            = array(
 			'manage'   => Capabilities::current_user_can(),
 			'rollback' => $this->rates->previous_rate() > 0,
 		);
@@ -908,15 +908,12 @@ final class Rest_Controller {
 				continue;
 			}
 
-			$source = $this->pricing->get_source( $product_id );
-
 			$results[] = array(
-				'id'       => (int) $product_id,
-				'name'     => $product->get_name(),
-				'type'     => $product->get_type(),
-				'mode'     => $this->pricing->get_mode( $product_id ),
-				'toman'    => null === $source['regular'] ? '' : Calculator::format_toman( $source['regular'] ),
-				'currency' => (string) $this->settings->get( 'currency_mode' ),
+				'id'          => (int) $product_id,
+				'name'        => $product->get_name(),
+				'type'        => $product->get_type(),
+				'mode'        => $this->pricing->get_mode( $product_id ),
+				'usd_regular' => (string) get_post_meta( $product_id, Product_Pricing::META_USD_REGULAR, true ),
 			);
 		}
 
@@ -934,30 +931,41 @@ final class Rest_Controller {
 		$product_id = (int) $item['object_id'];
 
 		return array(
-			'id'            => (int) $item['id'],
-			'object_id'     => $product_id,
-			'parent_id'     => (int) $item['parent_id'],
-			'object_type'   => (string) $item['object_type'],
-			'name'          => $product ? $product->get_name() : sprintf(
+			'id'           => (int) $item['id'],
+			'object_id'    => $product_id,
+			'parent_id'    => (int) $item['parent_id'],
+			'object_type'  => (string) $item['object_type'],
+			'name'         => $product ? $product->get_name() : sprintf(
 				/* translators: %d: product ID. */
 				__( 'Product #%d', 'usd-to-toman-price-sync-for-woocommerce' ),
 				$product_id
 			),
-			'edit_link'     => (string) get_edit_post_link( $product_id, 'raw' ),
-			'status'        => (string) $item['status'],
-			'toman_regular' => null === $item['toman_regular'] ? null : (float) $item['toman_regular'],
-			'toman_sale'    => null === $item['toman_sale'] ? null : (float) $item['toman_sale'],
-			'old_regular'   => null === $item['old_regular'] ? null : (float) $item['old_regular'],
-			'old_sale'      => null === $item['old_sale'] ? null : (float) $item['old_sale'],
-			'new_regular'   => null === $item['new_regular'] ? null : (float) $item['new_regular'],
-			'new_sale'      => null === $item['new_sale'] ? null : (float) $item['new_sale'],
-			'attempts'      => (int) $item['attempts'],
-			'message'       => (string) $item['message'],
-			'child_cursor'  => (int) $item['child_cursor'],
-			'child_total'   => (int) $item['child_total'],
-			'mode'          => $this->pricing->get_mode( $product_id ),
-			'revision'      => $this->pricing->get_revision( $product_id ),
+			'edit_link'    => (string) get_edit_post_link( $product_id, 'raw' ),
+			'status'       => (string) $item['status'],
+			'status_label' => Admin::item_status_label( (string) $item['status'] ),
+			// The USD prices keep their stored 2-decimal strings.
+			'usd_regular'  => self::price_or_null( $item['usd_regular'] ),
+			'usd_sale'     => self::price_or_null( $item['usd_sale'] ),
+			'old_regular'  => null === $item['old_regular'] ? null : (float) $item['old_regular'],
+			'old_sale'     => null === $item['old_sale'] ? null : (float) $item['old_sale'],
+			'new_regular'  => null === $item['new_regular'] ? null : (float) $item['new_regular'],
+			'new_sale'     => null === $item['new_sale'] ? null : (float) $item['new_sale'],
+			'attempts'     => (int) $item['attempts'],
+			'message'      => (string) $item['message'],
+			'child_cursor' => (int) $item['child_cursor'],
+			'child_total'  => (int) $item['child_total'],
+			'mode'         => $this->pricing->get_mode( $product_id ),
 		);
+	}
+
+	/**
+	 * A stored price string, or null when there is none.
+	 *
+	 * @param mixed $value Stored value.
+	 * @return string|null
+	 */
+	private static function price_or_null( $value ) {
+		return ( null === $value || '' === $value ) ? null : (string) $value;
 	}
 
 	/**
