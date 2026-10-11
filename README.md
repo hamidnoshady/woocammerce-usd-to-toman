@@ -26,7 +26,9 @@ store moves between Toman and Rial, every job is refused until the rate is saved
 Upgrading from 1.1.x: a store in the old Toman mode keeps its storefront (the upgrade sets the
 WooCommerce currency to Toman, `IRT`, no decimals, once, with a notice). A store in the old USD-store
 mode must set the WooCommerce currency to Toman or Rial and review its prices; its old Toman prices
-are kept in hidden product meta and the plugin starts no job until then. A Rial store keeps Rial.
+are kept in hidden product meta and the plugin starts no job until then. A store that was in Toman
+mode is set to Toman once (the old plugin forced it); a store you move to Rial after the upgrade
+stays in Rial.
 
 The design of the pegged model is in
 [docs/superpowers/specs/2026-10-11-usd-pegged-pricing-design.md](docs/superpowers/specs/2026-10-11-usd-pegged-pricing-design.md);

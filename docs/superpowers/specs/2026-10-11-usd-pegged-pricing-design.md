@@ -39,8 +39,8 @@ keeping the old modes working.
 
 ## 4. Data model
 
-Versions 1.0.0 to 1.1.5 were released, so the upgrade carries a store over once (ruling R16, section
-9): an old Toman-mode store keeps the storefront currency the old plugin forced at runtime, the inert
+Versions 1.0.0 to 1.1.5 were released, so the upgrade carries a store over once instead of
+dropping the old modes without a trace (section 9): an old Toman-mode store keeps the storefront currency the old plugin forced at runtime, the inert
 Toman source and derived prices are kept, and the rest of the obsolete data is removed.
 
 ### 4.1 Product and variation meta
@@ -169,15 +169,26 @@ fallback, require preview, capability, rate-change threshold, credit line, delet
   `usd_*`, the `generated`/`rebased` counters and `jobs.unit`). The obsolete columns stay in place,
   unused: `dbDelta` never drops columns and the SQLite test driver differs from MySQL. Old job
   history rows keep their status and message.
-- An old install (its settings still hold keys of the old model, or `usdtf_synced_currency_mode`
-  exists) is carried over before the settings keys are dropped (ruling R16). In Toman mode (also when
-  no mode was stored) the old plugin forced `woocommerce_currency` = `IRT`,
+- An old install is carried over before the settings keys are dropped. It is recognised by at least
+  one settings key only the old model wrote (`currency_mode`, `display_toman`, `display_toman_cart`,
+  `persian_digits`, `toman_suffix`, `decimals`, `auto_manage_new_products`) or by the option
+  `usdtf_synced_currency_mode`; a key a later release drops from the settings is no sign of an old
+  install. The decision: a store keeps the storefront it had, and the owner is told what happened.
+  In Toman mode (also when no mode was stored) the old plugin forced `woocommerce_currency` = `IRT`,
   `woocommerce_price_num_decimals` = `0` and `woocommerce_currency_pos` = `right_space` at runtime
-  only; the upgrade writes those of the three that differ, once, and leaves a one-time notice. In
-  USD-store mode no WooCommerce option changes; the notice says the mode was removed, that the store
-  currency must be set to Toman or Rial and the prices reviewed, and that the old Toman prices are
-  kept in hidden meta. The notice shows on every admin screen to users with the plugin capability
-  until it is dismissed (nonce and capability checked). A fresh install changes nothing.
+  only; the upgrade writes those of the three that differ, once. There are three notice variants:
+  - Old Toman-mode store: when at least one of the three options was written, a one-time notice says
+    so. A store that already had all three values gets no such notice.
+  - Old Toman-mode store whose prices were last written in USD mode
+    (`usdtf_synced_currency_mode` = `usd`): the same options are written, but the notice asks the
+    owner to review the prices before the next update, because they still hold USD amounts, and
+    says that the Toman prices are kept in the hidden `_usdtf_source_*` meta. It is stored even when
+    no option needed writing.
+  - Old USD-store mode: no WooCommerce option changes; the notice says the mode was removed, that the
+    store currency must be set to Toman or Rial and the prices reviewed, and that the old Toman prices
+    are kept in hidden meta.
+  The notice shows on every admin screen to users with the plugin capability until it is dismissed
+  (nonce and capability checked). A fresh install changes nothing.
 - The inert legacy meta of section 4.1 is kept. An existing rate is recorded as a Toman rate (the
   old plugin's rate was always Toman per 1 USD); a rate saved before the unit was stored adopts the
   store's current unit.

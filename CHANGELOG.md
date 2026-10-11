@@ -34,26 +34,20 @@ shows or forces a currency. See "Changed" and "Removed" before upgrading.
 - Rolling back a rate change recalculates USD price x previous rate; a product edited by hand in the
   meantime keeps its edit and is listed as re-based.
 - A product edited during a running job is recorded as a conflict (detected by comparing the stored
-  prices) and nothing is written for it.
+  prices, read again past the request's caches, so a price changed meanwhile by another request or a
+  direct database write is never overwritten) and nothing is written for it.
 - "Outdated only" means no USD price yet, or a stored rate that differs from the current rate.
 - The Persian translation follows the new wording.
 - Upgrading a 1.1.x store in Toman mode (the default) sets the WooCommerce currency to Toman (`IRT`),
   0 decimals and the symbol after the price, once and only where it differs: the values the old plugin
   forced at runtime, so the storefront stays as it was. A one-time admin notice says so. A store in
   the removed USD-store mode keeps its WooCommerce settings; its notice asks to set the currency to
-  Toman or Rial and to review the prices, and the plugin starts no job until then. A store you set to
-  Rial (`IRR`) stays in Rial.
+  Toman or Rial and to review the prices, and the plugin starts no job until then. A store that was in
+  Toman mode is set to Toman once (the old plugin forced it); a store you move to Rial after the
+  upgrade stays in Rial.
 - The rate is stored with its unit. After the store moves between Toman and Rial every job (dry run,
   update, rollback, recalculate) is refused with `usdtf_unit_changed` until the rate is saved again
   in the new unit; a dry run made in the other unit never unlocks an update.
-
-### Fixed
-
-- The conflict check before a write reads the WooCommerce price again past the request's caches, so
-  a price changed meanwhile by another request or a direct database write is a conflict and is never
-  overwritten.
-- Activating the plugin without WooCommerce (WordPress 6.2 to 6.4 do not enforce "Requires Plugins")
-  no longer fails: the currency is read from the stored WooCommerce option.
 
 ### Removed
 

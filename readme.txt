@@ -97,7 +97,7 @@ Iranian Toman (IRT) and Iranian Rial (IRR). The plugin reads the unit from the W
 
 = Upgrading from 1.1.x =
 
-In the old Toman mode (the default) the plugin switched WooCommerce to Toman only while it ran. The 1.2.0 upgrade sets the WooCommerce currency to Iranian Toman (IRT, no decimals, symbol after the price) once, so the storefront stays as it was, and shows a notice. In the old USD-store mode no WooCommerce setting is changed: set the store currency to Toman or Rial and review your prices; the plugin starts no job until then, and the old Toman prices stay in hidden product meta. A store you set to Rial (IRR) stays in Rial. If you later move the store between Toman and Rial, save the rate again in the new unit: until then every job is refused.
+In the old Toman mode (the default) the plugin switched WooCommerce to Toman only while it ran. The 1.2.0 upgrade sets the WooCommerce currency to Iranian Toman (IRT, no decimals, symbol after the price) once, so the storefront stays as it was, and shows a notice. In the old USD-store mode no WooCommerce setting is changed: set the store currency to Toman or Rial and review your prices; the plugin starts no job until then, and the old Toman prices stay in hidden product meta. A store that was in Toman mode is set to Toman once (the old plugin forced it); a store you move to Rial after the upgrade stays in Rial. A customised Toman suffix or Persian-digit display setting from 1.1.x is no longer used: WooCommerce's own currency symbol and formatting apply. If you later move the store between Toman and Rial, save the rate again in the new unit: until then every job is refused.
 
 = Does the plugin show prices in dollars to my customers? =
 
@@ -150,8 +150,7 @@ Yes. Every string uses the `usd-to-toman-price-sync-for-woocommerce` text domain
 * Removed: the Toman-store and USD-store modes, the reference Toman price fields, the currency override, the Toman display on the storefront, the Persian digits and Toman suffix options, and the "manage new products automatically" setting.
 * Changed: upgrading a 1.1.x store in Toman mode sets the WooCommerce currency to Toman (IRT, no decimals, symbol after the price) once, the value the old plugin applied at runtime, and shows a notice. A store in the removed USD-store mode keeps its WooCommerce settings and gets a notice to set the currency to Toman or Rial and review its prices.
 * Added: the rate remembers its unit. After the store moves between Toman and Rial every job is refused until the rate is saved again in the new unit.
-* Fixed: the conflict check reads the price again from the database, so a price changed meanwhile by another request is never overwritten.
-* Fixed: activating the plugin without WooCommerce no longer causes a fatal error.
+* Changed: the conflict check before a write reads the price again past the request's caches, so a price changed meanwhile by another request is never overwritten.
 * Removed: the upgrade deletes the obsolete settings and product data. The old Toman source prices are kept as hidden product meta (removed by "Delete data on uninstall"). Old job history rows are kept.
 
 = 1.1.5 =
@@ -228,7 +227,7 @@ Production audit release: every finding of the production audit is fixed and cov
 == Upgrade Notice ==
 
 = 1.2.0 =
-Behaviour change: pricing is now dollar-pegged. The old Toman-store and USD-store modes and the reference Toman price fields are gone, and every product is managed by default. A Toman-mode store keeps its storefront: the upgrade sets the WooCommerce currency to Toman (IRT) once and shows a notice. A USD-store-mode store must set the WooCommerce currency to Toman or Rial and review its prices; the old Toman prices are kept in hidden meta and the plugin starts no job until then. The first run only records USD prices and changes no price; run a dry run before your first update.
+Behaviour change: pricing is now dollar-pegged. The store currency must be Iranian Toman (IRT) or Rial (IRR). Stores in Toman mode are set to Toman once. Stores in USD mode must set the currency and review their prices. The first run only records USD prices and changes no price.
 
 = 1.1.5 =
 Declare compatibility with WordPress 7.1
