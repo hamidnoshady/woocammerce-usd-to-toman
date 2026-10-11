@@ -10,6 +10,10 @@ Usage:
 
     python3 wordpress-org/make-artwork.py --font-dir=/path/to/ttf --out=wordpress-org
 
+The screens use the plugin's own wording: every plugin string is looked up by its
+msgid in `languages/*-fa_IR.po`, so the English text is the real source string and
+the Persian screenshot shows the translation that ships with the plugin.
+
 Persian strings go through `shape_fa.shape()`: Pillow has no complex text layout
 (raqm), so without shaping the letters would be drawn disconnected and in the wrong
 order. Everything is drawn at the size the listing expects, except the half size
@@ -19,6 +23,8 @@ Requires Pillow (`pip install Pillow`) and the Vazirmatn font (SIL OFL 1.1).
 """
 
 import argparse
+import json
+import re
 import sys
 from pathlib import Path
 
@@ -72,7 +78,11 @@ class Art:
         key = (weight, size)
 
         if key not in self._cache:
-            self._cache[key] = ImageFont.truetype(str(self.fonts[weight]), size)
+            # The basic layout engine on purpose: the Persian text is shaped and
+            # reordered by shape_fa already, and raqm would reorder it a second time.
+            self._cache[key] = ImageFont.truetype(
+                str(self.fonts[weight]), size, layout_engine=ImageFont.Layout.BASIC
+            )
 
         return self._cache[key]
 
@@ -142,35 +152,6 @@ class Art:
         cls.text_at(draw, round(right - width), y, text, font, fill)
 
 
-def button(art: Art, draw, x: int, y: int, label: str, primary: bool = False) -> int:
-    font = art.font("SemiBold", 17)
-    width, height = art.measure(draw, label, font)
-    box = (x, y, x + width + 44, y + 38)
-
-    if primary:
-        art.roundrect(draw, box, 4, LINK)
-    else:
-        art.roundrect(draw, box, 4, "#F6F7F7")
-        draw.rounded_rectangle(box, radius=4, outline=LINK, width=1)
-
-    art.text_center(draw, box, label, font, WHITE if primary else LINK)
-
-    return box[2] - box[0]
-
-
-def input_field(art: Art, draw, x: int, y: int, width: int, height: int, value: str, rtl: bool = False) -> None:
-    art.roundrect(draw, (x, y, x + width, y + height), 4, CARD)
-    draw.rectangle((x, y, x + width, y + height), outline="#8C8F94")
-    font = art.font("Regular", 17)
-
-    if rtl:
-        art.text_right(draw, 0, y + (height - 22) / 2, x + width - 12, value, font, INK)
-
-        return
-
-    art.text_at(draw, x + 12, y + (height - 22) / 2, value, font, INK)
-
-
 # ---------------------------------------------------------------------------
 # Icons and banners.
 # ---------------------------------------------------------------------------
@@ -221,8 +202,8 @@ def make_banner(art: Art, out: Path) -> None:
 
     line = art.font("Regular", 24)
 
-    art.text_at(draw, 82, 258, "Manual rate  ·  Dry run before every write  ·  Queued background updates", line, SOFT)
-    art.text_at(draw, 82, 300, "WooCommerce CRUD writes  ·  Rate history and rollback  ·  Persian translation included", line, SOFT)
+    art.text_at(draw, 82, 258, "USD-pegged prices  ·  Manual rate  ·  Dry run before every write", line, SOFT)
+    art.text_at(draw, 82, 300, "Queued background updates  ·  Rate history and rollback  ·  Persian translation included", line, SOFT)
 
     card_box = (1058, 118, 1462, 382)
     art.card(draw, card_box)
@@ -230,17 +211,19 @@ def make_banner(art: Art, out: Path) -> None:
     mut = art.font("Medium", 19)
     ink = art.font("Medium", 25)
 
+    # One product, as the plugin shows it: the WooCommerce price, the USD price it
+    # is pegged to, and the price after a rate change (270,000 -> 300,000).
     art.text_at(draw, 1086, 142, "Rate: 270,000 Toman per $1", mut, MUTED)
     art.text_right(draw, 0, 142, 1434, shape("نرخ ارز"), mut, MUTED)
 
-    art.text_at(draw, 1086, 184, "Canonical Toman price", ink, INK)
-    art.text_at(draw, 1086, 214, shape("۵,۰۰۰,۰۰۰ تومان"), art.font("Bold", 34), INK)
+    art.text_at(draw, 1086, 184, "WooCommerce price", ink, INK)
+    art.text_at(draw, 1086, 214, "5,000,000 Toman", art.font("Bold", 34), INK)
 
     draw.line((1086, 276, 1434, 276), fill=BORDER)
 
-    art.text_at(draw, 1086, 296, "Derived USD price", ink, MUTED)
-    art.text_at(draw, 1086, 326, "$19", art.font("Bold", 34), LINK)
-    art.text_at(draw, 1180, 342, "ceil(5,000,000 / 270,000) = 19", art.font("Regular", 18), MUTED)
+    art.text_at(draw, 1086, 296, "USD price", ink, MUTED)
+    art.text_at(draw, 1086, 326, "$18.52", art.font("Bold", 34), LINK)
+    art.text_at(draw, 1214, 342, "At 300,000: 5,556,000", art.font("Regular", 18), MUTED)
 
     image.convert("RGB").save(out)
 
@@ -267,13 +250,125 @@ MENU = (
     ("Settings", False),
 )
 
+# The same WordPress menu in the fa_IR admin. Core and WooCommerce labels are not
+# part of this plugin's catalog, so they are written out here.
+MENU_FA = {
+    "WooCommerce": "ووکامرس",
+    "Dashboard": "پیشخوان",
+    "Posts": "نوشته‌ها",
+    "Media": "رسانه",
+    "Pages": "برگه‌ها",
+    "Products": "محصولات",
+    "Orders": "سفارش‌ها",
+    "Analytics": "تحلیل‌ها",
+    "Appearance": "نمایش",
+    "Plugins": "افزونه‌ها",
+    "Settings": "تنظیمات",
+}
+
+# Colors of the status pills, as in assets/css/admin.css.
+PILLS = {
+    "changed": ("#EDFAEF", "#1E6B2F"),
+    "managed": ("#EDFAEF", "#1E6B2F"),
+    "unchanged": ("#EEF4FB", "#1D4D7A"),
+    "generated": ("#F3EEFB", "#4B2A7A"),
+    "rebased": ("#F3EEFB", "#4B2A7A"),
+    "skipped": ("#FBF5E6", "#7A5A12"),
+    "excluded": ("#FBF5E6", "#7A5A12"),
+    "failed": ("#FCEBEA", "#8A1F11"),
+    "conflict": ("#FCEBEA", "#8A1F11"),
+}
+
+STRIPE = "#F6F7F7"
+FIELD_BORDER = "#8C8F94"
+
+_PLACEHOLDER = re.compile(r"%(?:(\d+)\$)?[sd]|%%")
+
+_CATALOG = {}
+
+
+def load_catalog(path: Path) -> dict:
+    """Read the msgid => msgstr pairs of a PO file (fuzzy, plural and context entries are skipped)."""
+    catalog = {}
+
+    for block in path.read_text(encoding="utf-8").split("\n\n"):
+        lines = block.strip("\n").split("\n")
+
+        if any(line.startswith(("#, fuzzy", "#~", "msgctxt", "msgid_plural")) for line in lines):
+            continue
+
+        fields = {"msgid": [], "msgstr": []}
+        current = None
+
+        for line in lines:
+            if line.startswith("msgid "):
+                current, line = "msgid", line[6:]
+            elif line.startswith("msgstr "):
+                current, line = "msgstr", line[7:]
+            elif not line.startswith('"'):
+                continue
+
+            if current:
+                fields[current].append(json.loads(line))
+
+        msgid, msgstr = "".join(fields["msgid"]), "".join(fields["msgstr"])
+
+        if msgid and msgstr:
+            catalog[msgid] = msgstr
+
+    return catalog
+
+
+class Tx:
+    """The plugin's own strings, in English or from the bundled fa_IR translation.
+
+    Every plugin string goes through here by its msgid, so the mock-ups can only
+    use wording that exists in the plugin, and the Persian ones are the shipped
+    translation. A msgid that is not in the catalog stops the generator.
+    """
+
+    def __init__(self, rtl: bool):
+        self.rtl = rtl
+
+        if not _CATALOG:
+            po = Path(__file__).resolve().parent.parent / "languages" / "usd-to-toman-price-sync-for-woocommerce-fa_IR.po"
+            _CATALOG.update(load_catalog(po))
+
+    def raw(self, msgid: str, *args) -> str:
+        """The string in the screenshot's language, placeholders filled, not shaped yet."""
+        if msgid not in _CATALOG:
+            sys.exit(f"The string is not in the Persian catalog (wrong wording?): {msgid!r}")
+
+        text = _CATALOG[msgid] if self.rtl else msgid
+        sequence = iter(args)
+
+        def fill(match):
+            if match.group(0) == "%%":
+                return "%"
+
+            return str(args[int(match.group(1)) - 1] if match.group(1) else next(sequence))
+
+        return _PLACEHOLDER.sub(fill, text)
+
+    def show(self, text: str) -> str:
+        """Prepare drawable text: shaped and reordered for Persian."""
+        return shape(text) if self.rtl else text
+
+    def __call__(self, msgid: str, *args) -> str:
+        return self.show(self.raw(msgid, *args))
+
 
 class Screen:
-    """The WordPress admin chrome the plugin's screens sit in."""
+    """The WordPress admin chrome the plugin's screens sit in, plus layout helpers.
+
+    Positions are offsets from the leading edge of the content column: the left
+    edge in English and the right edge in Persian, so one layout serves both.
+    """
 
     def __init__(self, art: Art, title: str, rtl: bool = False):
         self.art = art
         self.rtl = rtl
+        self.tx = Tx(rtl)
         self.image = art.canvas(1280, 800)
         self.draw = ImageDraw.Draw(self.image)
 
@@ -291,7 +386,7 @@ class Screen:
 
             if rtl:
                 # Right aligned inside the sidebar, twenty pixels off the edge.
-                art.text_right(draw, 0, y + 4, self.sidebar_x + 150, label, menu_font, color)
+                art.text_right(draw, 0, y + 4, self.sidebar_x + 150, shape(MENU_FA[label]), menu_font, color)
             else:
                 art.text_at(draw, 26, y + 4, label, menu_font, color)
 
@@ -299,332 +394,591 @@ class Screen:
         bar_right = self.sidebar_x if rtl else 1280
         draw.rectangle((bar_left, 0, bar_right, 46), fill="#1D2327")
 
-        art.text_at(draw, bar_left + 20, 14, "USD/Toman pricing", art.font("Regular", 15), "#C3C4C7")
-        art.text_right(
-            draw,
-            0,
-            14,
-            bar_right - 20,
-            "Howdy, admin",
-            art.font("Regular", 15),
-            "#C3C4C7",
-        )
+        bar_font = art.font("Regular", 15)
+        site = self.tx("USD/Toman pricing")
+        greeting = shape("سلام، admin") if rtl else "Howdy, admin"
+
+        if rtl:
+            art.text_right(draw, 0, 14, bar_right - 20, site, bar_font, "#C3C4C7")
+            art.text_at(draw, bar_left + 20, 14, greeting, bar_font, "#C3C4C7")
+        else:
+            art.text_at(draw, bar_left + 20, 14, site, bar_font, "#C3C4C7")
+            art.text_right(draw, 0, 14, bar_right - 20, greeting, bar_font, "#C3C4C7")
 
         self.left = 40 if rtl else 200
-        self.right = 1240 - (170 if not rtl else 0)
-        self.content_width = 1020
+        self.width = 1020
+        self.right = self.left + self.width
 
-        art.text_at(
-            draw,
-            self.left,
-            74,
-            title,
-            art.font("Regular", 28),
-            INK,
-        )
+        self.text(0, 74, title, art.font("Regular", 28), INK)
 
-    @property
-    def box(self):
-        return (self.left, self.content_width)
+    # -- geometry --------------------------------------------------------
+
+    def span(self, off: int, width: int) -> tuple:
+        """Absolute x range of a box that starts `off` from the leading edge."""
+        start = self.right - off - width if self.rtl else self.left + off
+
+        return start, start + width
+
+    # -- text ------------------------------------------------------------
+
+    def width_of(self, text: str, font) -> float:
+        return self.draw.textlength(text, font=font)
+
+    def text(self, off: int, top: int, text: str, font, fill) -> float:
+        """Draw text starting `off` from the leading edge. `top` is where capital letters start."""
+        baseline = top + round(font.size * 0.72)
+
+        if self.rtl:
+            self.draw.text((self.right - off, baseline), text, font=font, fill=fill, anchor="rs")
+        else:
+            self.draw.text((self.left + off, baseline), text, font=font, fill=fill, anchor="ls")
+
+        return self.width_of(text, font)
+
+    def text_trail(self, off: int, top: int, text: str, font, fill) -> float:
+        """Draw text ending `off` from the trailing edge."""
+        baseline = top + round(font.size * 0.72)
+
+        if self.rtl:
+            self.draw.text((self.left + off, baseline), text, font=font, fill=fill, anchor="ls")
+        else:
+            self.draw.text((self.right - off, baseline), text, font=font, fill=fill, anchor="rs")
+
+        return self.width_of(text, font)
+
+    def lines(self, raw: str, font, max_width: int) -> list:
+        """Break a raw string into drawable lines that fit `max_width`."""
+        words, rows, current = raw.split(" "), [], []
+
+        for word in words:
+            attempt = " ".join(current + [word])
+
+            if current and self.width_of(self.tx.show(attempt), font) > max_width:
+                rows.append(" ".join(current))
+                current = [word]
+            else:
+                current.append(word)
+
+        rows.append(" ".join(current))
+
+        return [self.tx.show(row) for row in rows]
+
+    def paragraph(self, off: int, top: int, raw: str, font, fill, max_width: int, step: int) -> int:
+        """Draw wrapped text and return the y below the last line."""
+        for line in self.lines(raw, font, max_width):
+            self.text(off, top, line, font, fill)
+            top += step
+
+        return top
+
+    # -- shapes ----------------------------------------------------------
+
+    def card(self, off: int, top: int, width: int, height: int) -> None:
+        x0, x1 = self.span(off, width)
+        self.art.card(self.draw, (x0, top, x1, top + height))
+
+    def rule(self, off: int, y: int, width: int, color: str = BORDER) -> None:
+        x0, x1 = self.span(off, width)
+        self.draw.line((x0, y, x1, y), fill=color)
+
+    def fill(self, off: int, top: int, width: int, height: int, color: str) -> None:
+        x0, x1 = self.span(off, width)
+        self.draw.rectangle((x0, top, x1, top + height), fill=color)
+
+    def button(self, off: int, top: int, label: str, primary: bool = False) -> int:
+        """A WordPress button; returns its width."""
+        font = self.art.font("SemiBold", 16)
+        width = round(self.width_of(label, font)) + 40
+        x0, x1 = self.span(off, width)
+        box = (x0, top, x1, top + 38)
+
+        if primary:
+            self.art.roundrect(self.draw, box, 4, LINK)
+        else:
+            self.art.roundrect(self.draw, box, 4, "#F6F7F7")
+            self.draw.rounded_rectangle(box, radius=4, outline=LINK, width=1)
+
+        self.art.text_center(self.draw, box, label, font, WHITE if primary else LINK)
+
+        return width
+
+    def input(self, off: int, top: int, width: int, height: int, value: str, color: str = INK) -> None:
+        x0, x1 = self.span(off, width)
+        self.draw.rectangle((x0, top, x1, top + height), fill=CARD, outline=FIELD_BORDER)
+        self.text(off + 12, top + round((height - 17 * 0.72) / 2) - 1, value, self.art.font("Regular", 17), color)
+
+    def select(self, off: int, top: int, width: int, height: int, label: str, size: int = 15) -> None:
+        """A closed select box with its arrow on the trailing side."""
+        x0, x1 = self.span(off, width)
+        self.draw.rectangle((x0, top, x1, top + height), fill=CARD, outline=FIELD_BORDER)
+
+        font = self.art.font("Regular", size)
+        self.text(off + 12, top + round((height - size * 0.72) / 2) - 1, label, font, INK)
+
+        cx = x0 + 16 if self.rtl else x1 - 16
+        cy = top + height // 2
+        self.draw.polygon([(cx - 5, cy - 2), (cx + 5, cy - 2), (cx, cy + 4)], fill=MUTED)
+
+    def pill(self, off: int, top: int, label: str, kind: str) -> int:
+        """A status badge; returns its width."""
+        font = self.art.font("SemiBold", 12)
+        width = round(self.width_of(label, font)) + 18
+        x0, x1 = self.span(off, width)
+        background, ink = PILLS[kind]
+
+        self.art.roundrect(self.draw, (x0, top, x1, top + 22), 11, background)
+        self.draw.text(((x0 + x1) / 2, top + 11), label, font=font, fill=ink, anchor="mm")
+
+        return width
+
+    def notice(self, off: int, top: int, width: int, height: int, background: str, bar: str) -> None:
+        x0, x1 = self.span(off, width)
+        self.art.roundrect(self.draw, (x0, top, x1, top + height), 4, background)
+        bar_x = x1 - 4 if self.rtl else x0
+        self.draw.rectangle((bar_x, top, bar_x + 4, top + height), fill=bar)
+
+    def checkbox(self, off: int, top: int, checked: bool) -> None:
+        x0, _ = self.span(off, 18)
+        self.draw.rectangle((x0, top, x0 + 17, top + 17), fill=CARD, outline=FIELD_BORDER)
+
+        if checked:
+            self.draw.line((x0 + 4, top + 9, x0 + 7, top + 13, x0 + 14, top + 4), fill=LINK, width=2)
 
     def save(self, path: Path) -> None:
         self.image.convert("RGB").save(path)
 
 
+def number(value: int) -> str:
+    return f"{value:,}"
+
+
 def make_screenshot_pricing(art: Art, out: Path, rtl: bool = False) -> None:
-    title = shape("قیمت‌گذاری دلار / تومان") if rtl else "USD / Toman Pricing"
-    screen = Screen(art, title, rtl)
-    draw = screen.draw
-    left, width = screen.box
+    """The rate screen: the manual rate, the typo warning, the rate history and the queue diagnostics."""
+    screen = Screen(art, Tx(rtl)("USD / Toman Pricing"), rtl)
+    t, text, font = screen.tx, screen.text, art.font
+    unit = t.raw("Toman per 1 USD")
 
-    cards = (
-        (
-            ("۱۲۴۸", shape("محصولات مدیریت‌شده")),
-            ("۳۱۲", shape("ممکن است نیاز به به‌روزرسانی داشته باشد")),
-            ("۹۳۶", shape("از پیش به‌روز")),
-            ("۴", shape("نیاز به توجه")),
-        )
-        if rtl
-        else (
-            ("1,248", "Managed products"),
-            ("312", "May need an update"),
-            ("936", "Already current"),
-            ("4", "Needs attention"),
-        )
+    # -- Manual exchange rate -------------------------------------------
+    screen.card(0, 122, 660, 382)
+    text(24, 140, t("Manual exchange rate"), font("SemiBold", 21), INK)
+
+    value_width = text(24, 178, "270,000", font("Bold", 34), INK)
+    text(24 + value_width + 12, 190, t.show(unit), font("Regular", 17), MUTED)
+    text(24, 226, t("Previous rate: %s", "268,000"), font("Regular", 15), MUTED)
+
+    text(24, 256, t("New rate (%s)", unit), font("Medium", 16), INK)
+    screen.input(24, 282, 290, 40, "270000", MUTED)
+    first = screen.button(330, 283, t("Save rate"), True)
+    screen.button(330 + first + 14, 283, t("Preview changes"))
+
+    threshold = t.raw(
+        "A change larger than %s%% must be confirmed explicitly. Saving a rate never rewrites product prices by itself.",
+        "15.00",
+    )
+    screen.paragraph(24, 340, threshold, font("Regular", 14), MUTED, 612, 20)
+
+    # The typo guard: a tenfold rate waits for an explicit confirmation.
+    screen.notice(24, 382, 612, 54, NOTICE_BG, "#DBA617")
+    text(44, 393, t("A rate is waiting for confirmation:"), font("SemiBold", 15), NOTICE_INK)
+    pending = t.raw("%1$s (%2$s%% change) submitted by %3$s.", "2,700,000 " + unit, "900.00", "admin")
+    text(44, 414, t.show(pending), font("Regular", 15), NOTICE_INK)
+
+    update = screen.button(24, 450, t("Update prices now"), True)
+    screen.button(24 + update + 14, 450, t("Dry run"))
+
+    # -- Catalog overview -----------------------------------------------
+    screen.card(680, 122, 340, 382)
+    text(704, 140, t("Catalog overview"), font("SemiBold", 21), INK)
+
+    stats = (
+        ("1,248", "Managed products"),
+        ("612", "Managed variations"),
+        ("1,196", "May need an update"),
+        ("4", "Excluded products"),
     )
 
-    card_width, gap = 246, 20
+    for index, (value, label) in enumerate(stats):
+        column, row = index % 2, index // 2
+        x, y = 704 + column * 158, 178 + row * 80
 
-    for index, (value, label) in enumerate(cards):
-        x = left + index * (card_width + gap)
+        text(x, y, value, font("Bold", 30), LINK)
+        screen.paragraph(x, y + 38, t.raw(label), font("Regular", 14), MUTED, 140, 19)
 
-        art.card(draw, (x, 130, x + card_width, 230))
-        art.text_at(draw, x + 20, 146, value, art.font("Bold", 34), LINK)
-        art.text_at(draw, x + 20, 194, label, art.font("Regular", 15), MUTED)
-
-    top, height = 254, 318
-
-    art.card(draw, (left, top, left + width, top + height))
-
-    label = shape("نرخ ارز دستی (تومان برای هر ۱ دلار)") if rtl else "Manual exchange rate (Toman per 1 USD)"
-
-    art.text_at(draw, left + 24, top + 22, label, art.font("SemiBold", 21), INK)
-    input_field(art, draw, left + 24, top + 64, 320, 42, "270000", rtl)
-
-    save_label = shape("ذخیرهٔ نرخ") if rtl else "Save rate"
-    preview_label = shape("پیش‌نمایش تغییرها") if rtl else "Preview changes"
-
-    button(art, draw, left + 360, top + 66, save_label, True)
-    button(art, draw, left + 520, top + 66, preview_label)
-
-    note = (
-        shape("نرخ پیشین: ۲۶۸,۰۰۰ · آخرین به‌روزرسانی: ۳ ساعت پیش · ذخیرهٔ نرخ هرگز قیمت‌ها را تغییر نمی‌دهد.")
-        if rtl
-        else "Previous rate: 268,000 · Last updated: 3 hours ago · Saving the rate never rewrites prices."
+    hint = t.raw(
+        "“May need an update” counts managed products without a USD price or whose stored rate is not the current rate. "
+        "The exact number of price changes is calculated by the dry run."
     )
+    screen.paragraph(704, 346, hint, font("Regular", 13), MUTED, 292, 18)
 
-    art.text_at(draw, left + 24, top + 130, note, art.font("Regular", 16), MUTED)
+    currency = t.raw("%1$s (%2$s)", t.raw("Toman"), "IRT")
+    meta = t.raw("Store currency: %1$s. Products in the catalog: %2$s.", currency, "1,252")
+    screen.paragraph(704, 442, meta, font("Regular", 13), MUTED, 292, 18)
 
-    warning = (
-        shape("تغییری بزرگ‌تر از ۱۵٪ باید صریحاً تأیید شود. یک تغییر نرخ هرگز خودبه‌خود قیمت‌ها را بازنویسی نمی‌کند.")
-        if rtl
-        else "A change larger than 15% must be confirmed explicitly. Saving a rate never rewrites prices by itself."
-    )
+    # -- Rate history ---------------------------------------------------
+    screen.card(0, 520, 660, 232)
+    text(24, 538, t("Rate history"), font("SemiBold", 21), INK)
 
-    art.roundrect(draw, (left + 24, top + 168, left + 664, top + 212), 4, NOTICE_BG)
-    draw.rectangle((left + 24, top + 168, left + 28, top + 212), fill="#DBA617")
-    art.text_at(draw, left + 44, top + 180, warning, art.font("Regular", 16), NOTICE_INK)
+    columns = ((24, "Rate"), (118, "Change"), (204, "By"), (270, "Changed"), (424, "Products"))
+    head = font("SemiBold", 13)
 
-    # Rate history: the audit trail behind every price change.
-    history_label = shape("تاریخچهٔ نرخ") if rtl else "Rate history"
+    for off, label in columns:
+        text(off, 580, t(label), head, MUTED)
 
-    art.text_at(draw, left + 24, top + 232, history_label, art.font("SemiBold", 17), INK)
+    screen.rule(12, 602, 636)
 
     history = (
-        (
-            (shape("۲۷۰,۰۰۰ تومان برای هر ۱ دلار"), shape("امروز · توسط مدیر"), "فعال"),
-            (shape("۲۶۸,۰۰۰ تومان برای هر ۱ دلار"), shape("۳ روز پیش · توسط مدیر"), ""),
-        )
-        if rtl
-        else (
-            ("270,000 Toman per 1 USD", "today · by admin", "active"),
-            ("268,000 Toman per 1 USD", "3 days ago · by admin", ""),
-        )
+        ("270,000", "0.75%", "admin", "2026-10-08 10:42", ("1,248", "1,196")),
+        ("268,000", "1.13%", "admin", "2026-10-02 09:15", ("1,239", "1,231")),
+        ("265,000", "—", "admin", "2026-09-24 16:03", ("1,226", "0")),
     )
+    body = font("Regular", 14)
 
-    for index, (row_label, meta, badge) in enumerate(history):
-        y = top + 264 + index * 30
+    for index, (rate, change, user, when, (checked, changed)) in enumerate(history):
+        y = 614 + index * 30
 
-        art.text_at(draw, left + 24, y, row_label, art.font("Regular", 16), INK)
-        art.text_at(draw, left + 300, y, meta, art.font("Regular", 16), MUTED)
+        text(24, y, rate, font("SemiBold", 14), INK)
+        text(118, y, change, body, INK)
+        text(204, y, user, body, INK)
+        text(270, y, when, body, MUTED)
+        text(424, y, t("%1$s checked / %2$s changed", checked, changed), body, MUTED)
 
-        if badge:
-            art.text_at(draw, left + 500, y, badge, art.font("SemiBold", 16), GREEN)
+    text(24, 714, t("Full history and CSV export"), font("Regular", 14), LINK)
 
-    health = (
-        shape("Action Scheduler در دسترس است: به‌روزرسانی‌ها در پس‌زمینه اجرا می‌شوند و به باز ماندن مرورگر نیاز ندارند.")
-        if rtl
-        else "Action Scheduler is available: updates run in the background and do not need an open browser tab."
-    )
-
-    art.roundrect(draw, (left, 596, left + width, 642), 4, OK_BG)
-    art.text_at(draw, left + 20, 610, health, art.font("Regular", 16), OK_INK)
+    # -- Background queue -----------------------------------------------
+    screen.card(680, 520, 340, 232)
+    text(704, 538, t("Background queue"), font("SemiBold", 21), INK)
 
     queue = (
-        shape("صف: ۳ کنش در انتظار · ۰ ناموفق · ۱۰ محصول در هر اجرا · ۲۵ سقف دسته")
-        if rtl
-        else "Queue: 3 pending actions · 0 failed · 10 products per run · batch size capped at 25"
+        ("Scheduling backend", "action_scheduler"),
+        ("Action Scheduler available", t("Yes")),
+        ("Pending worker actions", "3"),
+        ("Failed worker actions", "0"),
+        ("Interrupted jobs", t("None")),
     )
 
-    art.text_at(draw, left + 24, 666, queue, art.font("Regular", 16), MUTED)
+    for index, (label, value) in enumerate(queue):
+        y = 584 + index * 31
+
+        if index % 2 == 0:
+            screen.fill(692, y - 8, 316, 30, STRIPE)
+
+        text(704, y, t(label), body, MUTED)
+        screen.text_trail(32, y, value, font("SemiBold", 14), INK)
 
     screen.save(out)
 
 
-def make_screenshot_preview(art: Art, out: Path) -> None:
-    screen = Screen(art, "Preview changes (dry run)")
-    draw = screen.draw
-    left, width = screen.box
+def items_table(screen: Screen, top: int, rows, details_font_size: int = 13, off: int = 16) -> int:
+    """The items table of a job; returns the y below the last row."""
+    art, t = screen.art, screen.tx
+    head, cell = art.font("SemiBold", 14), art.font("Regular", 15)
+    note = art.font("Regular", details_font_size)
 
-    art.roundrect(draw, (left, 122, left + width, 168), 4, OK_BG)
-    draw.rectangle((left, 122, left + 4, 168), fill=LINK)
-    art.text_at(draw, left + 20, 136, "Dry run finished. Nothing was changed.", art.font("Medium", 16), OK_INK)
+    columns = (0, 204, 306, 446, 536, 668)
+    labels = ("Product", "Status", "Current Woo price", "USD price", "New Woo price", "Details")
 
-    art.card(draw, (left, 186, left + width, 304))
-    art.text_at(draw, left + 24, 206, "Would change: 312", art.font("SemiBold", 18), INK)
-    art.text_at(draw, left + 220, 206, "Unchanged: 936", art.font("Regular", 18), MUTED)
-    art.text_at(draw, left + 370, 206, "Skipped: 4", art.font("Regular", 18), MUTED)
-    art.text_at(draw, left + 500, 206, "Failed: 0", art.font("Regular", 18), MUTED)
-    art.text_at(draw, left + 630, 206, "Conflicts: 2", art.font("Regular", 18), NOTICE_INK)
+    for column, label in zip(columns, labels):
+        screen.text(off + column, top, t(label), head, MUTED)
 
-    art.text_at(
-        draw,
-        left + 24,
-        240,
-        "Rate: 270,000 Toman per 1 USD · Products scanned: 1,252 · Variations affected: 96 · No write was performed",
-        art.font("Regular", 16),
-        MUTED,
-    )
-
-    first = button(art, draw, left, 322, "Run the update", True)
-    button(art, draw, left + first + 16, 322, "Download CSV")
-
-    art.card(draw, (left, 388, left + width, 744))
-
-    columns = ((224, "Product"), (560, "Toman price"), (740, "Derived USD"), (920, "New"), (1080, "Change"))
-
-    for x, label in columns:
-        art.text_at(draw, x, 408, label, art.font("SemiBold", 16), MUTED)
-
-    draw.line((216, 436, 1204, 436), fill=BORDER)
-
-    rows = (
-        ("Canvas tote bag", "5,400,000", "$19", "$20", "+ 1"),
-        ("Ceramic mug", "2,700,000", "$10", "$10", "0"),
-        ("Desk lamp", "4,320,000", "$16", "$15", "− 1"),
-        ("Notebook set", "1,890,000", "$7", "$7", "0"),
-        ("Leather wallet", "8,100,000", "$30", "$29", "− 1"),
-    )
-
-    try:
-        art.font("Regular", 17)
-    except OSError:  # pragma: no cover - font guard
-        pass
+    screen.rule(off - 6, top + 24, 1020 - 2 * (off - 6))
+    y = top + 34
 
     for index, row in enumerate(rows):
-        y = 452 + index * 54
+        name, badge, status, old, usd, new, details = row
+        detail_lines = screen.lines(details, note, 1020 - off - columns[5] - 16)
+        height = max(40, 16 + 17 * len(detail_lines))
 
-        art.text_at(draw, 224, y, row[0], art.font("Regular", 17), LINK)
-        art.text_at(draw, 560, y, row[1], art.font("Regular", 17), INK)
-        art.text_at(draw, 740, y, row[2], art.font("Regular", 17), MUTED)
-        art.text_at(draw, 920, y, row[3], art.font("SemiBold", 17), INK)
-        art.text_at(draw, 1080, y, row[4], art.font("Regular", 17), MUTED)
+        if index % 2 == 0:
+            screen.fill(off - 6, y - 8, 1020 - 2 * (off - 6), height, STRIPE)
+
+        used = screen.text(off, y, name, cell, LINK)
+
+        if badge:
+            screen.pill(off + used + 8, y - 4, t(badge), "unchanged")
+
+        screen.pill(off + columns[1], y - 4, t(Admin_status[status]), status)
+        screen.text(off + columns[2], y, old, cell, INK)
+        screen.text(off + columns[3], y, usd, cell, INK)
+        screen.text(off + columns[4], y, new, art.font("SemiBold", 15), INK)
+
+        for line_index, line in enumerate(detail_lines):
+            screen.text(off + columns[5], y + 1 + line_index * 17, line, note, MUTED)
+
+        y += height
+
+    return y
+
+
+# Item status key => the plugin's label (Admin::item_status_label()).
+Admin_status = {
+    "changed": "Updated",
+    "generated": "USD set",
+    "rebased": "Re-based",
+    "unchanged": "Unchanged",
+    "skipped": "Skipped",
+    "failed": "Failed",
+    "conflict": "Conflict",
+}
+
+
+def make_screenshot_preview(art: Art, out: Path) -> None:
+    """Dry run: what would change, what is unchanged, what is skipped, the variations, no write."""
+    screen = Screen(art, Tx(False)("USD / Toman Pricing"))
+    t, text, font = screen.tx, screen.text, art.font
+    unit = t.raw("Toman per 1 USD")
+
+    screen.notice(0, 122, 1020, 40, OK_BG, LINK)
+    text(20, 134, t("Dry run finished. Nothing was changed."), font("Medium", 16), OK_INK)
+
+    # The rate is previewed before it is saved: the dry run uses the typed rate.
+    screen.card(0, 176, 1020, 108)
+    text(24, 192, t("New rate (%s)", unit), font("Medium", 16), INK)
+    screen.input(24, 218, 200, 40, "300000")
+
+    x = 240
+    for label, primary in (("Save rate", True), ("Preview changes", False), ("Update prices now", True), ("Dry run", False)):
+        x += screen.button(x, 219, t(label), primary) + 14
+
+    screen.card(0, 300, 1020, 452)
+    text(24, 318, t("Last dry run"), font("SemiBold", 21), INK)
+    text(
+        24,
+        354,
+        t(
+            "Would update: %1$s · USD set: %2$s · re-based: %3$s · unchanged: %4$s · skipped: %5$s · failed: %6$s · conflicts: %7$s",
+            "1,196", "31", "9", "6", "4", "0", "2",
+        ),
+        font("Regular", 15),
+        INK,
+    )
+
+    prefix = t.raw("Dry run, nothing was written.")
+    regular = t.raw("Regular price")
+
+    def update(old: str, new: str, usd: str) -> str:
+        return f"{prefix} " + t.raw("%1$s: %2$s to %3$s (%4$s USD).", regular, old, new, usd)
+
+    rows = (
+        ("Canvas tote bag", None, "changed", "5,000,000", "$18.52", "5,556,000", update("5,000,000", "5,556,000", "18.52")),
+        ("Linen shirt – M", "variation", "changed", "4,000,000", "$14.81", "4,443,000", update("4,000,000", "4,443,000", "14.81")),
+        ("Linen shirt – L", "variation", "changed", "4,200,000", "$15.56", "4,668,000", update("4,200,000", "4,668,000", "15.56")),
+        (
+            "Notebook set", None, "generated", "1,890,000", "$6.30", "1,890,000",
+            f"{prefix} " + t.raw("%1$s: USD price set to %2$s.", regular, "6.30"),
+        ),
+        (
+            "Leather wallet", None, "rebased", "8,500,000", "$28.33", "8,500,000",
+            f"{prefix} " + t.raw("%1$s: edited by hand, USD price re-based to %2$s.", regular, "28.33"),
+        ),
+    )
+
+    bottom = items_table(screen, 392, rows)
+
+    text(24, bottom + 4, t("Showing up to 20 products. The full report is available in the job details, including a CSV download."), font("Regular", 13), MUTED)
+    screen.button(24, bottom + 32, t("Open the dry run report"))
 
     screen.save(out)
 
 
 def make_screenshot_job(art: Art, out: Path) -> None:
-    screen = Screen(art, "Jobs & history")
-    draw = screen.draw
-    left, width = screen.box
+    """Jobs & history: the running job with its progress and the per product log."""
+    screen = Screen(art, Tx(False)("Jobs & history"))
+    t, text, font = screen.tx, screen.text, art.font
+    unit = t.raw("Toman per 1 USD")
 
-    art.card(draw, (left, 122, left + width, 290))
-    art.text_at(draw, left + 24, 140, "Job #42 — running", art.font("SemiBold", 21), INK)
-    art.text_at(
-        draw,
-        left + 24,
-        176,
-        "Rate: 270,000 Toman · Started by admin · Scope: every managed product · Heartbeat 4 seconds ago",
-        art.font("Regular", 16),
-        MUTED,
+    screen.card(0, 122, 1020, 630)
+    text(24, 140, t("Job #%1$d — %2$s", 43, t.raw("Price update")), font("SemiBold", 21), INK)
+
+    meta = t(
+        "Status: %1$s · Rate: %2$s · Started by %3$s · Scope: %4$s",
+        t.raw("Running"), "300,000 " + unit, "admin", t.raw("Every managed product"),
+    )
+    text(24, 176, meta, font("Regular", 15), MUTED)
+
+    label_width = text(24, 202, t("Currently processing:"), font("Regular", 15), MUTED)
+    text(24 + label_width + 8, 202, "Linen shirt – S", font("SemiBold", 15), INK)
+
+    screen.fill(24, 230, 972, 20, "#E0E0E0")
+    screen.fill(24, 230, round(972 * 480 / 1248), 20, LINK)
+
+    counters = (
+        ("Total", "1,248"), ("Processed", "480"), ("Updated", "454"), ("USD set", "12"), ("Re-based", "4"),
+        ("Unchanged", "2"), ("Skipped", "3"), ("Failed", "0"), ("Conflicts", "5"),
+        ("Variations processed", "96"), ("Variations changed", "88"),
     )
 
-    art.roundrect(draw, (left + 24, 212, left + 744, 238), 13, "#E0E0E0")
-    art.roundrect(draw, (left + 24, 212, left + 302, 238), 13, LINK)
+    x, y = 24, 268
+    for label, value in counters:
+        label_text = t(label) + ": "
+        part = screen.width_of(label_text, font("Regular", 14))
+        total = part + screen.width_of(value, font("SemiBold", 14))
 
-    art.text_at(draw, left + 764, 212, "480 / 1,248 processed", art.font("SemiBold", 17), INK)
+        if x + total > 996:
+            x, y = 24, y + 22
 
-    button(art, draw, left + 24, 250, "Pause")
-    button(art, draw, left + 130, 250, "Cancel")
+        text(x, y, label_text, font("Regular", 14), MUTED)
+        text(x + part, y, value, font("SemiBold", 14), INK)
+        x += total + 20
 
-    art.card(draw, (left, 308, left + width, 744))
-    art.text_at(draw, left + 24, 328, "Recent log entries", art.font("SemiBold", 19), INK)
+    x = 24
+    for label, primary in (("Pause", False), ("Cancel", False), ("Recalculate conflicts", False), ("Download CSV", False)):
+        x += screen.button(x, 326, t(label), primary) + 12
 
-    for x, label in ((224, "Product"), (560, "Old price"), (720, "New price"), (900, "Status"), (1085, "Toman source")):
-        art.text_at(draw, x, 364, label, art.font("SemiBold", 16), MUTED)
+    text(x + 6, 336, t("Back to all jobs"), font("Regular", 15), LINK)
 
-    draw.line((216, 392, 1204, 392), fill=BORDER)
+    tabs = (
+        ("All", "480"), ("Updated", "454"), ("USD set", "12"), ("Re-based", "4"),
+        ("Unchanged", "2"), ("Skipped", "3"), ("Failed", "0"), ("Conflicts", "5"),
+    )
 
+    x = 24
+    for index, (label, count) in enumerate(tabs):
+        label_text = f"{t(label)} ({count})"
+        weight, color = ("SemiBold", INK) if index == 0 else ("Regular", LINK)
+
+        x += text(x, 386, label_text, font(weight, 15), color) + 18
+
+    regular = t.raw("Regular price")
     rows = (
-        ("Linen shirt", "$18", "$19", "Changed", "5,000,000", GREEN),
-        ("Wool scarf", "$22", "$22", "Unchanged", "6,000,000", MUTED),
-        ("Cotton socks", "$5", "$5", "Unchanged", "1,350,000", MUTED),
-        ("Straw hat", "—", "—", "Skipped", "—", RED),
-        ("Silk tie", "$12", "$13", "Changed", "3,400,000", GREEN),
-        ("Rain coat", "$27", "$27", "Conflict", "7,300,000", NOTICE_INK),
+        (
+            "Linen shirt", None, "changed", "5,000,000", "$18.52", "5,556,000",
+            t.raw("%1$s: %2$s to %3$s (%4$s USD).", regular, "5,000,000", "5,556,000", "18.52"),
+        ),
+        (
+            "Wool scarf", None, "changed", "6,000,000", "$22.22", "6,666,000",
+            t.raw("%1$s: %2$s to %3$s (%4$s USD).", regular, "6,000,000", "6,666,000", "22.22"),
+        ),
+        (
+            "Silk tie", None, "generated", "3,400,000", "$11.33", "3,400,000",
+            t.raw("%1$s: USD price set to %2$s.", regular, "11.33"),
+        ),
+        (
+            "Rain coat", None, "rebased", "4,500,000", "$15.00", "4,500,000",
+            t.raw("%1$s: edited by hand, USD price re-based to %2$s.", regular, "15.00"),
+        ),
+        (
+            "Straw hat", None, "skipped", "—", "—", "—",
+            t.raw("%1$s: %2$s", regular, t.raw("There is no price to peg to USD.")),
+        ),
+        (
+            "Tweed cap", None, "conflict", "2,250,000", "$7.78", "2,334,000",
+            t.raw("The price was edited in WooCommerce while it was being synchronized, so nothing was written. The next update re-bases the USD price on the edited price."),
+        ),
     )
 
-    for index, row in enumerate(rows):
-        y = 410 + index * 52
+    bottom = items_table(screen, 418, rows)
 
-        art.text_at(draw, 224, y, row[0], art.font("Regular", 17), LINK)
-        art.text_at(draw, 560, y, row[1], art.font("Regular", 17), INK)
-        art.text_at(draw, 720, y, row[2], art.font("SemiBold", 17), INK)
-        art.text_at(draw, 900, y, row[3], art.font("Regular", 17), row[5])
-        art.text_at(draw, 1085, y, row[4], art.font("Regular", 17), MUTED)
+    text(24, bottom + 4, t("Showing up to 50 items. Use the CSV download for the complete report."), font("Regular", 13), MUTED)
 
     screen.save(out)
 
 
 def make_screenshot_product(art: Art, out: Path) -> None:
+    """The product panel: the pricing mode, the Woo price, the USD price, the rate used and the bulk actions."""
     screen = Screen(art, "Edit product — Canvas tote bag")
-    draw = screen.draw
-    left, _width = screen.box
+    t, text, font = screen.tx, screen.text, art.font
+    unit = t.raw("Toman per 1 USD")
 
-    art.card(draw, (left, 122, left + 660, 422))
-    art.text_at(draw, left + 24, 140, "USD / Toman pricing", art.font("SemiBold", 21), INK)
+    # -- The meta box ---------------------------------------------------
+    screen.card(0, 122, 660, 388)
+    text(24, 140, t("USD / Toman pricing"), font("SemiBold", 21), INK)
+
+    intro = t.raw(
+        "The WooCommerce price fields hold the store price. The first price update records a USD price from it; "
+        "after that, a new exchange rate rewrites the store price from the USD price. "
+        "Editing the store price by hand re-bases the USD price on the next update."
+    )
+    below = screen.paragraph(24, 176, intro, font("Regular", 14), MUTED, 612, 20)
+
+    text(24, below + 10, t("Pricing mode"), font("SemiBold", 15), INK)
+    mode = t.raw("Managed — the WooCommerce price follows the USD price and the exchange rate")
+    screen.select(24, below + 32, 612, 38, mode)
 
     rows = (
-        ("Pricing mode", "Toman managed", GREEN),
-        ("Canonical Toman regular price", "5,400,000", INK),
-        ("Canonical Toman sale price", "4,500,000", INK),
-        ("Derived USD price", "$20 regular · $17 sale", LINK),
-        ("Rate used · last synchronized", "270,000 · 3 hours ago", INK),
+        ("Woo price", "5,556,000"),
+        ("USD price", "$18.52"),
+        ("Rate used", "300,000 " + unit),
+        ("Last sync", "2026-10-11 09:41:07"),
+    )
+    top = below + 88
+
+    for index, (label, value) in enumerate(rows):
+        y = top + index * 30
+
+        if index % 2 == 0:
+            screen.fill(12, y - 8, 636, 30, STRIPE)
+
+        text(24, y + 1, t(label), font("SemiBold", 14), MUTED)
+        text(190, y, value, font("Regular", 15), INK)
+
+    button_top = top + 4 * 30 + 12
+    wide = screen.button(24, button_top, t("Recalculate this product"))
+    text(24 + wide + 18, button_top + 11, t("Open jobs and history"), font("Regular", 15), LINK)
+
+    # -- The bulk actions drop-down of the product list ------------------
+    options = (
+        ("Bulk actions", False),
+        ("Edit", False),
+        ("Move to Trash", False),
+        (t("USD/Toman: set Managed"), False),
+        (t("USD/Toman: set Excluded"), False),
+        (t("USD/Toman: Recalculate selected"), True),
     )
 
-    for index, (label, value, color) in enumerate(rows):
-        y = 186 + index * 38
+    screen.card(680, 122, 340, len(options) * 34 + 16)
 
-        art.text_at(draw, left + 24, y, label, art.font("Regular", 17), MUTED)
-        art.text_at(draw, left + 300, y, value, art.font("SemiBold", 17), color)
+    for index, (label, active) in enumerate(options):
+        y = 130 + index * 34
 
-    button(art, draw, left + 24, 372, "Recalculate this product", True)
+        if active:
+            screen.fill(688, y, 324, 32, LINK)
 
-    art.card(draw, (left + 680, 122, left + 1020, 422))
-    art.text_at(draw, left + 704, 140, "Bulk actions", art.font("SemiBold", 19), INK)
+        text(704, y + 8, label, font("Regular", 15), WHITE if active else INK)
 
-    actions = (
-        "Enable Toman pricing (import current price)",
-        "Mark as native USD price",
-        "Exclude from synchronization",
+    filter_top = 130 + len(options) * 34 + 36
+    screen.select(680, filter_top, 230, 36, t("All pricing modes"))
+    screen.button(924, filter_top - 1, "Filter")
+
+    # -- The product list -----------------------------------------------
+    list_top = 526
+    screen.card(0, list_top, 1020, 226)
+
+    heads = ((52, "Name"), (500, "Price"), (700, t("USD price")))
+
+    for off, label in heads:
+        text(off, list_top + 18, label, font("SemiBold", 14), MUTED)
+
+    screen.rule(12, list_top + 42, 996)
+
+    products = (
+        ("Canvas tote bag", "5,556,000", "managed", "$18.52", None, True),
+        ("Ceramic mug", "3,000,000", "managed", "$10.00", None, True),
+        ("Rain coat", "7,300,000", "managed", "$24.33", "Conflict – recalculate", False),
+        ("Gift card", "500,000", "excluded", None, None, False),
     )
 
-    for index, action in enumerate(actions):
-        art.text_at(draw, left + 704, 184 + index * 36, action, art.font("Regular", 16), LINK)
+    for index, (name, price, mode_key, usd, flag, checked) in enumerate(products):
+        y = list_top + 56 + index * 40
 
-    note = (
-        "Editing the price during a run marks the product",
-        "as a conflict instead of overwriting your edit.",
-        "The Toman source price is never destroyed.",
-    )
+        if index % 2 == 0:
+            screen.fill(12, y - 10, 996, 40, STRIPE)
 
-    for index, line in enumerate(note):
-        art.text_at(draw, left + 704, 308 + index * 24, line, art.font("Regular", 16), MUTED)
+        screen.checkbox(20, y - 1, checked)
+        text(52, y, name, font("Regular", 15), LINK)
+        text(500, y, price, font("Regular", 15), INK)
 
-    art.card(draw, (left, 444, left + 1020, 744))
-    art.text_at(draw, left + 24, 462, "Products list", art.font("SemiBold", 19), INK)
+        x = 700 + screen.pill(700, y - 4, t(Admin_mode[mode_key]), mode_key) + 10
 
-    for x, label in ((224, "Name"), (700, "Price"), (900, "Toman source"), (1090, "Pricing mode")):
-        art.text_at(draw, x, 500, label, art.font("SemiBold", 16), MUTED)
+        if usd:
+            x += text(x, y, usd, font("SemiBold", 15), INK) + 12
 
-    draw.line((216, 528, 1204, 528), fill=BORDER)
-
-    rows = (
-        ("Canvas tote bag", "$20", "5,400,000", "Toman managed", GREEN),
-        ("Ceramic mug", "$10", "2,700,000", "Toman managed", GREEN),
-        ("Vintage poster", "$45", "—", "Native USD", MUTED),
-        ("Gift card", "$25", "—", "Excluded", MUTED),
-    )
-
-    for index, row in enumerate(rows):
-        y = 546 + index * 50
-
-        art.text_at(draw, 224, y, row[0], art.font("Regular", 17), LINK)
-        art.text_at(draw, 700, y, row[1], art.font("Regular", 17), INK)
-        art.text_at(draw, 900, y, row[2], art.font("Regular", 17), MUTED)
-        art.text_at(draw, 1090, y, row[3], art.font("Regular", 17), row[4])
+        if flag:
+            screen.pill(x, y - 4, t(flag), "conflict")
 
     screen.save(out)
+
+
+Admin_mode = {"managed": "Managed", "excluded": "Excluded"}
 
 
 # ---------------------------------------------------------------------------

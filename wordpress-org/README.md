@@ -51,6 +51,11 @@ The generator draws every file from the plugin's own wording and the WordPress a
 the size of each image and exits non-zero when a file has the wrong dimensions. It needs PHP with GD
 and FreeType only if you prefer the PHP tooling; the Python version has no such requirement.
 
+Plugin strings are looked up by their msgid in `languages/usd-to-toman-price-sync-for-woocommerce-fa_IR.po`
+(a missing msgid stops the generator), so the English screens use the real source strings and
+`screenshot-4.png` shows the shipped Persian translation. Fonts are loaded with Pillow's basic layout
+engine on purpose, so that raqm, when installed, does not reorder the already shaped Persian a second time.
+
 Persian text goes through `shape_fa.py` first. Pillow without raqm and ImageMagick both lack complex
 text layout, so without shaping the letters are drawn disconnected and in the wrong order; the module
 maps every letter to its Unicode presentation form and reverses the runs, keeping digits and Latin
