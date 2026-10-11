@@ -798,6 +798,66 @@ function usdtf_it_make_simple_product( $name, $regular, $sale = '', $mode = 'man
 }
 
 /**
+ * Force the WooCommerce currency for the rest of this process.
+ *
+ * The USD-pegged model only works on a store whose currency is IRT or IRR, and
+ * the test installation may use another one. The filter is added on
+ * pre_option_woocommerce_currency, so it wins over the stored option and leaves
+ * the database alone. Passing null removes it again.
+ *
+ * @param string|null $code Currency code such as IRT or IRR, or null to remove the override.
+ * @return void
+ */
+function usdtf_it_set_currency( $code ) {
+	remove_filter( 'pre_option_woocommerce_currency', 'usdtf_it_currency_override' );
+
+	$GLOBALS['usdtf_it_currency'] = null === $code ? null : (string) $code;
+
+	if ( null !== $code ) {
+		add_filter( 'pre_option_woocommerce_currency', 'usdtf_it_currency_override' );
+	}
+}
+
+/**
+ * Filter callback of usdtf_it_set_currency().
+ *
+ * @return string
+ */
+function usdtf_it_currency_override() {
+	return (string) $GLOBALS['usdtf_it_currency'];
+}
+
+/**
+ * Create a simple product that carries only WooCommerce prices.
+ *
+ * This is the shape of a store that has never run the plugin: no USD anchor, no
+ * seen price, and no mode unless the caller asks for one.
+ *
+ * @param string     $name    Product name.
+ * @param string|int $regular Regular price, written as given.
+ * @param string|int $sale    Sale price, empty for none.
+ * @param string     $mode    Pricing mode, empty to leave the meta unset.
+ * @return \WC_Product_Simple
+ */
+function usdtf_it_make_priced_product( $name, $regular, $sale = '', $mode = '' ) {
+	$product = new \WC_Product_Simple();
+	$product->set_name( $name );
+	$product->set_status( 'publish' );
+	$product->set_catalog_visibility( 'visible' );
+	$product->set_regular_price( (string) $regular );
+	$product->set_sale_price( (string) $sale );
+	$product->save();
+
+	usdtf_it_track_product( $product );
+
+	if ( '' !== (string) $mode ) {
+		update_post_meta( $product->get_id(), '_usdtf_mode', (string) $mode );
+	}
+
+	return wc_get_product( $product->get_id() );
+}
+
+/**
  * Create a variable product with the given variations.
  *
  * @param string $name       Product name.

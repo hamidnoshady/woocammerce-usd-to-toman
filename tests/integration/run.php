@@ -102,6 +102,18 @@ $pricing  = usdtf_plugin()->pricing();
 $jobs     = usdtf_plugin()->jobs();
 
 // ---------------------------------------------------------------------------
+// The USD-pegged model. USDTF_IT_ONLY=pegged runs just these scenarios. The
+// store guard registered its shutdown handler in usdtf_it_boot(), so the early
+// exit still restores the store.
+// ---------------------------------------------------------------------------
+require __DIR__ . '/pegged.php';
+
+if ( 'pegged' === getenv( 'USDTF_IT_ONLY' ) ) {
+	echo "\nAll pegged integration scenarios passed.\n";
+	exit( 0 );
+}
+
+// ---------------------------------------------------------------------------
 // 1. The rounding examples from the issue.
 // ---------------------------------------------------------------------------
 usdtf_it_reset_plugin_state();
