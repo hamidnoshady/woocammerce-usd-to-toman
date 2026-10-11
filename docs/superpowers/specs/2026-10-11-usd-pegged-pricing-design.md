@@ -1,6 +1,6 @@
 # USD-pegged pricing: design
 
-Status: **draft for review** · Date: 2026-10-11 · Target version: 1.2.0
+Status: **implemented in 1.2.0** · Date: 2026-10-11 · Target version: 1.2.0
 
 ## 1. Summary
 
@@ -85,6 +85,7 @@ else                                       -> UPDATED:   P' = round_store(U * R)
 - `round2` rounds to 2 decimals (half up). `round_store` uses the existing rounding mode
   (up / nearest / down) with the increment in the store unit (section 7).
 - Woo price strings use `wc_get_price_decimals()` (0 for Toman and Rial by default).
+- When the rounded new price equals the current Woo price, the product is unchanged: the rate is recorded and nothing is written.
 - Comparisons `P != S` and `R_p == R` use the Woo decimals and 6 decimals respectively.
 - A product with an empty sale price keeps an empty sale price. Scheduled-sale dates are never touched.
 
@@ -139,8 +140,9 @@ fallback, require preview, capability, rate-change threshold, credit line, delet
 - **Rate screen / dashboard:** rate input labelled with the unit; counters updated (Generated,
   Re-based, Updated, Unchanged, Skipped, Failed, Conflicts).
 - **Preview and jobs table:** columns *Product · Status · Current Woo price · USD price · New Woo
-  price · Details*, with filter tabs for each status. Toman formatting uses WooCommerce's own number
-  format; the plugin's Persian-digit option is removed.
+  price · Details*, with filter tabs for each status. Prices on the plugin's screens use the WordPress
+  locale number format (`number_format_i18n`) through `Calculator::format_price`; the plugin's
+  Persian-digit option is removed.
 - **Product panel:** pricing mode (Managed / Excluded) plus read-only *Woo price*, *USD price*,
   *Rate used* and *Last sync*. The reference price fields and the Toman/USD mode selector are gone.
   Bulk actions: set Managed / Excluded and "Recalculate selected".
