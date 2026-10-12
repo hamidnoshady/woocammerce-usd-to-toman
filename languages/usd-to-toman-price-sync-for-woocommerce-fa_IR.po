@@ -542,6 +542,10 @@ msgstr "اگر این گزینه را علامت نزنید، با حذف نصب
 msgid "Level"
 msgstr "سطح"
 
+#: assets/js/admin.js:375
+msgid "Long-running item — the last heartbeat was %d seconds ago. The worker may still be processing this product."
+msgstr "مورد طولانی‌مدت — آخرین ضربان %d ثانیه پیش بوده است. ممکن است کارگر هنوز در حال پردازش این محصول باشد."
+
 #: includes/admin/class-product-panel.php:446
 msgid "Managed"
 msgstr "مدیریت‌شده"
@@ -781,6 +785,14 @@ msgstr "محصولاتی که قیمتشان ممکن است قدیمی باشد
 msgid "Progress"
 msgstr "پیشرفت"
 
+#: assets/js/admin.js:482
+msgid "Progress polling lost its connection. Retrying in five seconds."
+msgstr "اتصال بررسی پیشرفت قطع شد. تا پنج ثانیهٔ دیگر دوباره تلاش می‌شود."
+
+#: assets/js/admin.js:476
+msgid "Progress polling was denied. Your session may have expired; reload this page."
+msgstr "بررسی پیشرفت رد شد. ممکن است نشست شما منقضی شده باشد؛ این صفحه را دوباره بارگذاری کنید."
+
 #: includes/class-job.php:375
 msgid "Queued"
 msgstr "در صف"
@@ -862,6 +874,10 @@ msgstr "مدخل‌های تازهٔ گزارش"
 #: includes/admin/views/settings.php:152
 msgid "Recommended. When enabled, the update button refuses to run until the dry run on the dashboard has previewed exactly the same change, so nothing can rewrite the catalog unseen."
 msgstr "پیشنهاد می‌شود. وقتی فعال باشد، دکمهٔ به‌روزرسانی تا زمانی که اجرای آزمایشی داشبورد دقیقاً همان تغییر را پیش‌نمایش کرده باشد اجرا نمی‌شود، تا هیچ چیز فهرست محصولات را نادیده بازنویسی نکند."
+
+#: includes/class-job-repository.php:378
+msgid "Recovering after the background worker stopped."
+msgstr "در حال بازیابی پس از توقف کارگر پس‌زمینه."
 
 #: includes/class-recorder.php:437
 msgid "Regular price"
@@ -1105,6 +1121,10 @@ msgstr "کار پس‌زمینه در صف قرار گرفت."
 msgid "The background queue could not be reached, so the job was paused. Open the jobs screen and resume it once the queue works again."
 msgstr "به صف پس‌زمینه دسترسی نشد، بنابراین کار متوقف موقت شد. وقتی صف دوباره کار کند، از صفحهٔ کارها آن را ادامه دهید."
 
+#: includes/class-sync-runner.php:1617
+msgid "The background worker could not be queued. Check queue health, then resume this job."
+msgstr "کارگر پس‌زمینه در صف قرار نگرفت. سلامت صف را بررسی کنید، سپس این کار را از سر بگیرید."
+
 #: includes/class-sync-runner.php:1957
 msgid "The background worker stopped several times. The job is paused and can be resumed from the saved progress."
 msgstr "کارگر پس‌زمینه چند بار متوقف شد. کار به‌صورت موقت متوقف شده و می‌توان آن را از پیشرفت ذخیره‌شده ادامه داد."
@@ -1187,6 +1207,10 @@ msgstr "نرخ معتبر است."
 msgid "The referenced dry run could not be found. Run the dry run again and start the update from its result."
 msgstr "اجرای آزمایشی ارجاع‌شده پیدا نشد. اجرای آزمایشی را دوباره انجام دهید و به‌روزرسانی را از نتیجهٔ آن آغاز کنید."
 
+#: assets/js/admin.js:478
+msgid "The running job could not be found. Reload the job list."
+msgstr "کار در حال اجرا پیدا نشد. فهرست کارها را دوباره بارگذاری کنید."
+
 #: includes/class-recorder.php:171
 msgid "The sale price must stay below the regular price, so nothing was written."
 msgstr "قیمت حراج باید کمتر از قیمت عادی بماند، پس چیزی نوشته نشد."
@@ -1194,6 +1218,10 @@ msgstr "قیمت حراج باید کمتر از قیمت عادی بماند، 
 #: includes/admin/views/health.php:127
 msgid "The same checks are reported in Tools → Site Health. Rate history is kept forever; detailed product logs follow the retention setting."
 msgstr "همین بررسی‌ها در ابزارها → سلامت سایت گزارش می‌شوند. تاریخچهٔ نرخ همیشه می‌ماند؛ گزارش‌های تفصیلی محصولات از تنظیم نگهداری پیروی می‌کنند."
+
+#: assets/js/admin.js:480
+msgid "The server failed while checking progress. Retrying in five seconds."
+msgstr "کارساز هنگام بررسی پیشرفت با خطا مواجه شد. تا پنج ثانیهٔ دیگر دوباره تلاش می‌شود."
 
 #: includes/class-health.php:557
 msgid "The site answered its own request. Background workers can be triggered."
@@ -1441,6 +1469,10 @@ msgstr "ووکامرس نتوانست قیمت را ذخیره کند: %s"
 #: includes/admin/views/health.php:144
 msgid "WooCommerce version"
 msgstr "نسخهٔ ووکامرس"
+
+#: assets/js/admin.js:374
+msgid "Worker stalled — no heartbeat for %d seconds. Recovery will requeue this job; if it becomes paused, check queue health and resume it."
+msgstr "کارگر متوقف شده است — %d ثانیه است ضربانی دریافت نشده. بازیابی این کار را دوباره در صف می‌گذارد؛ اگر متوقف‌شده شد، سلامت صف را بررسی و آن را از سر بگیرید."
 
 #: includes/admin/class-admin.php:297 assets/js/admin.js:306 assets/js/admin.js:484 assets/js/admin.js:800
 msgid "Working…"
