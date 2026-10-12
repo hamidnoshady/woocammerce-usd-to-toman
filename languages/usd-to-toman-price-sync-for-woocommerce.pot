@@ -2,23 +2,23 @@
 # This file is distributed under the GPL-2.0-or-later license.
 msgid ""
 msgstr ""
-"Project-Id-Version: USD to Toman Price Sync for WooCommerce 1.2.2\n"
+"Project-Id-Version: USD to Toman Price Sync for WooCommerce 1.2.3\n"
 "Report-Msgid-Bugs-To: https://github.com/hamidnoshady/woocammerce-usd-to-toman/issues\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-10-12 07:23+0000\n"
+"POT-Creation-Date: 2026-10-12 09:43+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: bin/make-pot.php\n"
 "X-Domain: usd-to-toman-price-sync-for-woocommerce\n"
 
-#: includes/class-sync-runner.php:1433
+#: includes/class-sync-runner.php:1437
 msgid "#%1$d %2$s"
 msgstr ""
 
-#: includes/class-sync-runner.php:1422
+#: includes/class-sync-runner.php:1426
 msgid "#%d (deleted)"
 msgstr ""
 
@@ -110,7 +110,7 @@ msgstr ""
 msgid "A change larger than %s%% must be confirmed explicitly. Saving a rate never rewrites product prices by itself."
 msgstr ""
 
-#: assets/js/admin.js:754
+#: assets/js/admin.js:779
 msgid "A dry run with the same rate, rounding settings and scope is required first."
 msgstr ""
 
@@ -158,11 +158,11 @@ msgstr ""
 msgid "Another price update is already running. Only one update can run at a time."
 msgstr ""
 
-#: includes/admin/class-admin.php:303 assets/js/admin.js:507
+#: includes/admin/class-admin.php:303 assets/js/admin.js:532
 msgid "Another price update is already running. Showing it instead."
 msgstr ""
 
-#: includes/admin/views/items-table.php:77 assets/js/admin.js:946
+#: includes/admin/views/items-table.php:77 assets/js/admin.js:971
 #. %d: attempts.
 msgid "Attempts: %d"
 msgstr ""
@@ -187,11 +187,11 @@ msgstr ""
 msgid "By"
 msgstr ""
 
-#: includes/admin/views/dashboard.php:139 includes/admin/views/dashboard.php:328 includes/admin/views/jobs.php:96 assets/js/admin.js:405
+#: includes/admin/views/dashboard.php:139 includes/admin/views/dashboard.php:328 includes/admin/views/jobs.php:96 assets/js/admin.js:415
 msgid "Cancel"
 msgstr ""
 
-#: assets/js/admin.js:830
+#: assets/js/admin.js:855
 msgid "Cancel this job? Prices that were already written are kept."
 msgstr ""
 
@@ -199,11 +199,11 @@ msgstr ""
 msgid "Cancelled"
 msgstr ""
 
-#: includes/class-sync-runner.php:1647
+#: includes/class-sync-runner.php:1662
 msgid "Cancelled by an administrator."
 msgstr ""
 
-#: includes/class-sync-runner.php:1636
+#: includes/class-sync-runner.php:1651
 msgid "Cancelled by an administrator. Prices that were already written are kept."
 msgstr ""
 
@@ -327,7 +327,7 @@ msgstr ""
 msgid "Dismiss this notice"
 msgstr ""
 
-#: includes/admin/class-rest-controller.php:852 assets/js/admin.js:837
+#: includes/admin/class-rest-controller.php:886 assets/js/admin.js:862
 msgid "Done."
 msgstr ""
 
@@ -343,7 +343,7 @@ msgstr ""
 msgid "Dry run"
 msgstr ""
 
-#: includes/admin/class-admin.php:295 assets/js/admin.js:446
+#: includes/admin/class-admin.php:295 assets/js/admin.js:456
 msgid "Dry run finished. Nothing was changed."
 msgstr ""
 
@@ -371,11 +371,11 @@ msgstr ""
 msgid "Enabled"
 msgstr ""
 
-#: assets/js/admin.js:565
+#: assets/js/admin.js:590
 msgid "Enter a rate first."
 msgstr ""
 
-#: assets/js/admin.js:626
+#: assets/js/admin.js:651
 msgid "Enter a rate to preview."
 msgstr ""
 
@@ -400,7 +400,7 @@ msgstr ""
 msgid "Every managed product"
 msgstr ""
 
-#: includes/class-sync-runner.php:1816
+#: includes/class-sync-runner.php:1831
 msgid "Every managed product (rate rollback)"
 msgstr ""
 
@@ -416,7 +416,7 @@ msgstr ""
 msgid "Exchange rate"
 msgstr ""
 
-#: includes/admin/class-admin.php:293 assets/js/admin.js:584
+#: includes/admin/class-admin.php:293 assets/js/admin.js:609
 msgid "Exchange rate saved."
 msgstr ""
 
@@ -436,7 +436,7 @@ msgstr ""
 msgid "External products"
 msgstr ""
 
-#: includes/admin/class-admin.php:457 includes/admin/class-admin.php:474 includes/class-job.php:387 assets/js/admin.js:213 assets/js/admin.js:340 assets/js/admin.js:805
+#: includes/admin/class-admin.php:457 includes/admin/class-admin.php:474 includes/class-job.php:387 assets/js/admin.js:213 assets/js/admin.js:340 assets/js/admin.js:830
 msgid "Failed"
 msgstr ""
 
@@ -489,7 +489,7 @@ msgstr ""
 msgid "Job"
 msgstr ""
 
-#: assets/js/admin.js:451
+#: assets/js/admin.js:461
 #. 1: job ID, 2: job status.
 msgid "Job #%1$d finished: %2$s"
 msgstr ""
@@ -542,6 +542,10 @@ msgstr ""
 
 #: includes/admin/views/jobs.php:259
 msgid "Level"
+msgstr ""
+
+#: assets/js/admin.js:375
+msgid "Long-running item — the last heartbeat was %d seconds ago. The worker may still be processing this product."
 msgstr ""
 
 #: includes/admin/class-product-panel.php:446
@@ -621,7 +625,7 @@ msgstr ""
 msgid "No exchange rate is stored yet, so no product price can be calculated."
 msgstr ""
 
-#: includes/admin/views/items-table.php:33 assets/js/admin.js:977
+#: includes/admin/views/items-table.php:33 assets/js/admin.js:1002
 msgid "No items match this filter."
 msgstr ""
 
@@ -641,7 +645,7 @@ msgstr ""
 msgid "No price update is running right now."
 msgstr ""
 
-#: includes/class-sync-runner.php:1846
+#: includes/class-sync-runner.php:1861
 msgid "No products were selected."
 msgstr ""
 
@@ -669,7 +673,7 @@ msgstr ""
 msgid "Nothing logged yet."
 msgstr ""
 
-#: assets/js/admin.js:805
+#: assets/js/admin.js:830
 msgid "OK"
 msgstr ""
 
@@ -701,7 +705,7 @@ msgstr ""
 msgid "Open the dry run report"
 msgstr ""
 
-#: includes/admin/views/dashboard.php:318 includes/admin/views/jobs.php:90 assets/js/admin.js:385
+#: includes/admin/views/dashboard.php:318 includes/admin/views/jobs.php:90 assets/js/admin.js:395
 msgid "Pause"
 msgstr ""
 
@@ -709,7 +713,7 @@ msgstr ""
 msgid "Paused"
 msgstr ""
 
-#: includes/class-sync-runner.php:1552
+#: includes/class-sync-runner.php:1556
 msgid "Paused by an administrator. The job can be resumed and continues from the saved cursor."
 msgstr ""
 
@@ -737,7 +741,7 @@ msgstr ""
 msgid "Previous"
 msgstr ""
 
-#: includes/class-sync-runner.php:1809
+#: includes/class-sync-runner.php:1824
 msgid "Previous rate restored."
 msgstr ""
 
@@ -762,7 +766,7 @@ msgstr ""
 msgid "Product"
 msgstr ""
 
-#: includes/admin/class-rest-controller.php:940 includes/admin/views/items-table.php:48 assets/js/admin.js:885
+#: includes/admin/class-rest-controller.php:974 includes/admin/views/items-table.php:48 assets/js/admin.js:910
 #. %d: product ID.
 msgid "Product #%d"
 msgstr ""
@@ -783,11 +787,19 @@ msgstr ""
 msgid "Progress"
 msgstr ""
 
+#: assets/js/admin.js:482
+msgid "Progress polling lost its connection. Retrying in five seconds."
+msgstr ""
+
+#: assets/js/admin.js:476
+msgid "Progress polling was denied. Your session may have expired; reload this page."
+msgstr ""
+
 #: includes/class-job.php:375
 msgid "Queued"
 msgstr ""
 
-#: includes/class-sync-runner.php:1753
+#: includes/class-sync-runner.php:1768
 msgid "Queued again after a conflict review."
 msgstr ""
 
@@ -799,7 +811,7 @@ msgstr ""
 msgid "Rate"
 msgstr ""
 
-#: assets/js/admin.js:541
+#: assets/js/admin.js:566
 #. 1: previous rate, 2: new rate, 3: change in percent, 4: number of affected products.
 msgid "Rate %1$s → %2$s (%3$s%%). Managed products that would be affected: about %4$s."
 msgstr ""
@@ -816,7 +828,7 @@ msgstr ""
 msgid "Rate moves above this percentage need explicit confirmation before they are stored."
 msgstr ""
 
-#: includes/class-sync-runner.php:1819
+#: includes/class-sync-runner.php:1834
 msgid "Rate rollback."
 msgstr ""
 
@@ -836,7 +848,7 @@ msgstr ""
 msgid "Read from WooCommerce. Store prices, the exchange rate and the rounding increment use this unit."
 msgstr ""
 
-#: includes/class-sync-runner.php:1856
+#: includes/class-sync-runner.php:1871
 #. %d: number of products.
 msgid "Recalculate %d product"
 msgid_plural "Recalculate %d products"
@@ -867,11 +879,15 @@ msgstr ""
 msgid "Recommended. When enabled, the update button refuses to run until the dry run on the dashboard has previewed exactly the same change, so nothing can rewrite the catalog unseen."
 msgstr ""
 
+#: includes/class-job-repository.php:378
+msgid "Recovering after the background worker stopped."
+msgstr ""
+
 #: includes/class-recorder.php:437
 msgid "Regular price"
 msgstr ""
 
-#: assets/js/admin.js:727
+#: assets/js/admin.js:752
 msgid "Remove"
 msgstr ""
 
@@ -883,11 +899,11 @@ msgstr ""
 msgid "Required capability"
 msgstr ""
 
-#: assets/js/admin.js:775
+#: assets/js/admin.js:800
 msgid "Restore the previous exchange rate and recalculate all managed products?"
 msgstr ""
 
-#: includes/admin/views/dashboard.php:323 includes/admin/views/jobs.php:93 assets/js/admin.js:395
+#: includes/admin/views/dashboard.php:323 includes/admin/views/jobs.php:93 assets/js/admin.js:405
 msgid "Resume"
 msgstr ""
 
@@ -975,7 +991,7 @@ msgstr ""
 msgid "Seconds per worker run"
 msgstr ""
 
-#: assets/js/admin.js:746
+#: assets/js/admin.js:771
 msgid "Select at least one product first."
 msgstr ""
 
@@ -1031,7 +1047,7 @@ msgstr ""
 msgid "Source"
 msgstr ""
 
-#: assets/js/admin.js:751
+#: assets/js/admin.js:776
 msgid "Start the background price update now?"
 msgstr ""
 
@@ -1092,7 +1108,7 @@ msgstr ""
 msgid "The WooCommerce store currency is %s. Prices and the exchange rate use this unit."
 msgstr ""
 
-#: includes/admin/class-rest-controller.php:841
+#: includes/admin/class-rest-controller.php:875
 msgid "The action could not be applied to this job. Reload the page and try again."
 msgstr ""
 
@@ -1101,7 +1117,7 @@ msgstr ""
 msgid "The admin screen cannot reach these routes: %s. Every admin action would fail with \"no route found\". Reinstall the plugin or resave the permalink settings, then reload this screen."
 msgstr ""
 
-#: includes/admin/class-admin.php:294 assets/js/admin.js:489 assets/js/admin.js:780
+#: includes/admin/class-admin.php:294 assets/js/admin.js:514 assets/js/admin.js:805
 msgid "The background job was queued."
 msgstr ""
 
@@ -1109,7 +1125,11 @@ msgstr ""
 msgid "The background queue could not be reached, so the job was paused. Open the jobs screen and resume it once the queue works again."
 msgstr ""
 
-#: includes/class-sync-runner.php:1957
+#: includes/class-sync-runner.php:1617
+msgid "The background worker could not be queued. Check queue health, then resume this job."
+msgstr ""
+
+#: includes/class-sync-runner.php:1973
 msgid "The background worker stopped several times. The job is paused and can be resumed from the saved progress."
 msgstr ""
 
@@ -1133,7 +1153,7 @@ msgstr ""
 msgid "The job could not be created. Check the plugin log for details."
 msgstr ""
 
-#: includes/admin/class-admin.php:749 includes/admin/class-rest-controller.php:756 includes/admin/class-rest-controller.php:796
+#: includes/admin/class-admin.php:749 includes/admin/class-rest-controller.php:756 includes/admin/class-rest-controller.php:820
 msgid "The job could not be found."
 msgstr ""
 
@@ -1170,7 +1190,7 @@ msgstr ""
 msgid "The product could not be loaded."
 msgstr ""
 
-#: includes/class-sync-runner.php:1167
+#: includes/class-sync-runner.php:1171
 msgid "The product no longer exists."
 msgstr ""
 
@@ -1191,12 +1211,20 @@ msgstr ""
 msgid "The referenced dry run could not be found. Run the dry run again and start the update from its result."
 msgstr ""
 
+#: assets/js/admin.js:478
+msgid "The running job could not be found. Reload the job list."
+msgstr ""
+
 #: includes/class-recorder.php:171
 msgid "The sale price must stay below the regular price, so nothing was written."
 msgstr ""
 
 #: includes/admin/views/health.php:127
 msgid "The same checks are reported in Tools → Site Health. Rate history is kept forever; detailed product logs follow the retention setting."
+msgstr ""
+
+#: assets/js/admin.js:480
+msgid "The server failed while checking progress. Retrying in five seconds."
 msgstr ""
 
 #: includes/class-health.php:557
@@ -1224,7 +1252,7 @@ msgstr ""
 msgid "The worker stops before the PHP execution limit and lets the next queued run continue where it stopped."
 msgstr ""
 
-#: includes/class-sync-runner.php:1798
+#: includes/class-sync-runner.php:1813
 msgid "There is no previous exchange rate to restore."
 msgstr ""
 
@@ -1248,7 +1276,7 @@ msgstr ""
 msgid "This rate is a very large move. Confirm it explicitly before it is stored."
 msgstr ""
 
-#: includes/class-sync-runner.php:1222 includes/class-sync-runner.php:1246
+#: includes/class-sync-runner.php:1226 includes/class-sync-runner.php:1250
 msgid "This variable product has no variations, so there is nothing to synchronize."
 msgstr ""
 
@@ -1342,11 +1370,11 @@ msgstr ""
 msgid "Uninstall"
 msgstr ""
 
-#: includes/admin/class-rest-controller.php:835
+#: includes/admin/class-rest-controller.php:869
 msgid "Unknown job action."
 msgstr ""
 
-#: includes/admin/class-admin.php:299 assets/js/admin.js:684 assets/js/admin.js:721
+#: includes/admin/class-admin.php:299 assets/js/admin.js:709 assets/js/admin.js:746
 msgid "Unknown product"
 msgstr ""
 
@@ -1375,12 +1403,12 @@ msgstr ""
 msgid "Variations"
 msgstr ""
 
-#: includes/class-sync-runner.php:1312
+#: includes/class-sync-runner.php:1316
 #. 1: processed variations, 2: total variations, 3: updated, 4: USD price set, 5: re-based, 6: unchanged, 7: skipped, 8: failed.
 msgid "Variations %1$d/%2$d — updated: %3$d, USD price set: %4$d, re-based: %5$d, unchanged: %6$d, skipped: %7$d, failed: %8$d."
 msgstr ""
 
-#: includes/class-sync-runner.php:1183
+#: includes/class-sync-runner.php:1187
 msgid "Variations are excluded from this update, so this variable product was skipped. Select its variations directly to update them anyway."
 msgstr ""
 
@@ -1392,12 +1420,12 @@ msgstr ""
 msgid "Variations processed"
 msgstr ""
 
-#: includes/admin/views/items-table.php:65 assets/js/admin.js:937
+#: includes/admin/views/items-table.php:65 assets/js/admin.js:962
 #. 1: processed variations, 2: total variations.
 msgid "Variations processed: %1$d / %2$d"
 msgstr ""
 
-#: includes/admin/views/dashboard.php:332 assets/js/admin.js:412
+#: includes/admin/views/dashboard.php:332 assets/js/admin.js:422
 msgid "View details"
 msgstr ""
 
@@ -1446,7 +1474,11 @@ msgstr ""
 msgid "WooCommerce version"
 msgstr ""
 
-#: includes/admin/class-admin.php:297 assets/js/admin.js:306 assets/js/admin.js:484 assets/js/admin.js:800
+#: assets/js/admin.js:374
+msgid "Worker stalled — no heartbeat for %d seconds. Recovery will requeue this job; if it becomes paused, check queue health and resume it."
+msgstr ""
+
+#: includes/admin/class-admin.php:297 assets/js/admin.js:306 assets/js/admin.js:509 assets/js/admin.js:825
 msgid "Working…"
 msgstr ""
 
@@ -1492,11 +1524,11 @@ msgstr ""
 msgid "unlimited"
 msgstr ""
 
-#: includes/admin/views/items-table.php:42 assets/js/admin.js:901
+#: includes/admin/views/items-table.php:42 assets/js/admin.js:926
 msgid "variation"
 msgstr ""
 
-#: includes/class-sync-runner.php:1429
+#: includes/class-sync-runner.php:1433
 msgid "variation #%1$d %2$s"
 msgstr ""
 
