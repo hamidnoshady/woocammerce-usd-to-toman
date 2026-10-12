@@ -254,14 +254,15 @@ final class Scheduler {
 	 */
 	public function health() {
 		$health = array(
-			'backend'          => $this->backend(),
-			'action_scheduler' => self::is_action_scheduler_available(),
-			'pending'          => $this->pending_count(),
-			'failed'           => $this->failed_count(),
-			'oldest_pending'   => 0,
-			'cron_disabled'    => defined( 'DISABLE_WP_CRON' ) && DISABLE_WP_CRON,
-			'cron_late'        => false,
-			'next_tick'        => wp_next_scheduled( Cron::EVENT_TICK ),
+			'backend'               => $this->backend(),
+			'action_scheduler'      => self::is_action_scheduler_available(),
+			'pending'               => $this->pending_count(),
+			'failed'                => $this->failed_count(),
+			'oldest_pending'        => 0,
+			'cron_disabled'         => defined( 'DISABLE_WP_CRON' ) && DISABLE_WP_CRON,
+			'cron_late'             => false,
+			'next_tick'             => wp_next_scheduled( Cron::EVENT_TICK ),
+			'last_dispatch_failure' => $this->last_dispatch_failure(),
 		);
 
 		if ( self::is_action_scheduler_available() && function_exists( 'as_get_scheduled_actions' ) ) {
@@ -295,6 +296,24 @@ final class Scheduler {
 		}
 
 		return $health;
+	}
+
+	/**
+	 * Sanitized details of the last failed immediate dispatch.
+	 *
+	 * @return array|null
+	 */
+	public function last_dispatch_failure() {
+		$failure = get_option( 'usdtf_last_dispatch_failure', null );
+		if ( ! is_array( $failure ) ) {
+			return null;
+		}
+
+		return array(
+			'age'    => isset( $failure['time'] ) ? max( 0, time() - (int) $failure['time'] ) : 0,
+			'hook'   => isset( $failure['hook'] ) ? sanitize_key( $failure['hook'] ) : '',
+			'reason' => isset( $failure['reason'] ) ? sanitize_text_field( $failure['reason'] ) : '',
+		);
 	}
 
 	/**
@@ -534,7 +553,30 @@ final class Scheduler {
 			)
 		);
 
-		return ! is_wp_error( $result );
+		if ( is_wp_error( $result ) ) {
+			update_option(
+				'usdtf_last_dispatch_failure',
+				array( 'time' => time(), 'hook' => $hook, 'reason' => sanitize_text_field( $result->get_error_message() ) ),
+				false
+			);
+			return false;
+		}
+
+		$status = (int) wp_remote_retrieve_response_code( $result );
+		$body   = trim( (string) wp_remote_retrieve_body( $result ) );
+		$ok     = $status >= 200 && $status < 300 && in_array( $body, array( 'ok', 'already claimed', '0' ), true );
+
+		if ( ! $ok ) {
+			update_option(
+				'usdtf_last_dispatch_failure',
+				array( 'time' => time(), 'hook' => $hook, 'reason' => 'HTTP ' . $status ),
+				false
+			);
+			return false;
+		}
+
+		delete_option( 'usdtf_last_dispatch_failure' );
+		return true;
 	}
 
 	/**

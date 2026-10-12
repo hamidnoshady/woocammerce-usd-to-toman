@@ -332,7 +332,7 @@ final class Job {
 			'is_active'     => $this->is_active(),
 			'is_stale'      => $this->is_stale(),
 			'can_pause'     => self::STATUS_RUNNING === $this->status(),
-			'can_resume'    => in_array( $this->status(), array( self::STATUS_PAUSED, self::STATUS_FAILED ), true ) && $this->is_write_job(),
+			'can_resume'    => in_array( $this->status(), array( self::STATUS_PAUSED, self::STATUS_FAILED ), true ),
 			'can_cancel'    => $this->is_active(),
 			'created_at'    => isset( $this->data['created_at'] ) ? (string) $this->data['created_at'] : null,
 		);
