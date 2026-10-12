@@ -6,7 +6,7 @@ Tested up to: 7.1
 Requires PHP: 7.4
 WC requires at least: 7.0
 WC tested up to: 9.9
-Stable tag: 1.2.0
+Stable tag: 1.2.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -141,6 +141,9 @@ Yes. Every string uses the `usd-to-toman-price-sync-for-woocommerce` text domain
 
 == Changelog ==
 
+= 1.2.1 =
+* Fixed: Fix Markdown lint issues
+
 = 1.2.0 =
 * Changed: the plugin is dollar-pegged. It reads each product's price from the WooCommerce price fields (Toman or Rial, taken from the WooCommerce currency), generates a USD price from it and the rate, and from then on recalculates the WooCommerce price as USD price x rate when the rate changes.
 * Changed: the first run only records the USD prices and never changes a WooCommerce price. A price edited by hand is re-based: its USD price is recalculated from the edited price.
@@ -225,6 +228,9 @@ Production audit release: every finding of the production audit is fixed and cov
 * Diagnostics for the queue, the lock and the configured batch size.
 
 == Upgrade Notice ==
+
+= 1.2.1 =
+Fix Markdown lint issues
 
 = 1.2.0 =
 Behaviour change: pricing is now dollar-pegged. The store currency must be Iranian Toman (IRT) or Rial (IRR). Stores in Toman mode are set to Toman once. Stores in USD mode must set the currency and review their prices. The first run only records USD prices and changes no price.

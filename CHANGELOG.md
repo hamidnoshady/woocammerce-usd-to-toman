@@ -4,6 +4,12 @@ All notable changes to this plugin are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.1] - 2026-10-12
+
+### Fixed
+
+- Fix Markdown lint issues
+
 ## [1.2.0] - 2026-10-11
 
 This release changes how the plugin behaves: prices are now dollar-pegged, and the plugin no longer
