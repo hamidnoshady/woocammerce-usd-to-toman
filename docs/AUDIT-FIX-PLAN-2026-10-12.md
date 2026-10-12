@@ -28,6 +28,7 @@
 | F14 | **P3** | Confirmed implementation | Logging | Cron recovery emits unconditional `error_log` noise |
 | F15 | **P3** | Hardening | Admin/export | CSV formula escaping and variation-specific authorization |
 | F16 | **P3** | Coverage gap | CI/release | Plugin Check is not a dedicated CI gate; compatibility matrix needs review |
+| INC-01–04 | **P1 (incident)** | Observed stalled preview + confirmed missing watchdog | Runtime/UI | 160/2,533 (6%) frozen for 20 min; investigate worker and recovery |
 
 ## Detailed findings, fixes and regression criteria
 
@@ -236,3 +237,47 @@ The user-supplied Plugin Check report contains **12 entries: 2 ERROR + 10 WARNIN
 ---
 
 *Prepared as a fix specification only. No production plugin code or WooCommerce prices were modified as part of this review.*
+
+
+## Production incident addendum — 2026-10-12 — Dry-run stuck at 6% (P1 to investigate)
+
+**Evidence received:** User-provided screenshot of the Persian admin screen plus reported observation: preview was unchanged at **160 / 2,533 products (~6%) for approximately 20 minutes**, at **260,000 Toman per USD**. The screenshot's current product was a Danish Design watch, item/product label beginning **#2885**. The counters showed **USD set: 160**, and **Updated: 0, Re-based: 0, Unchanged: 0, Skipped: 0, Failed: 0, Conflicts: 0, Variations: 0**. The job was labelled **Running / Preview / Dry Run**.
+
+**Impact:** Admin sees no way to distinguish genuinely slow processing, an unreachable worker, a stale job, or a UI polling problem. A preview is expected to be read-only for WooCommerce prices and stock; the screenshot does **not** establish that stock quantities or prices changed. Do not convert the preview result into an update while the job is stalled. This is an **observed UI symptom** but **not a runtime-proven cause**: production server logs, the job's `heartbeat_at`, queue state and job ID were not available in the screenshot.
+
+### Related code evidence and plausible root causes
+
+1. **Likely high-impact cause — broken stale-worker recovery (F01):** `includes/class-sync-runner.php:1934-1998` sends a stale `running` job to `resume()`, which rejects `running` at lines 1568-1577; recovery increments its count regardless. This affects previews too. `resume_orphaned_jobs()` (1869-1933) excludes stale jobs. This is a confirmed code defect, though it is **not proven to be the cause of this specific server incident**.
+2. **Missing UI stalled-state detection:** `assets/js/admin.js:421-468` continues polling `/jobs/{id}/status` every 2.5 seconds whenever `job.is_active` is true, without comparing `heartbeat_at`, `processed`, `updated_at` and previous responses over time. Its catch branch silently retries after 5 seconds. `renderProgress()` (271-419) always renders “Currently processing” for an active job even when that item label and heartbeat are stale.
+3. **Per-item progress granularity:** `includes/class-sync-runner.php:933-1049` recalculates aggregate counters only in `after_run()`; `process_item()` (1153-1212) updates `current_item` before calling WooCommerce product/variation logic. One extremely slow product, a stuck `wc_get_product`, plugin hook or query, or a crashed request could leave the same product name and 160-count displayed. A fixed product name **alone** does not prove that product is faulty.
+4. **Queue dependency:** `includes/class-scheduler.php:111-223, 494-539, 563-660` relies on Action Scheduler/cron and a token-protected loopback. A host that blocks loopbacks or has stopped cron runners can leave jobs waiting. `fire_loopback()` treats HTTP 403/500 as success (F11), so fallback may be delayed.
+5. **Potential scheduling/recovery phase omission:** `resume_orphaned_jobs()` switches only on `PHASE_DISCOVER` and `PHASE_FINALIZE`; `PHASE_DISCOVER_VARIATIONS` falls through to `HOOK_PROCESS`. `handle_batch()` handles discovering phases by re-queueing `HOOK_DISCOVER`, so it may recover indirectly but should schedule the appropriate hook directly and prove behavior in tests.
+
+### Immediate triage on the affected WordPress installation
+
+- Record the **job ID** from **View details**, the exact `status`, `type`, `phase`, `processed`, `total`, `heartbeat_at`, `updated_at`, `current_item` and `message` from authenticated `GET /wp-json/usdtf/v1/jobs/{id}/status`; take two samples 60 seconds apart. **Do not share REST nonces or worker tokens.**
+- Compare browser Network requests for `/jobs/{id}/status` (200/403/404/5xx, status body), WordPress/PHP server error logs, WooCommerce **Status → Scheduled Actions** filtered by `usdtf`, and cron maintenance execution. Note whether `DISABLE_WP_CRON` is enabled without a real system cron and whether loopbacks are blocked.
+- Inspect the current item's product type and variation count, plus related extensions/hooks. A slow third-party integration or a variable product with many children may block one worker.
+- For this **preview only**, use **Pause**, then **Resume** from Jobs if the job is no longer actually running; if it still hangs, **Cancel** and try a new preview on a small selected scope after collecting logs. Do not run an actual price update or switch WooCommerce currency as a troubleshooting tactic.
+- Avoid direct deletion of job table rows, options, queued actions or locks on a production site. If needed, snapshot database/plugin tables first.
+
+### Required fixes for the observed symptom
+
+**INC-01 / P0 cross-reference F01:** Implement correct atomic stale-job state recovery for preview and write jobs; count recovery only on a successful requeue. Make restart respect the saved phase and avoid duplicate workers.
+
+**INC-02 / P1 — UI watchdog:** Add `last_heartbeat_age_seconds`, `last_progress_at` or equivalent server-derived fields; display **Stalled / Worker unavailable** once heartbeat exceeds a documented threshold, with elapsed stall time. Preserve separate statuses for **Discovering**, **Processing**, **Waiting for retry**, **Paused**, and **Completed**. If only the count freezes but heartbeat is fresh, display **Long-running item** instead of falsely declaring the worker dead.
+
+**INC-03 / P1 — diagnostic visibility:** Surface queue backend, next pending action due time, last worker dispatch/HTTP status, last successful heartbeat, and item ID in a restricted “View details / Health” diagnostic section. Show poll request errors instead of silently swallowing them. Never display shared tokens, secrets or private product data to unauthorized users.
+
+**INC-04 / P1 — worker resilience:** Enforce a bounded product execution budget where practical, isolate a pathological product without stopping the remaining preview, record skip/fail reason and allow safe retry for that product. Treat a crashed request as orphaned work and restore it automatically with exactly-once item semantics.
+
+### Incident-specific acceptance tests
+
+1. A preview of **2,533** products completes on a representative shared-hosting configuration, with progress increments and accurate counts, or explicitly enters a recoverable failure state; no indefinite silent `running` state.
+2. Simulate worker termination immediately after 160 products; after heartbeat + lease expiry, maintenance requeues and completes the **same job ID** without administrator reload or a duplicate item.
+3. Stop Action Scheduler or block loopback; UI reports missing worker/queue health and a safe retry/diagnostic path, not a frozen percentage forever.
+4. Stall processing of a particular product (e.g., #2885 only in the test fixture), then exercise timeout/skip behavior and verify the remaining products finish; no hardcoded special case for the real product.
+5. Disconnect browser/network while workers continue: progress resumes rendering on reconnect, and if the worker stays alive, the UI does not label the job as dead.
+6. Assert that **preview creates zero WooCommerce price writes and zero stock-quantity writes**, even after retries, interruptions, or cancellation.
+
+**Status:** Report amended from observed screenshot + source investigation. **Production cause remains unconfirmed pending live job state and logs.**
