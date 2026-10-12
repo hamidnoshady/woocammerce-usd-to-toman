@@ -21,7 +21,7 @@ if ( ! defined( 'USDTF_FILE' ) ) {
 }
 
 if ( ! defined( 'USDTF_VERSION' ) ) {
-	define( 'USDTF_VERSION', '1.2.3' );
+	define( 'USDTF_VERSION', '1.2.4' );
 }
 
 require_once USDTF_DIR . 'includes/class-autoloader.php';
