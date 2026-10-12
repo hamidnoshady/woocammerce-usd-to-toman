@@ -967,6 +967,10 @@ final class Sync_Runner {
 
 			$this->process_item( $job, $item );
 
+			// Refresh the heartbeat after every item, so its age measures one
+			// item and the admin watchdog can tell a slow product from a dead worker.
+			$this->jobs->heartbeat( $job_id );
+
 			// A pause or cancel request is honoured between items.
 			$fresh = $this->jobs->get( $job_id );
 
@@ -1604,6 +1608,17 @@ final class Sync_Runner {
 		}
 
 		if ( ! $queued ) {
+			// Do not leave a healthy-looking running job without a worker. Keeping
+			// it paused also makes the recovery action safe to retry manually.
+			$this->jobs->update(
+				$job_id,
+				array(
+					'status'  => Job::STATUS_PAUSED,
+					'message' => __( 'The background worker could not be queued. Check queue health, then resume this job.', 'usd-to-toman-price-sync-for-woocommerce' ),
+				)
+			);
+			$this->lock->release( $job_id );
+
 			return false;
 		}
 
@@ -1900,6 +1915,7 @@ final class Sync_Runner {
 
 				switch ( $job->phase() ) {
 					case Job::PHASE_DISCOVER:
+					case Job::PHASE_DISCOVER_VARIATIONS:
 						$queued = $this->queue_step( $job->id(), self::HOOK_DISCOVER, 0, false );
 						break;
 					case Job::PHASE_FINALIZE:
@@ -1964,14 +1980,26 @@ final class Sync_Runner {
 				continue;
 			}
 
-			$resumes[ $job_id ] = $count + 1;
-			update_option( 'usdtf_stale_resumes', $resumes, false );
+			// Claim before releasing leases or dispatching. A live worker may have
+			// heartbeated since query(); in that case this conditional update loses
+			// and recovery must not create a duplicate worker.
+			$observed_heartbeat = isset( $job->data['heartbeat_at'] ) ? (string) $job->data['heartbeat_at'] : '';
+			if ( ! $this->jobs->claim_stale_for_recovery( $job_id, $observed_heartbeat ) ) {
+				continue;
+			}
 
 			$this->logger->warning( 'Recovering a job whose worker stopped.', array( 'auto_resume' => $count + 1 ), $job_id );
-
 			$this->lock->release( $job_id );
-			$this->resume( $job_id );
 
+			if ( ! $this->resume( $job_id ) ) {
+				$this->logger->error( 'Stale job recovery could not queue a worker.', array( 'phase' => $job->phase() ), $job_id );
+				continue;
+			}
+
+			// Failed dispatches do not consume the bounded automatic-recovery
+			// allowance. Count only a successfully persisted worker action.
+			$resumes[ $job_id ] = $count + 1;
+			update_option( 'usdtf_stale_resumes', $resumes, false );
 			++$recovered;
 		}
 

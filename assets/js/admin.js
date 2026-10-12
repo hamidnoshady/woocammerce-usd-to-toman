@@ -366,6 +366,16 @@
 		} ).join( ' · ' );
 		progress.appendChild( statusLine );
 
+		if ( job.is_active && Number( job.heartbeat_age || 0 ) >= 60 ) {
+			var watchdog = document.createElement( 'div' );
+			var stalled = Number( job.heartbeat_age || 0 ) > 300;
+			watchdog.className = 'notice ' + ( stalled ? 'notice-error' : 'notice-warning' ) + ' usdtf-worker-watchdog';
+			watchdog.textContent = stalled ?
+				sprintf( __( 'Worker stalled — no heartbeat for %d seconds. Recovery will requeue this job; if it becomes paused, check queue health and resume it.', 'usd-to-toman-price-sync-for-woocommerce' ), Number( job.heartbeat_age ) ) :
+				sprintf( __( 'Long-running item — the last heartbeat was %d seconds ago. The worker may still be processing this product.', 'usd-to-toman-price-sync-for-woocommerce' ), Number( job.heartbeat_age ) );
+			progress.appendChild( watchdog );
+		}
+
 		if ( job.message ) {
 			var message = document.createElement( 'p' );
 			message.className = 'usdtf-message';
@@ -459,10 +469,25 @@
 			window.setTimeout( function () {
 				window.location.reload();
 			}, 1200 );
-		} ).catch( function () {
-			pollTimer = window.setTimeout( function () {
-				poll( jobId );
-			}, 5000 );
+		} ).catch( function ( error ) {
+			var status = Number( error && error.data && error.data.status || 0 );
+			var feedback;
+			if ( 401 === status || 403 === status ) {
+				feedback = __( 'Progress polling was denied. Your session may have expired; reload this page.', 'usd-to-toman-price-sync-for-woocommerce' );
+			} else if ( 404 === status ) {
+				feedback = __( 'The running job could not be found. Reload the job list.', 'usd-to-toman-price-sync-for-woocommerce' );
+			} else if ( status >= 500 ) {
+				feedback = __( 'The server failed while checking progress. Retrying in five seconds.', 'usd-to-toman-price-sync-for-woocommerce' );
+			} else {
+				feedback = __( 'Progress polling lost its connection. Retrying in five seconds.', 'usd-to-toman-price-sync-for-woocommerce' );
+			}
+			toast( feedback, true );
+
+			if ( 401 !== status && 403 !== status && 404 !== status ) {
+				pollTimer = window.setTimeout( function () {
+					poll( jobId );
+				}, 5000 );
+			}
 		} );
 	}
 

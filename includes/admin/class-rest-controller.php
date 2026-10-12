@@ -780,6 +780,30 @@ final class Rest_Controller {
 	}
 
 	/**
+	 * Return the worker hook responsible for a persisted phase.
+	 *
+	 * @param string $phase Job phase.
+	 * @return string
+	 */
+	private function hook_for_phase( $phase ) {
+		if ( in_array( $phase, array( Job::PHASE_DISCOVER, Job::PHASE_DISCOVER_VARIATIONS ), true ) ) {
+			return Sync_Runner::HOOK_DISCOVER;
+		}
+		return Job::PHASE_FINALIZE === $phase ? Sync_Runner::HOOK_FINALIZE : Sync_Runner::HOOK_PROCESS;
+	}
+
+	/**
+	 * Return a UTC database timestamp's age without exposing server dates.
+	 *
+	 * @param string $value UTC database timestamp.
+	 * @return int
+	 */
+	private function timestamp_age( $value ) {
+		$timestamp = $value ? strtotime( (string) $value . ' UTC' ) : false;
+		return $timestamp ? max( 0, time() - $timestamp ) : 0;
+	}
+
+	/**
 	 * GET /jobs/<id>/status
 	 *
 	 * Lightweight, cache-safe endpoint used by the live progress card. It does
@@ -796,7 +820,17 @@ final class Rest_Controller {
 			return new \WP_Error( 'usdtf_job_not_found', __( 'The job could not be found.', 'usd-to-toman-price-sync-for-woocommerce' ), array( 'status' => 404 ) );
 		}
 
-		$response = rest_ensure_response( $job->to_array() );
+		$data = $job->to_array();
+
+		$data['telemetry'] = array(
+			'queue_backend'         => $this->scheduler->backend(),
+			'queue_pending'         => $this->scheduler->pending_count(),
+			'queue_failed'          => $this->scheduler->failed_count(),
+			'next_worker_pending'   => $this->scheduler->has_pending( $this->hook_for_phase( $job->phase() ), array( $job->id() ) ),
+			'last_dispatch_failure' => $this->scheduler->last_dispatch_failure(),
+			'last_progress_age'     => $this->timestamp_age( isset( $job->data['updated_at'] ) ? $job->data['updated_at'] : '' ),
+		);
+		$response          = rest_ensure_response( $data );
 
 		$response->header( 'Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0' );
 		$response->header( 'Pragma', 'no-cache' );

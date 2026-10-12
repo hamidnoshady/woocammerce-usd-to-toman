@@ -359,6 +359,28 @@ final class Job_Repository {
 	}
 
 	/**
+	 * Atomically claim a stale running job for recovery.
+	 *
+	 * Matching the observed heartbeat prevents a recovery tick from pausing a
+	 * worker that refreshed its lease after the stale-job query was made.
+	 *
+	 * @param int    $job_id           Job ID.
+	 * @param string $observed_heartbeat Heartbeat read by the recovery pass.
+	 * @return bool Whether this caller claimed the job.
+	 */
+	public function claim_stale_for_recovery( $job_id, $observed_heartbeat ) {
+		global $wpdb;
+
+		$table = Database::jobs_table();
+		$now   = current_time( 'mysql', true );
+
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Internal table name.
+		$result = Database::query( $wpdb->prepare( "UPDATE `{$table}` SET `status` = %s, `message` = %s, `updated_at` = %s WHERE `id` = %d AND `status` = %s AND `heartbeat_at` = %s", Job::STATUS_PAUSED, __( 'Recovering after the background worker stopped.', 'usd-to-toman-price-sync-for-woocommerce' ), $now, (int) $job_id, Job::STATUS_RUNNING, (string) $observed_heartbeat ) );
+
+		return 1 === (int) $result;
+	}
+
+	/**
 	 * Refresh the heartbeat and lock timestamp.
 	 *
 	 * @param int    $job_id Job ID.
