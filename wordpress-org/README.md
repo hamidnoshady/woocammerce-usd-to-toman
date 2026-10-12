@@ -10,7 +10,7 @@ excludes this folder).
 WordPress.org reads the artwork from the `assets/` folder of the **plugin SVN repository**, never
 from the plugin zip and never from the `trunk/` folder:
 
-```
+```text
 https://plugins.svn.wordpress.org/<plugin-slug>/assets/
 ```
 

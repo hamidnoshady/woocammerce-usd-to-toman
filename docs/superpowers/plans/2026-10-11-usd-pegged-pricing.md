@@ -73,10 +73,12 @@ The suite stops at the first failed assertion. **From Task 3 on, the legacy scen
 ### Task 1: Test harness for the new model
 
 **Files:**
+
 - Modify: `tests/integration/run.php` (after the helper functions, before section 1), `tests/integration/lib.php`
 - Create: `tests/integration/pegged.php`
 
 **Interfaces:**
+
 - Produces: `USDTF_IT_ONLY=pegged` runs only `pegged.php` then exits 0; `usdtf_it_set_currency( $code )` (adds a `pre_option_woocommerce_currency` filter returning `$code`; `null` removes it); `usdtf_it_make_priced_product( $name, $regular, $sale = '', $mode = '' )` returns a `WC_Product_Simple` with Woo prices set, no plugin meta, and `_usdtf_mode` set only when `$mode` is not empty.
 
 - [ ] **Step 1: Write the failing scenario** in `pegged.php`: `usdtf_it_set_currency( 'IRT' ); $p = usdtf_it_make_priced_product( 'Harness', 5000000 ); usdtf_it_assert_same( '5000000', usdtf_it_price( $p->get_id() ), 'the fixture must hold the Woo price' ); usdtf_it_assert_same( '', usdtf_it_meta( $p->get_id(), '_usdtf_usd_regular' ), 'the fixture must carry no plugin meta' ); usdtf_it_pass( 'the new-model harness runs' );`
@@ -90,6 +92,7 @@ The suite stops at the first failed assertion. **From Task 3 on, the legacy scen
 **Files:** Modify `includes/class-calculator.php`; Test `tests/integration/pegged.php`.
 
 **Interfaces:**
+
 - Produces: `Calculator::usd_from_price( $price, $rate )` → `float|null` (null when `$price <= 0` or `$rate <= 0`; else `$price / $rate` rounded to 2 decimals half up); `Calculator::price_from_usd( $usd, $rate, $args = array() )` → `float|null` (`$args`: `rounding`, `increment`, `decimals`; uses existing `round_amount` and `trim_to_decimals`); `Calculator::increments_for_unit( $unit )` → `float[]` and `Calculator::default_increment( $unit )` → `float` per Global Constraints; `Calculator::format_price( $amount, $decimals = 0 )` → string via `number_format_i18n`.
 
 - [ ] **Step 1: Write failing scenarios**: `usd_from_price( 5000000, 270000 ) === 18.52`; `( 43890000, 270000 ) === 162.56`; `( 0, 270000 )`, `( 100, 0 )` and `( -1, 1 )` are `null`; `price_from_usd( 18.52, 300000, up/1000/0 ) === 5556000.0`; `price_from_usd( 18.52, 297000, … )` is `5501000.0` (up), `5500000.0` (nearest), `5500000.0` (down); `increments_for_unit( 'toman' ) === array( 1.0, 100.0, 1000.0, 10000.0 )`, `( 'rial' ) === array( 10.0, 1000.0, 10000.0, 100000.0 )`, `default_increment( 'toman' ) === 1000.0`, `( 'rial' ) === 10000.0`.
@@ -103,6 +106,7 @@ The suite stops at the first failed assertion. **From Task 3 on, the legacy scen
 **Files:** Create `includes/class-store-currency.php`; Delete `includes/frontend/class-currency.php`, `includes/frontend/class-display.php`; Modify `includes/class-plugin.php` (remove `display()`, `currency()` and their `hooks()` calls), `includes/class-autoloader.php` only if it lists them; Test `pegged.php`. (The override must go first: `Frontend\Currency` forces `IRT` while the old mode is Toman, which would make `get_woocommerce_currency()` ignore the store setting these tests switch.)
 
 **Interfaces:**
+
 - Produces: `final class Store_Currency` with `const UNIT_TOMAN = 'toman'; const UNIT_RIAL = 'rial';` and static `code()` → string (`get_woocommerce_currency()`), `unit()` → `'toman'` for `IRT`, `'rial'` for `IRR`, `''` otherwise, `is_supported()` → bool, `unit_label()` → translated `Toman`/`Rial`/`''`.
 
 - [ ] **Step 1: Write failing scenarios** using `usdtf_it_set_currency`: `IRT` gives unit `toman`, supported, label `Toman`; `IRR` gives `rial`, supported, `Rial`; `USD` gives `''`, not supported, label `''`; removing the filter restores the stored currency; `class_exists( '\\USDTF\\Frontend\\Currency' )` and `…\\Display` are false; with `USD` stored `get_woocommerce_currency()` is `USD` (the plugin no longer overrides it); the storefront price HTML of a managed product equals WooCommerce's own `wc_price()` output.
@@ -116,6 +120,7 @@ The suite stops at the first failed assertion. **From Task 3 on, the legacy scen
 **Files:** Create `includes/class-price-planner.php`; Test `pegged.php`.
 
 **Interfaces:**
+
 - Consumes: `Calculator::usd_from_price`, `Calculator::price_from_usd` (Task 2).
 - Produces: `final class Price_Planner` with constants `ACTION_GENERATE='generate'`, `ACTION_REBASE='rebase'`, `ACTION_UPDATE='update'`, `ACTION_CLEAR='clear'`, `ACTION_UNCHANGED='unchanged'`, `ACTION_SKIP='skip'`, and `public static function plan( $current, $seen, $usd, $stored_rate, $rate, array $rounding )` → `array{action:string, code:string, usd:string, price:string, seen:string}`. `$current`, `$seen`, `$usd` are strings (`''` = none); `$stored_rate` and `$rate` are floats; `$rounding` has `rounding`, `increment`, `decimals`. `price` is the Woo price after the action (equal to `$current` unless `update`); `seen`/`usd` are the values to store.
 
@@ -137,6 +142,7 @@ Decision order: `rate <= 0` → skip `no_rate`; `current === ''` and `usd === ''
 | `12.50` (Woo decimals 2) | `12.50` | `0.50` | 25 | 25 | unchanged | `0.50` | `12.50` | |
 
   Also assert `seen` equals `price` for every non-skip action.
+
 - [ ] **Step 2: Run** `USDTF_IT_ONLY=pegged …`. Expected: FAIL (class missing).
 - [ ] **Step 3: Implement** `Price_Planner::plan` following the decision order above; no WordPress calls except `Calculator`.
 - [ ] **Step 4: Run** `USDTF_IT_ONLY=pegged …` and phpcs. Expected: PASS.
@@ -147,6 +153,7 @@ Decision order: `rate <= 0` → skip `no_rate`; `current === ''` and `usd === ''
 **Files:** Modify `includes/class-settings.php`, `includes/class-database.php`, `includes/class-installer.php`, `includes/class-job-repository.php` (columns and constants), `includes/class-job.php` (counters), `uninstall.php`; Test `pegged.php`.
 
 **Interfaces:**
+
 - Consumes: `Store_Currency::unit()`, `Calculator::increments_for_unit/default_increment`.
 - Produces: `Settings::allowed_increments( $unit = null )` (defaults to `Store_Currency::unit()`); `Settings::rounding_args()` → `array{rounding:string,increment:float,decimals:int}` where `decimals = wc_get_price_decimals()` and an increment that is not allowed for the unit falls back to `default_increment`; `Job_Repository::ITEM_GENERATED = 'generated'`, `ITEM_REBASED = 'rebased'`; items columns `usd_regular`, `usd_sale` (varchar(32) NULL, added to `ITEM_COLUMNS`/`ITEM_FORMATS`, the old `source_*`, `toman_*`, `expected_revision` removed from those lists); jobs columns `generated`, `rebased` (bigint unsigned, default 0) and `Job::counters()` returns them; `Installer::migrate_to_pegged_model()` (runs once from `maybe_upgrade()` when `Database::SCHEMA_VERSION` is bumped).
 - Removed settings keys: `currency_mode`, `display_toman`, `display_toman_cart`, `persian_digits`, `toman_suffix`, `decimals`, `auto_manage_new_products`; option `usdtf_synced_currency_mode`; methods `is_usd_mode`, `is_toman_mode`, `synced_currency_mode`, `set_synced_currency_mode`, `currency_mode_is_stale`, `MODE_USD`, `MODE_TOMAN`.
@@ -162,6 +169,7 @@ Decision order: `rate <= 0` → skip `no_rate`; `current === ''` and `usd === ''
 **Files:** Modify `includes/class-product-pricing.php`, `includes/class-product-repository.php`; Test `pegged.php`.
 
 **Interfaces:**
+
 - Consumes: Task 5 constants.
 - Produces on `Product_Pricing`: constants `META_USD_REGULAR`, `META_USD_SALE`, `META_SEEN_REGULAR`, `META_SEEN_SALE`; `modes()` → `array( 'managed', 'excluded' )`; `get_mode( $product )` → `'excluded'` when stored `excluded` or `native`, else `'managed'` (amendment A1); `get_snapshot( $product )` → array with the existing non-pricing keys plus `mode`, `managed` (bool), `current_regular`, `current_sale` (strings from Woo, `''` when empty), `seen_regular`, `seen_sale`, `usd_regular`, `usd_sale` (strings), `rate` (float), `synced_at` (int), `conflict`, `last_error`; `save_state( $product_id, array $state )` writing `usd_regular`, `usd_sale`, `seen_regular`, `seen_sale`, `rate`, `synced_at` inside `without_hooks`. Removed: `get_source`, `validate_source_pair`, `set_source`, `source_error_message`, `get_revision`, `bump_revision`, `import_current_price_as_source`, `ingest_woocommerce_prices`, the revision hooks (`on_meta_written`, `on_meta_deleted`), `on_admin_process_product`, `on_admin_process_variation`, `MODE_NATIVE`, and the removed meta constants.
 - On `Product_Repository`: the `mode` scope matches `excluded` by `_usdtf_mode = excluded` or `native`, and `managed` by `NOT EXISTS` or `= managed`; `only_outdated` matches products with no `_usdtf_usd_regular`, or `_usdtf_rate` different from the rate; `mode_counts()` returns `managed`, `excluded`, `products`, `variations`, `managed_variations` (no `native`, no `unset`).
@@ -177,6 +185,7 @@ Decision order: `rate <= 0` → skip `no_rate`; `current === ''` and `usd === ''
 **Files:** Modify `includes/class-recorder.php`, `includes/class-sync-runner.php`; Test `pegged.php`.
 
 **Interfaces:**
+
 - Consumes: `Price_Planner::plan`, `Product_Pricing::get_snapshot/save_state`, `Settings::rounding_args`, `Store_Currency`.
 - Produces: `Recorder::apply( $product, array $args )` with `$args` keys `dry_run` (bool), `rate` (float), `rounding` (array), `job_id` (int), `sync_parent` (bool); returns `array{status, code, message, old:{regular,sale}, new:{regular,sale}, usd:{regular,sale}, wrote:bool, parent_id:int, object_type:string}`. Status rule: any field `update` → `changed`; else any `generate` → `generated`; else any `rebase`/`clear` → `rebased`; else all fields `unchanged` → `unchanged`; a regular price with `invalid_price`/`too_low`/`no_rate`/`no_price` skips the whole product with that `code`. The computed sale above the regular price → `failed`, code `sale_above_regular`, nothing written. Just before saving, re-read the Woo prices with a fresh `wc_get_product`; if they differ from the snapshot → `conflict`, nothing written (`mark_conflict` when not a dry run). Excluded products return `skipped`, code `not_managed`. `Sync_Runner::create_job` returns `WP_Error( 'usdtf_unsupported_currency', …, array( 'status' => 400 ) )` when `! Store_Currency::is_supported()`; `Sync_Runner::job_fingerprint( $rate, array $rounding, array $scope )` (no currency mode); the runner counts the new statuses into the job's `generated`/`rebased` counters and stores `usd_regular`/`usd_sale` on the item row. Removed: `calculate_and_write`'s source/revision logic, `mark_mode_synced`, the forced full-scope on a mode change.
 
@@ -202,6 +211,7 @@ Decision order: `rate <= 0` → skip `no_rate`; `current === ''` and `usd === ''
 **Files:** Modify `includes/class-rate-repository.php` (the impact estimate loop around line 430 and the rollback path); Test `pegged.php`.
 
 **Interfaces:**
+
 - Consumes: `Price_Planner::plan`, `Product_Pricing::get_snapshot`.
 - Produces: the impact estimate counts a product as affected when its `regular` or `sale` plan is `update`, `generate`, `rebase` or `clear` at the candidate rate (same rounding args as a job); rollback restores `previous_rate` and recalculates `USD × previous_rate` through the normal job path (type `rollback`), skipping products whose Woo price differs from `seen`.
 
@@ -216,6 +226,7 @@ Decision order: `rate <= 0` → skip `no_rate`; `current === ''` and `usd === ''
 **Files:** Modify `includes/admin/class-rest-controller.php`, `class-admin.php`, `class-product-panel.php`, `views/{dashboard,jobs,settings,product-panel,page}.php`, `includes/class-health.php`, `assets/js/admin.js`, `assets/css/admin.css`; Test `pegged.php`.
 
 **Interfaces:**
+
 - Consumes: Tasks 5 to 8.
 - Produces: REST item payload keys `usd_regular`, `usd_sale` (replacing `toman_regular`, `toman_sale`), `old_regular`, `old_sale`, `new_regular`, `new_sale`, `status`; job payload counters `generated`, `rebased`; settings/state payload `store_currency` = `array{code:string, unit:string, label:string, supported:bool}`; the rate field label is `Toman per 1 USD` or `Rial per 1 USD` from `Store_Currency::unit_label()`; CSV header `product_id,parent_id,object_type,status,usd_regular,usd_sale,old_price,new_price,attempts,message`; the Settings screen shows the read-only row `Store currency` with a link to WooCommerce → Settings → General and no currency-mode radios; the product panel offers only Managed/Excluded and shows read-only Woo price, USD price, rate used and last sync; an admin notice `Set the store currency to Iranian Toman or Rial` when unsupported; Diagnostics shows the detected currency.
 
