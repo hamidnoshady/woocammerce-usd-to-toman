@@ -556,11 +556,11 @@ final class Scheduler {
 		if ( is_wp_error( $result ) ) {
 			update_option(
 				'usdtf_last_dispatch_failure',
-					array(
-						'time'   => time(),
-						'hook'   => $hook,
-						'reason' => sanitize_text_field( $result->get_error_message() ),
-					),
+				array(
+					'time'   => time(),
+					'hook'   => $hook,
+					'reason' => sanitize_text_field( $result->get_error_message() ),
+				),
 				false
 			);
 			return false;
@@ -573,11 +573,11 @@ final class Scheduler {
 		if ( ! $ok ) {
 			update_option(
 				'usdtf_last_dispatch_failure',
-					array(
-						'time'   => time(),
-						'hook'   => $hook,
-						'reason' => 'HTTP ' . $status,
-					),
+				array(
+					'time'   => time(),
+					'hook'   => $hook,
+					'reason' => 'HTTP ' . $status,
+				),
 				false
 			);
 			return false;
