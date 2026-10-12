@@ -830,7 +830,7 @@ final class Rest_Controller {
 			'last_dispatch_failure' => $this->scheduler->last_dispatch_failure(),
 			'last_progress_age'     => $this->timestamp_age( isset( $job->data['updated_at'] ) ? $job->data['updated_at'] : '' ),
 		);
-		$response = rest_ensure_response( $data );
+		$response          = rest_ensure_response( $data );
 
 		$response->header( 'Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0' );
 		$response->header( 'Pragma', 'no-cache' );
