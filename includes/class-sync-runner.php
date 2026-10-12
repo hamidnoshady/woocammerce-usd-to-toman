@@ -967,6 +967,10 @@ final class Sync_Runner {
 
 			$this->process_item( $job, $item );
 
+			// Refresh the heartbeat after every item, so its age measures one
+			// item and the admin watchdog can tell a slow product from a dead worker.
+			$this->jobs->heartbeat( $job_id );
+
 			// A pause or cancel request is honoured between items.
 			$fresh = $this->jobs->get( $job_id );
 
