@@ -58,6 +58,14 @@ final class Sync_Runner {
 	const IDLE_NUDGE_AFTER = 15;
 
 	/**
+	 * Seconds without a heartbeat after which a running job with no queued step
+	 * and no live worker lease is treated as having lost its worker. The step is
+	 * queued again and run by the status poll, instead of waiting for the
+	 * recovery pass that only starts after the lease TTL.
+	 */
+	const LOST_WORKER_AFTER = 60;
+
+	/**
 	 * Result codes that need an administrator's attention: the product data is
 	 * invalid, so the job is reported as completed with errors.
 	 *
@@ -1049,17 +1057,29 @@ final class Sync_Runner {
 				$hook = self::HOOK_PROCESS;
 		}
 
-		// Nothing is queued while a worker owns the step, and a retry that waits
-		// for its delay is queued on purpose.
-		if ( ! $this->scheduler->has_pending( $hook, array( $job_id ) ) ) {
+		if ( $this->scheduler->has_pending( $hook, array( $job_id ) ) ) {
+			// A retry that waits for its delay is queued on purpose.
+			if ( self::HOOK_PROCESS === $hook && $this->jobs->next_retry_delay( $job_id ) > 0 ) {
+				return false;
+			}
+
+			$this->logger->warning( 'A queued worker step was not started; the progress poll runs it.', array( 'hook' => $hook ), $job_id );
+
+			return $this->scheduler->claim_and_run( $hook, array( $job_id ) );
+		}
+
+		// Nothing is queued. A worker that claimed the step holds a lease while it
+		// runs; without one, and with no heartbeat for a minute, the worker died
+		// after claiming its step and nothing will ever start the next one.
+		if ( $job->heartbeat_age() < self::LOST_WORKER_AFTER || $this->scheduler->has_live_lease( $job_id, $hook ) ) {
 			return false;
 		}
 
-		if ( self::HOOK_PROCESS === $hook && $this->jobs->next_retry_delay( $job_id ) > 0 ) {
+		$this->logger->warning( 'The worker of a running job was lost; the progress poll queues and runs its step again.', array( 'hook' => $hook ), $job_id );
+
+		if ( ! $this->queue_step( $job_id, $hook, 0, false ) ) {
 			return false;
 		}
-
-		$this->logger->warning( 'A queued worker step was not started; the progress poll runs it.', array( 'hook' => $hook ), $job_id );
 
 		return $this->scheduler->claim_and_run( $hook, array( $job_id ) );
 	}

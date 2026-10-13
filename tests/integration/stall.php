@@ -134,6 +134,40 @@ $st_waiting = $st_poll( $st_retry_id );
 usdtf_it_assert_same( 0, (int) $st_waiting['counters']['processed'] > 0 ? 1 : 0, 'a poll must not run a step that waits for a retry delay' );
 usdtf_it_pass( 'a poll leaves a delayed retry alone' );
 
+// A worker that died after claiming its step leaves nothing queued. A live
+// worker lease or a fresh heartbeat keeps the poll away; a minute of silence
+// without either queues the step again.
+$st_lost = usdtf_it_create_job(
+	array(
+		'type'  => \USDTF\Job::TYPE_PREVIEW,
+		'scope' => array( 'ids' => $st_ids ),
+	)
+);
+$st_lost_id = (int) $st_lost['id'];
+$runner->handle_discovery( $st_lost_id );
+$runner->handle_batch( $st_lost_id );
+\USDTF\Scheduler::unschedule_all( \USDTF\Sync_Runner::HOOK_PROCESS, array( $st_lost_id ) );
+usdtf_it_assert( ! usdtf_plugin()->scheduler()->has_pending( \USDTF\Sync_Runner::HOOK_PROCESS, array( $st_lost_id ) ), 'the lost-worker job must have no queued step' );
+
+$st_age( $st_lost_id, 30 );
+usdtf_it_assert_same( 10, (int) $st_poll( $st_lost_id )['counters']['processed'], 'thirty seconds of silence is not a lost worker' );
+
+update_option( 'usdtf_worker_lease_' . $st_lost_id . '_' . \USDTF\Sync_Runner::HOOK_PROCESS, array( 'time' => time() ), false );
+$st_age( $st_lost_id, 90 );
+usdtf_it_assert_same( 10, (int) $st_poll( $st_lost_id )['counters']['processed'], 'a live worker lease keeps the poll from starting a second worker' );
+
+delete_option( 'usdtf_worker_lease_' . $st_lost_id . '_' . \USDTF\Sync_Runner::HOOK_PROCESS );
+$st_age( $st_lost_id, 90 );
+usdtf_it_assert( (int) $st_poll( $st_lost_id )['counters']['processed'] > 10, 'a minute without a worker or a queued step must restart the job' );
+
+for ( $st_i = 0; $st_i < 10 && $jobs->get( $st_lost_id )->is_active(); $st_i++ ) {
+	$st_age( $st_lost_id, 30 );
+	$st_poll( $st_lost_id );
+}
+
+usdtf_it_assert_same( 25, (int) $jobs->get( $st_lost_id )->counters()['processed'], 'the job that lost its worker must finish with every product once' );
+usdtf_it_pass( 'a poll restarts a job whose worker died' );
+
 remove_filter( 'usdtf_batch_size', $st_batch );
 remove_action( 'woocommerce_update_product', $st_count_write );
 remove_action( 'woocommerce_update_product_variation', $st_count_write );
