@@ -432,6 +432,8 @@ final class Installer {
 			'_transient_timeout_usdtf_manual_override_%',
 			'_transient_usdtf_panel_error_%',
 			'_transient_timeout_usdtf_panel_error_%',
+			'usdtf_in_flight_%',
+			'usdtf_worker_lease_%',
 		);
 
 		foreach ( $transient_patterns as $pattern ) {

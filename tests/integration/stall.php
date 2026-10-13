@@ -18,7 +18,7 @@
 usdtf_it_delete_products();
 usdtf_it_reset_plugin_state();
 
-usdtf_it_set_currency( 'IRT' );
+usdtf_it_use_toman_store();
 
 $st_admins = get_users(
 	array(
@@ -167,6 +167,66 @@ for ( $st_i = 0; $st_i < 10 && $jobs->get( $st_lost_id )->is_active(); $st_i++ )
 
 usdtf_it_assert_same( 25, (int) $jobs->get( $st_lost_id )->counters()['processed'], 'the job that lost its worker must finish with every product once' );
 usdtf_it_pass( 'a poll restarts a job whose worker died' );
+
+// A product that kills the worker every time it is processed. Each step runs
+// in its own PHP process (worker.php), and that process ends while it works on
+// the poison product, like a fatal error or a host that kills the request.
+// The maintenance tick re-queues an orphaned job on its own, and with a test
+// web server running it would finish this job behind the scenario's back. It is
+// held off for the scenario and scheduled again at its end.
+wp_clear_scheduled_hook( \USDTF\Cron::EVENT_TICK );
+register_shutdown_function( array( '\\USDTF\\Cron', 'schedule' ) );
+
+$st_crash_ids = array_slice( $st_ids, 0, 12 );
+$st_poison    = (int) $st_crash_ids[2];
+$st_crash     = usdtf_it_create_job(
+	array(
+		'type'  => \USDTF\Job::TYPE_PREVIEW,
+		'scope' => array( 'ids' => $st_crash_ids ),
+	)
+);
+$st_crash_id  = (int) $st_crash['id'];
+$runner->handle_discovery( $st_crash_id );
+
+$st_worker = static function ( $job_id, $crash_on ) {
+	$command = escapeshellarg( PHP_BINARY ) . ' ' . escapeshellarg( __DIR__ . '/worker.php' ) . ' '
+		. escapeshellarg( usdtf_it_wp_dir() ) . ' ' . (int) $job_id . ' ' . (int) $crash_on . ' 2>&1';
+	$output  = array();
+	$status  = 0;
+	exec( $command, $output, $status ); // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.system_calls_exec
+
+	return array(
+		'status' => (int) $status,
+		'output' => implode( "\n", $output ),
+	);
+};
+
+$st_first = $st_worker( $st_crash_id, $st_poison );
+usdtf_it_assert_same( 255, $st_first['status'], 'the worker must die on the poison product: ' . $st_first['output'] );
+wp_cache_flush();
+usdtf_it_assert_same( 2, (int) $jobs->get( $st_crash_id )->counters()['processed'], 'the progress must show the items finished before the worker died' );
+
+$st_logged = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM `' . \USDTF\Database::logs_table() . '` WHERE job_id = %d AND message LIKE %s', $st_crash_id, '%stopped while processing%' ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared
+usdtf_it_assert( $st_logged > 0, 'the plugin log must name the product the worker died on' );
+
+$st_second = $st_worker( $st_crash_id, $st_poison );
+usdtf_it_assert_same( 255, $st_second['status'], 'the poison product is tried once more: ' . $st_second['output'] );
+
+// The third worker skips it and finishes the batch.
+$st_third = $st_worker( $st_crash_id, $st_poison );
+usdtf_it_assert_same( 0, $st_third['status'], 'the third worker must skip the poison product: ' . $st_third['output'] );
+wp_cache_flush();
+usdtf_it_run_job( $st_crash_id );
+
+$st_crash_job = $jobs->get( $st_crash_id );
+usdtf_it_assert( ! $st_crash_job->is_active(), 'the job with a poison product must finish' );
+usdtf_it_assert_same( 12, (int) $st_crash_job->counters()['processed'], 'every product must be processed or reported' );
+usdtf_it_assert_same( 1, (int) $st_crash_job->counters()['failed'], 'only the poison product fails' );
+usdtf_it_assert_same( 0, (int) $GLOBALS['usdtf_it_stall_writes'], 'a dry run with a crashing product must write no product' );
+usdtf_it_assert( false === get_option( 'usdtf_in_flight_' . $st_crash_id, false ), 'a finished job must leave no in-flight marker' );
+usdtf_it_pass( 'a product that kills the worker is skipped after two attempts and the job finishes' );
+
+\USDTF\Cron::schedule();
 
 remove_filter( 'usdtf_batch_size', $st_batch );
 remove_action( 'woocommerce_update_product', $st_count_write );

@@ -705,5 +705,6 @@ require __DIR__ . '/extra.php';
 require __DIR__ . '/admin.php';
 require __DIR__ . '/ui.php';
 require __DIR__ . '/audit.php';
+require __DIR__ . '/stall.php';
 
 echo "\nAll integration scenarios passed.\n";

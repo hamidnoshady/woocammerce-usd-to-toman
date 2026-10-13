@@ -1535,3 +1535,7 @@ msgstr "کارگر از دست رفته"
 #: includes/admin/views/dashboard.php:206
 msgid "“May need an update” counts managed products without a USD price or whose stored rate is not the current rate. The exact number of price changes is calculated by the dry run."
 msgstr "«شاید نیاز به به‌روزرسانی داشته باشد» محصولات مدیریت‌شده‌ای را می‌شمارد که قیمت دلاری ندارند یا نرخ ذخیره‌شدهٔ آن‌ها نرخ کنونی نیست. شمار دقیق تغییرهای قیمت را اجرای آزمایشی محاسبه می‌کند."
+
+#: includes/class-sync-runner.php
+msgid "The background worker stopped while processing this product, more than once, so it was skipped. Check the PHP error log for this product, then retry the failed items."
+msgstr "پردازشگر پس‌زمینه هنگام پردازش این محصول بیش از یک بار متوقف شد، پس این محصول نادیده گرفته شد. گزارش خطای PHP را برای این محصول بررسی کنید، سپس موارد ناموفق را دوباره امتحان کنید."
