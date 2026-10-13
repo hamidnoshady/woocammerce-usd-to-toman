@@ -101,6 +101,15 @@ $runner   = usdtf_plugin()->runner();
 $pricing  = usdtf_plugin()->pricing();
 $jobs     = usdtf_plugin()->jobs();
 
+// A bulk update whose next batch is never dispatched. USDTF_IT_ONLY=stall runs
+// just this scenario.
+if ( 'stall' === getenv( 'USDTF_IT_ONLY' ) ) {
+	require __DIR__ . '/stall.php';
+
+	echo "\nAll stall integration scenarios passed.\n";
+	exit( 0 );
+}
+
 // ---------------------------------------------------------------------------
 // The USD-pegged model. USDTF_IT_ONLY=pegged runs just these scenarios. The
 // store guard registered its shutdown handler in usdtf_it_boot(), so the early
