@@ -58,6 +58,21 @@ final class Sync_Runner {
 	const IDLE_NUDGE_AFTER = 15;
 
 	/**
+	 * Seconds without a heartbeat after which a running job with no queued step
+	 * and no live worker lease is treated as having lost its worker. The step is
+	 * queued again and run by the status poll, instead of waiting for the
+	 * recovery pass that only starts after the lease TTL.
+	 */
+	const LOST_WORKER_AFTER = 60;
+
+	/**
+	 * Times a worker may die while it processes one item. The item is then
+	 * reported as failed and skipped, so one product that kills PHP (a fatal
+	 * error, the memory limit, the host's time limit) cannot stop a job forever.
+	 */
+	const MAX_ITEM_CRASHES = 2;
+
+	/**
 	 * Result codes that need an administrator's attention: the product data is
 	 * invalid, so the job is reported as completed with errors.
 	 *
@@ -962,6 +977,8 @@ final class Sync_Runner {
 		$started = microtime( true );
 		$budget  = $this->settings->time_budget();
 
+		$this->watch_for_crash( $job_id );
+
 		$items = $this->jobs->next_items( $job_id, $this->settings->batch_size() );
 
 		$out_of_time = false;
@@ -973,11 +990,16 @@ final class Sync_Runner {
 				break;
 			}
 
-			$this->process_item( $job, $item );
+			if ( $this->start_item( $job_id, $item ) ) {
+				$this->process_item( $job, $item );
+				$this->finish_item( $job_id );
+			}
 
-			// Refresh the heartbeat after every item, so its age measures one
-			// item and the admin watchdog can tell a slow product from a dead worker.
+			// Refresh the heartbeat and the counters after every item, so the
+			// heartbeat age measures one item, the admin watchdog can tell a slow
+			// product from a dead worker, and the progress moves item by item.
 			$this->jobs->heartbeat( $job_id );
+			$this->sync_counters( $job );
 
 			// A pause or cancel request is honoured between items.
 			$fresh = $this->jobs->get( $job_id );
@@ -1049,19 +1071,152 @@ final class Sync_Runner {
 				$hook = self::HOOK_PROCESS;
 		}
 
-		// Nothing is queued while a worker owns the step, and a retry that waits
-		// for its delay is queued on purpose.
-		if ( ! $this->scheduler->has_pending( $hook, array( $job_id ) ) ) {
-			return false;
-		}
-
+		// A retry that waits for its delay is queued on purpose.
 		if ( self::HOOK_PROCESS === $hook && $this->jobs->next_retry_delay( $job_id ) > 0 ) {
 			return false;
 		}
 
-		$this->logger->warning( 'A queued worker step was not started; the progress poll runs it.', array( 'hook' => $hook ), $job_id );
+		// The step is queued but never started: its dispatch was lost.
+		if ( $this->scheduler->has_pending( $hook, array( $job_id ) ) ) {
+			$this->logger->warning( 'A queued worker step was not started; the progress poll runs it.', array( 'hook' => $hook ), $job_id );
+
+			if ( $this->scheduler->claim_and_run( $hook, array( $job_id ) ) ) {
+				return true;
+			}
+		}
+
+		// Nothing could be claimed: the step was already taken by a worker. A
+		// worker refreshes the heartbeat after every item, and one started by the
+		// loopback also holds a lease while it runs. A minute without either
+		// means that worker died (a fatal error, the memory or time limit, or a
+		// host that killed the request), and nothing will start the next step.
+		if ( $job->heartbeat_age() < self::LOST_WORKER_AFTER || $this->scheduler->has_live_lease( $job_id, $hook ) ) {
+			return false;
+		}
+
+		$this->logger->warning( 'The worker of a running job was lost; the progress poll queues and runs its step again.', array( 'hook' => $hook ), $job_id );
+
+		if ( ! $this->queue_step( $job_id, $hook, 0, false ) ) {
+			return false;
+		}
 
 		return $this->scheduler->claim_and_run( $hook, array( $job_id ) );
+	}
+
+	/**
+	 * Option that remembers the item a worker of a job is processing.
+	 *
+	 * @param int $job_id Job ID.
+	 * @return string
+	 */
+	private static function in_flight_key( $job_id ) {
+		return 'usdtf_in_flight_' . (int) $job_id;
+	}
+
+	/**
+	 * Record that a worker starts an item, or skip an item that keeps killing it.
+	 *
+	 * The marker is removed when the item is done. Finding it still set for the
+	 * same item means the previous worker died while processing it. After
+	 * MAX_ITEM_CRASHES such deaths the item is reported as failed and skipped.
+	 *
+	 * @param int   $job_id Job ID.
+	 * @param array $item   Item row.
+	 * @return bool Whether the item should be processed.
+	 */
+	private function start_item( $job_id, array $item ) {
+		$key      = self::in_flight_key( $job_id );
+		$previous = get_option( $key, null );
+		$crashes  = 0;
+
+		if ( is_array( $previous ) && isset( $previous['item'] ) && (int) $previous['item'] === (int) $item['id'] ) {
+			$crashes = ( isset( $previous['crashes'] ) ? (int) $previous['crashes'] : 0 ) + 1;
+		}
+
+		if ( $crashes >= self::MAX_ITEM_CRASHES ) {
+			delete_option( $key );
+
+			$this->jobs->update_item(
+				$item['id'],
+				array(
+					'status'  => Job_Repository::ITEM_FAILED,
+					'message' => __( 'The background worker stopped while processing this product, more than once, so it was skipped. Check the PHP error log for this product, then retry the failed items.', 'usd-to-toman-price-sync-for-woocommerce' ),
+				)
+			);
+
+			$this->logger->error( 'A product stopped the worker repeatedly and was skipped.', array( 'object_id' => (int) $item['object_id'] ), $job_id );
+
+			return false;
+		}
+
+		update_option(
+			$key,
+			array(
+				'item'    => (int) $item['id'],
+				'object'  => (int) $item['object_id'],
+				'crashes' => $crashes,
+			),
+			false
+		);
+
+		return true;
+	}
+
+	/**
+	 * Clear the in-flight marker of a job after an item finished.
+	 *
+	 * @param int $job_id Job ID.
+	 * @return void
+	 */
+	private function finish_item( $job_id ) {
+		delete_option( self::in_flight_key( $job_id ) );
+	}
+
+	/**
+	 * Log the product a worker was processing when its request ended mid-item.
+	 *
+	 * A fatal error, the memory limit or the PHP time limit ends the request
+	 * without any exception the batch could catch. The shutdown handler still
+	 * runs, so the plugin log names the product and the PHP error.
+	 *
+	 * @param int $job_id Job ID.
+	 * @return void
+	 */
+	private function watch_for_crash( $job_id ) {
+		static $watched = array();
+
+		if ( isset( $watched[ $job_id ] ) ) {
+			return;
+		}
+
+		$watched[ $job_id ] = true;
+
+		register_shutdown_function( array( $this, 'report_crash' ), (int) $job_id );
+	}
+
+	/**
+	 * Shutdown handler of watch_for_crash().
+	 *
+	 * @param int $job_id Job ID.
+	 * @return void
+	 */
+	public function report_crash( $job_id ) {
+		$in_flight = get_option( self::in_flight_key( $job_id ), null );
+
+		if ( ! is_array( $in_flight ) ) {
+			return;
+		}
+
+		$error = error_get_last();
+
+		$this->logger->error(
+			'The worker stopped while processing a product.',
+			array(
+				'object_id' => isset( $in_flight['object'] ) ? (int) $in_flight['object'] : 0,
+				'php_error' => is_array( $error ) && isset( $error['message'] ) ? substr( (string) $error['message'], 0, 500 ) : '',
+			),
+			$job_id
+		);
 	}
 
 	/**
@@ -1554,6 +1709,7 @@ final class Sync_Runner {
 		);
 
 		$this->lock->release( $job->id() );
+		delete_option( self::in_flight_key( $job->id() ) );
 
 		$job = $this->jobs->get( $job->id() );
 

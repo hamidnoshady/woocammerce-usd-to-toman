@@ -728,6 +728,20 @@ final class Scheduler {
 	}
 
 	/**
+	 * Whether a worker holds a recent lease on a step.
+	 *
+	 * @param int    $job_id Job ID.
+	 * @param string $hook   Hook.
+	 * @param int    $ttl    Seconds a lease counts as live.
+	 * @return bool
+	 */
+	public static function has_live_lease( $job_id, $hook, $ttl = 60 ) {
+		$lease = get_option( 'usdtf_worker_lease_' . $job_id . '_' . $hook, null );
+
+		return is_array( $lease ) && isset( $lease['time'] ) && ( time() - (int) $lease['time'] ) <= $ttl;
+	}
+
+	/**
 	 * Check if a worker lease has expired (e.g., worker killed after claim).
 	 *
 	 * @param int    $job_id Job ID.

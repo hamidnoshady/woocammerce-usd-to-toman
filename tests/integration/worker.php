@@ -16,6 +16,9 @@
 
 $usdtf_wp_path = isset( $argv[1] ) ? (string) $argv[1] : '';
 $usdtf_job_id  = isset( $argv[2] ) ? (int) $argv[2] : 0;
+// Optional: a product ID whose processing ends this PHP process, the way a
+// fatal error or a host that kills the request ends a real worker.
+$usdtf_crash_on = isset( $argv[3] ) ? (int) $argv[3] : 0;
 
 if ( '' === $usdtf_wp_path || $usdtf_job_id <= 0 ) {
 	fwrite( STDERR, "usage: php worker.php /path/to/wordpress <job_id>\n" );
@@ -53,6 +56,18 @@ if ( ! $usdtf_job ) {
 if ( ! $usdtf_job->is_active() ) {
 	echo "inactive\n";
 	exit( 0 );
+}
+
+if ( $usdtf_crash_on > 0 ) {
+	add_action(
+		'usdtf_before_price_write',
+		static function ( $product_id ) use ( $usdtf_crash_on ) {
+			if ( (int) $product_id === $usdtf_crash_on ) {
+				echo "crash\n";
+				exit( 255 );
+			}
+		}
+	);
 }
 
 $usdtf_runner = usdtf_plugin()->runner();
