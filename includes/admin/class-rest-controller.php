@@ -820,6 +820,16 @@ final class Rest_Controller {
 			return new \WP_Error( 'usdtf_job_not_found', __( 'The job could not be found.', 'usd-to-toman-price-sync-for-woocommerce' ), array( 'status' => 404 ) );
 		}
 
+		// The screen that polls is the one place guaranteed to run while a job is
+		// open: when the loopback lost the next batch, it starts it.
+		if ( $this->runner->nudge_idle_job( $job ) ) {
+			$job = $this->jobs->get( $job->id() );
+
+			if ( ! $job ) {
+				return new \WP_Error( 'usdtf_job_not_found', __( 'The job could not be found.', 'usd-to-toman-price-sync-for-woocommerce' ), array( 'status' => 404 ) );
+			}
+		}
+
 		$data = $job->to_array();
 
 		$data['telemetry'] = array(

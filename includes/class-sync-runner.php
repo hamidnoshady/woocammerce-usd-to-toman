@@ -50,6 +50,14 @@ final class Sync_Runner {
 	const MAX_AUTO_RESUMES = 3;
 
 	/**
+	 * Seconds a running job may wait for its queued step before a status poll
+	 * runs that step itself. A healthy job refreshes its heartbeat after every
+	 * item and queues the next batch within a second, so this is long enough
+	 * never to compete with a worker and short enough to read as progress.
+	 */
+	const IDLE_NUDGE_AFTER = 15;
+
+	/**
 	 * Result codes that need an administrator's attention: the product data is
 	 * invalid, so the job is reported as completed with errors.
 	 *
@@ -1007,6 +1015,53 @@ final class Sync_Runner {
 		}
 
 		$this->after_run( $job_id, false );
+	}
+
+	/**
+	 * Run the queued step of a job whose dispatch was lost.
+	 *
+	 * A batch queues the next one and asks the loopback to start it. On a host
+	 * where that request never reaches a worker, the queued step waits for the
+	 * next WP-Cron run and the job stops at a random percentage. The progress
+	 * poll of an open admin screen calls this, so the screen keeps the job
+	 * moving: the step is claimed like a loopback would claim it, which keeps a
+	 * live worker or a second tab from running it twice.
+	 *
+	 * @param Job $job Job as the poll read it.
+	 * @return bool Whether a step was run.
+	 */
+	public function nudge_idle_job( Job $job ) {
+		if ( Job::STATUS_RUNNING !== $job->status() || $job->heartbeat_age() < self::IDLE_NUDGE_AFTER ) {
+			return false;
+		}
+
+		$job_id = $job->id();
+
+		switch ( $job->phase() ) {
+			case Job::PHASE_DISCOVER:
+			case Job::PHASE_DISCOVER_VARIATIONS:
+				$hook = self::HOOK_DISCOVER;
+				break;
+			case Job::PHASE_FINALIZE:
+				$hook = self::HOOK_FINALIZE;
+				break;
+			default:
+				$hook = self::HOOK_PROCESS;
+		}
+
+		// Nothing is queued while a worker owns the step, and a retry that waits
+		// for its delay is queued on purpose.
+		if ( ! $this->scheduler->has_pending( $hook, array( $job_id ) ) ) {
+			return false;
+		}
+
+		if ( self::HOOK_PROCESS === $hook && $this->jobs->next_retry_delay( $job_id ) > 0 ) {
+			return false;
+		}
+
+		$this->logger->warning( 'A queued worker step was not started; the progress poll runs it.', array( 'hook' => $hook ), $job_id );
+
+		return $this->scheduler->claim_and_run( $hook, array( $job_id ) );
 	}
 
 	/**

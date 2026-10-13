@@ -646,19 +646,43 @@ final class Scheduler {
 		if ( function_exists( 'set_time_limit' ) ) {
 			@set_time_limit( 0 ); // phpcs:ignore WordPressVIPMinimum.Functions.RestrictedFunctions,WordPress.PHP.NoSilencedErrors.Discouraged
 		}
+		// phpcs:enable WordPress.PHP.NoSilencedErrors.Discouraged
+
+		if ( ! $this->claim_and_run( $hook, $args ) ) {
+			wp_die( 'already claimed', '', array( 'response' => 200 ) );
+		}
+
+		wp_die( 'ok', '', array( 'response' => 200 ) );
+	}
+
+	/**
+	 * Claim a queued worker step and run it in this request.
+	 *
+	 * Shared by the loopback endpoint and by the status poll, which runs a step
+	 * itself when the loopback never delivered it. Claiming removes the exact
+	 * queued action first, so two requests can never run the same step.
+	 *
+	 * @param string $hook Worker hook, one of allowed_worker_hooks().
+	 * @param array  $args Action arguments: the job ID.
+	 * @return bool False when the step was not queued or another request claimed it.
+	 */
+	public function claim_and_run( $hook, array $args ) {
+		$job_id = isset( $args[0] ) ? (int) $args[0] : 0;
+
+		if ( $job_id <= 0 || ! in_array( $hook, self::allowed_worker_hooks(), true ) ) {
+			return false;
+		}
 
 		// Claim with lease: store timestamp before unscheduling so expiry can be detected.
 		$lease_key = 'usdtf_worker_lease_' . $job_id . '_' . $hook;
-		$now       = time();
 		update_option(
 			$lease_key,
 			array(
-				'time' => $now,
+				'time' => time(),
 				'pid'  => getmypid(),
 			),
 			false
 		);
-		// phpcs:enable WordPress.PHP.NoSilencedErrors.Discouraged
 
 		// This request owns the work now: drop the WP-Cron twin of the action
 		// so the same step cannot be triggered twice (once here, once by cron).
@@ -668,14 +692,14 @@ final class Scheduler {
 
 		// Action Scheduler is the preferred backend. Claiming means removing the
 		// exact queued action before executing it ourselves; if its native runner
-		// already claimed it, there is nothing left for this loopback to do.
+		// already claimed it, there is nothing left for this request to do.
 		if ( self::is_action_scheduler_available() && function_exists( 'as_unschedule_action' ) ) {
 			$action_id = as_unschedule_action( $hook, $args, self::GROUP );
 			$claimed   = is_numeric( $action_id ) && (int) $action_id > 0;
 		}
 
 		// WP-Cron is the fallback backend. Its scheduled event is likewise used
-		// as the claim token, so two concurrent loopbacks cannot both execute the
+		// as the claim token, so two concurrent requests cannot both execute the
 		// worker step.
 		if ( ! $claimed ) {
 			$timestamp = wp_next_scheduled( $hook, $args );
@@ -688,7 +712,8 @@ final class Scheduler {
 
 		if ( ! $claimed ) {
 			delete_option( $lease_key );
-			wp_die( 'already claimed', '', array( 'response' => 200 ) );
+
+			return false;
 		}
 
 		// Heartbeat via job repository as well.
@@ -699,7 +724,7 @@ final class Scheduler {
 
 		delete_option( $lease_key );
 
-		wp_die( 'ok', '', array( 'response' => 200 ) );
+		return true;
 	}
 
 	/**
