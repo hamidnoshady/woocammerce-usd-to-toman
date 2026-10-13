@@ -4,6 +4,12 @@ All notable changes to this plugin are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.6] - 2026-10-13
+
+### Fixed
+
+- Recover from a dead worker and skip a product that keeps killing it
+
 ## [1.2.5] - 2026-10-13
 
 ### Fixed
