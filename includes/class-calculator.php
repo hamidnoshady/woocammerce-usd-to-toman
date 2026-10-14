@@ -262,10 +262,10 @@ final class Calculator {
 	 */
 	public static function increments_for_unit( $unit ) {
 		if ( 'rial' === $unit ) {
-			return array( 10.0, 1000.0, 10000.0, 100000.0 );
+			return array( 10.0, 1000.0, 10000.0, 100000.0, 1000000.0 );
 		}
 
-		return array( 1.0, 100.0, 1000.0, 10000.0 );
+		return array( 1.0, 100.0, 1000.0, 10000.0, 100000.0 );
 	}
 
 	/**
