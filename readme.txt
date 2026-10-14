@@ -46,7 +46,7 @@ If you type a new price into WooCommerce by hand, the plugin notices on the next
 
 **Excluded products**
 
-Every product is managed by default, so an existing catalog is picked up without any per-product work. To keep a product (or a single variation) out of every job, set it to **Excluded** in the product panel, or use the bulk actions in the products list (set Managed, set Excluded, Recalculate selected). Excluded products are never changed. The product panel also shows the current WooCommerce price, the USD price, the rate used and the last sync time.
+Every product is managed by default, so an existing catalog is picked up without any per-product work. To keep a product (or a single variation) out of every job, set it to **Excluded** in the product panel, or use the bulk actions in the products list (set Managed, set Excluded, Recalculate selected). Excluded products are never changed. The product panel also shows the current WooCommerce price, the USD price, the rate used and the last sync time, and lets you correct the USD price of a product or of each variation by hand.
 
 **Sale prices and variations**
 
@@ -106,6 +106,10 @@ No. Customers see the normal WooCommerce price in Toman or Rial. The USD price i
 = What if I change a price by hand? =
 
 On the next run the plugin sees that the price is not the one it last wrote, treats your price as the new truth and recalculates that product's USD price from it at the current rate. Your price is not overwritten.
+
+= Can I correct the USD price of a product? =
+
+Yes. Type the new USD price into the product panel (each variation has its own field) and save the product. The next update, or **Recalculate this product**, rewrites the WooCommerce price from it at the current rate. A USD price typed by hand wins over a WooCommerce price edited in the same save. Empty the field to have the USD price recorded again from the WooCommerce price.
 
 = Can I keep some products out of the updates? =
 

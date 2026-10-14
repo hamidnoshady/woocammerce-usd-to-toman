@@ -37,7 +37,7 @@ if ( $usdtf_error ) {
 <?php endif; ?>
 
 <p class="usdtf-panel-intro">
-	<?php esc_html_e( 'The WooCommerce price fields hold the store price. The first price update records a USD price from it; after that, a new exchange rate rewrites the store price from the USD price. Editing the store price by hand re-bases the USD price on the next update.', 'usd-to-toman-price-sync-for-woocommerce' ); ?>
+	<?php esc_html_e( 'The WooCommerce price fields hold the store price. The first price update records a USD price from it; after that, a new exchange rate rewrites the store price from the USD price. Editing the store price by hand re-bases the USD price on the next update; to correct the USD price itself, type it below.', 'usd-to-toman-price-sync-for-woocommerce' ); ?>
 </p>
 
 <p class="usdtf-field">
@@ -60,13 +60,25 @@ if ( $usdtf_error ) {
 		<tr>
 			<th><?php esc_html_e( 'USD price', 'usd-to-toman-price-sync-for-woocommerce' ); ?></th>
 			<td>
-				<?php
-				echo esc_html(
-					'' === $snapshot['usd_regular']
-						? __( 'Not recorded yet', 'usd-to-toman-price-sync-for-woocommerce' )
-						: Admin::format_price_pair( $snapshot['usd_regular'], $snapshot['usd_sale'], 2, '$' )
-				);
-				?>
+				<?php if ( $variations || 'variable' === $snapshot['type'] ) : ?>
+					<?php
+					echo esc_html(
+						'' === $snapshot['usd_regular']
+							? __( 'Not recorded yet', 'usd-to-toman-price-sync-for-woocommerce' )
+							: Admin::format_price_pair( $snapshot['usd_regular'], $snapshot['usd_sale'], 2, '$' )
+					);
+					?>
+				<?php else : ?>
+					<label class="usdtf-usd-field">
+						<?php esc_html_e( 'Regular', 'usd-to-toman-price-sync-for-woocommerce' ); ?>
+						<input type="text" inputmode="decimal" size="8" name="usdtf_usd_regular" value="<?php echo esc_attr( $snapshot['usd_regular'] ); ?>" placeholder="<?php esc_attr_e( 'Not recorded yet', 'usd-to-toman-price-sync-for-woocommerce' ); ?>" />
+					</label>
+					<label class="usdtf-usd-field">
+						<?php esc_html_e( 'Sale', 'usd-to-toman-price-sync-for-woocommerce' ); ?>
+						<input type="text" inputmode="decimal" size="8" name="usdtf_usd_sale" value="<?php echo esc_attr( $snapshot['usd_sale'] ); ?>" />
+					</label>
+					<p class="description"><?php esc_html_e( 'Correct the USD price here. The store price is rewritten from it at the next update, or right away with "Recalculate this product". Leave a field empty to record it again from the store price.', 'usd-to-toman-price-sync-for-woocommerce' ); ?></p>
+				<?php endif; ?>
 			</td>
 		</tr>
 		<tr>
@@ -110,7 +122,7 @@ if ( $usdtf_error ) {
 
 <?php if ( $variations ) : ?>
 	<h4><?php esc_html_e( 'Variations', 'usd-to-toman-price-sync-for-woocommerce' ); ?></h4>
-	<p class="description"><?php esc_html_e( 'Each variation keeps its own USD price. The parent price range is recalculated by WooCommerce after each update.', 'usd-to-toman-price-sync-for-woocommerce' ); ?></p>
+	<p class="description"><?php esc_html_e( 'Each variation keeps its own USD price (regular, then sale), and you can correct it here. The parent price range is recalculated by WooCommerce after each update.', 'usd-to-toman-price-sync-for-woocommerce' ); ?></p>
 
 	<table class="widefat striped usdtf-table usdtf-panel-table">
 		<thead>
@@ -141,7 +153,10 @@ if ( $usdtf_error ) {
 						</select>
 					</td>
 					<td><?php echo esc_html( Admin::format_price_pair( $usdtf_variation['current_regular'], $usdtf_variation['current_sale'], $usdtf_decimals ) ); ?></td>
-					<td><?php echo esc_html( '' === $usdtf_variation['usd_regular'] ? '—' : Admin::format_price_pair( $usdtf_variation['usd_regular'], $usdtf_variation['usd_sale'], 2, '$' ) ); ?></td>
+					<td>
+						<input type="text" inputmode="decimal" size="7" name="usdtf_variation[<?php echo esc_attr( (string) $usdtf_variation['id'] ); ?>][usd_regular]" value="<?php echo esc_attr( $usdtf_variation['usd_regular'] ); ?>" placeholder="—" aria-label="<?php esc_attr_e( 'Regular USD price', 'usd-to-toman-price-sync-for-woocommerce' ); ?>" />
+						<input type="text" inputmode="decimal" size="7" name="usdtf_variation[<?php echo esc_attr( (string) $usdtf_variation['id'] ); ?>][usd_sale]" value="<?php echo esc_attr( $usdtf_variation['usd_sale'] ); ?>" aria-label="<?php esc_attr_e( 'Sale USD price', 'usd-to-toman-price-sync-for-woocommerce' ); ?>" />
+					</td>
 					<td><?php echo esc_html( $usdtf_variation['rate'] > 0 ? Calculator::format_price( $usdtf_variation['rate'] ) : '—' ); ?></td>
 				</tr>
 			<?php endforeach; ?>

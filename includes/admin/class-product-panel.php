@@ -169,6 +169,16 @@ final class Product_Panel {
 			$this->save_mode( $post_id, $mode );
 		}
 
+		$usd_values = array();
+
+		foreach ( array( 'regular', 'sale' ) as $field ) {
+			if ( isset( $_POST[ 'usdtf_usd_' . $field ] ) ) {
+				$usd_values[ 'usd_' . $field ] = sanitize_text_field( wp_unslash( $_POST[ 'usdtf_usd_' . $field ] ) );
+			}
+		}
+
+		$this->save_usd_values( $post_id, $usd_values );
+
 		$variation_values = isset( $_POST['usdtf_variation'] ) && is_array( $_POST['usdtf_variation'] )
 			? wp_unslash( $_POST['usdtf_variation'] ) // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Parsed below.
 			: array();
@@ -240,6 +250,60 @@ final class Product_Panel {
 
 		if ( '' !== $mode ) {
 			$this->save_mode( $variation_id, $mode );
+		}
+
+		$usd_values = array();
+
+		foreach ( array( 'usd_regular', 'usd_sale' ) as $key ) {
+			if ( isset( $values[ $key ] ) && is_scalar( $values[ $key ] ) ) {
+				$usd_values[ $key ] = sanitize_text_field( (string) $values[ $key ] );
+			}
+		}
+
+		$this->save_usd_values( $variation_id, $usd_values );
+	}
+
+	/**
+	 * Persist USD prices typed into the panel.
+	 *
+	 * Only the fields that were submitted are read. A value that differs from
+	 * the stored USD price replaces it; the store price follows at the next
+	 * update. A refused value is reported on the next screen.
+	 *
+	 * @param int   $product_id Product or variation ID.
+	 * @param array $values     Typed values keyed usd_regular and usd_sale.
+	 * @return void
+	 */
+	private function save_usd_values( $product_id, array $values ) {
+		$changed = false;
+
+		foreach ( array( 'regular', 'sale' ) as $field ) {
+			if ( ! array_key_exists( 'usd_' . $field, $values ) ) {
+				continue;
+			}
+
+			$result = $this->pricing->set_usd_price( $product_id, $field, $values[ 'usd_' . $field ] );
+
+			if ( is_wp_error( $result ) ) {
+				set_transient(
+					'usdtf_panel_error_' . get_current_user_id(),
+					sprintf(
+						/* translators: 1: product or variation ID, 2: reason. */
+						__( 'The USD price of #%1$d was not changed: %2$s', 'usd-to-toman-price-sync-for-woocommerce' ),
+						(int) $product_id,
+						$result->get_error_message()
+					),
+					60
+				);
+
+				continue;
+			}
+
+			$changed = $changed || $result;
+		}
+
+		if ( $changed ) {
+			$this->products->flush_counts_cache();
 		}
 	}
 

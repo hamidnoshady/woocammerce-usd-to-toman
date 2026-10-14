@@ -362,8 +362,8 @@ msgid "Dry run."
 msgstr "اجرای آزمایشی."
 
 #: includes/admin/views/product-panel.php:113
-msgid "Each variation keeps its own USD price. The parent price range is recalculated by WooCommerce after each update."
-msgstr "هر گونه قیمت دلاری خودش را نگه می‌دارد. بازهٔ قیمت محصول والد پس از هر به‌روزرسانی توسط ووکامرس دوباره محاسبه می‌شود."
+msgid "Each variation keeps its own USD price (regular, then sale), and you can correct it here. The parent price range is recalculated by WooCommerce after each update."
+msgstr "هر گونه قیمت دلاری خودش را دارد (اول قیمت عادی، بعد قیمت حراج) و می‌توانید همین‌جا آن را اصلاح کنید. بازهٔ قیمت محصول والد پس از هر به‌روزرسانی توسط ووکامرس دوباره محاسبه می‌شود."
 
 #: includes/admin/views/health.php:153
 msgid "Enabled"
@@ -1091,8 +1091,8 @@ msgid "The USD-store mode was removed. Set the WooCommerce store currency to Ira
 msgstr "حالت فروشگاه دلاری حذف شد. ارز فروشگاه ووکامرس را روی تومان یا ریال ایران بگذارید و قیمت‌ها را بازبینی کنید؛ تا آن زمان افزونه هیچ قیمتی را به‌روزرسانی نمی‌کند. قیمت‌های تومانی قبلی در فرادادهٔ پنهان محصول (_usdtf_source_regular و _usdtf_source_sale) نگه داشته شده‌اند."
 
 #: includes/admin/views/product-panel.php:40
-msgid "The WooCommerce price fields hold the store price. The first price update records a USD price from it; after that, a new exchange rate rewrites the store price from the USD price. Editing the store price by hand re-bases the USD price on the next update."
-msgstr "فیلدهای قیمت ووکامرس قیمت فروشگاه را نگه می‌دارند. نخستین به‌روزرسانی قیمت، یک قیمت دلاری از روی آن ثبت می‌کند؛ پس از آن، هر نرخ ارز تازه قیمت فروشگاه را از روی قیمت دلاری بازنویسی می‌کند. اگر قیمت فروشگاه را دستی ویرایش کنید، قیمت دلاری در به‌روزرسانی بعدی بر پایهٔ آن دوباره تنظیم می‌شود."
+msgid "The WooCommerce price fields hold the store price. The first price update records a USD price from it; after that, a new exchange rate rewrites the store price from the USD price. Editing the store price by hand re-bases the USD price on the next update; to correct the USD price itself, type it below."
+msgstr "فیلدهای قیمت ووکامرس قیمت فروشگاه را نگه می‌دارند. نخستین به‌روزرسانی قیمت، یک قیمت دلاری از روی آن ثبت می‌کند؛ پس از آن، هر نرخ ارز تازه قیمت فروشگاه را از روی قیمت دلاری بازنویسی می‌کند. اگر قیمت فروشگاه را دستی ویرایش کنید، قیمت دلاری در به‌روزرسانی بعدی بر پایهٔ آن دوباره تنظیم می‌شود؛ برای اصلاح خود قیمت دلاری، آن را در پایین وارد کنید."
 
 #. %s: WooCommerce currency code.
 #: includes/class-health.php:355
@@ -1539,3 +1539,33 @@ msgstr "«شاید نیاز به به‌روزرسانی داشته باشد» �
 #: includes/class-sync-runner.php
 msgid "The background worker stopped while processing this product, more than once, so it was skipped. Check the PHP error log for this product, then retry the failed items."
 msgstr "پردازشگر پس‌زمینه هنگام پردازش این محصول بیش از یک بار متوقف شد، پس این محصول نادیده گرفته شد. گزارش خطای PHP را برای این محصول بررسی کنید، سپس موارد ناموفق را دوباره امتحان کنید."
+
+msgid "Correct the USD price here. The store price is rewritten from it at the next update, or right away with \"Recalculate this product\". Leave a field empty to record it again from the store price."
+msgstr "قیمت دلاری را اینجا اصلاح کنید. قیمت فروشگاه در به‌روزرسانی بعدی، یا بلافاصله با «محاسبهٔ دوبارهٔ این محصول»، از روی آن بازنویسی می‌شود. اگر فیلدی را خالی بگذارید، قیمت دلاری دوباره از روی قیمت فروشگاه ثبت می‌شود."
+
+msgid "Enter a regular price in WooCommerce before setting its USD price."
+msgstr "پیش از تعیین قیمت دلاری، قیمت عادی را در ووکامرس وارد کنید."
+
+msgid "Enter a sale price in WooCommerce before setting its USD price."
+msgstr "پیش از تعیین قیمت دلاری، قیمت حراج را در ووکامرس وارد کنید."
+
+msgid "Regular"
+msgstr "عادی"
+
+msgid "Regular USD price"
+msgstr "قیمت دلاری عادی"
+
+msgid "Sale"
+msgstr "حراج"
+
+msgid "Sale USD price"
+msgstr "قیمت دلاری حراج"
+
+msgid "The USD price must be a number such as 44.44."
+msgstr "قیمت دلاری باید عددی مانند 44.44 باشد."
+
+msgid "The USD price must be at least 0.01."
+msgstr "قیمت دلاری باید دست‌کم 0.01 باشد."
+
+msgid "The USD price of #%1$d was not changed: %2$s"
+msgstr "قیمت دلاری #%1$d تغییر نکرد: %2$s"

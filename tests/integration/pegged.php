@@ -2093,6 +2093,111 @@ usdtf_it_assert( false !== strpos( $pa_column, 'Managed' ) && false !== strpos( 
 usdtf_it_pass( 'the product panel offers Managed or Excluded, read-only prices and the bulk actions' );
 
 // ---------------------------------------------------------------------------
+// The USD price can be corrected by hand in the product panel.
+// ---------------------------------------------------------------------------
+$pu_rate = (float) usdtf_plugin()->rates()->get_rate();
+usdtf_it_assert( $pu_rate > 0, 'a rate is active for the USD price correction' );
+
+$pu_recalculate = function ( $product_id ) use ( $runner ) {
+	$job = $runner->recalculate( array( $product_id ) );
+	usdtf_it_assert( ! is_wp_error( $job ) && isset( $job['id'] ), 'the recalculation after a USD price correction is created' );
+	usdtf_it_run_job( (int) $job['id'] );
+};
+$pu_save       = function ( array $fields ) use ( $pa_panel, $pa_product ) {
+	$_POST = array_merge( array( 'usdtf_panel_nonce' => wp_create_nonce( \USDTF\Admin\Product_Panel::NONCE ) ), $fields );
+	$pa_panel->save_product( $pa_product );
+	$_POST = array();
+};
+$pu_error      = function () use ( $pa_user ) {
+	$message = (string) get_transient( 'usdtf_panel_error_' . $pa_user );
+	delete_transient( 'usdtf_panel_error_' . $pa_user );
+
+	return $message;
+};
+
+$pu_box = $pa_quiet(
+	function () use ( $pa_panel, $pa_product ) {
+		$pa_panel->render_meta_box( get_post( $pa_product ) );
+	},
+	'the product panel with USD fields'
+);
+usdtf_it_assert( false !== strpos( $pu_box, 'name="usdtf_usd_regular"' ) && false !== strpos( $pu_box, 'name="usdtf_usd_sale"' ), 'the panel offers the USD price fields' );
+usdtf_it_assert( false !== strpos( $pu_box, 'value="18.52"' ), 'the regular USD field holds the stored USD price' );
+
+// Unchanged values store nothing.
+$pu_save(
+	array(
+		'usdtf_usd_regular' => '18.52',
+		'usdtf_usd_sale'    => '',
+	)
+);
+usdtf_it_assert_same( (string) $pu_rate, usdtf_it_meta( $pa_product, '_usdtf_rate' ), 'an unchanged USD price keeps the stored rate' );
+usdtf_it_assert_same( '', $pu_error(), 'an unchanged USD price reports nothing' );
+
+// A new USD price (typed with Persian digits) is stored and the store price follows it.
+$pu_save( array( 'usdtf_usd_regular' => '۲۰' ) );
+usdtf_it_assert_same( '20.00', usdtf_it_meta( $pa_product, '_usdtf_usd_regular' ), 'the typed USD price is stored with two decimals' );
+usdtf_it_assert_same( '', usdtf_it_meta( $pa_product, '_usdtf_rate' ), 'a typed USD price forgets the stored rate' );
+usdtf_it_assert_same( '5000000', usdtf_it_price( $pa_product ), 'saving a USD price does not write the store price yet' );
+
+$pu_recalculate( $pa_product );
+$pu_expected = \USDTF\Calculator::to_price_string( \USDTF\Calculator::price_from_usd( 20, $pu_rate, usdtf_plugin()->settings()->rounding_args() ), 0 );
+usdtf_it_assert_same( $pu_expected, usdtf_it_price( $pa_product ), 'the next update writes the store price from the typed USD price' );
+usdtf_it_assert_same( '20.00', usdtf_it_meta( $pa_product, '_usdtf_usd_regular' ), 'the typed USD price is kept by the update' );
+
+// A store price and a USD price changed in the same save: the typed USD price wins.
+$pu_object = wc_get_product( $pa_product );
+$pu_object->set_regular_price( '6000000' );
+$pu_object->save();
+$pu_save( array( 'usdtf_usd_regular' => '25' ) );
+$pu_recalculate( $pa_product );
+usdtf_it_assert_same( '25.00', usdtf_it_meta( $pa_product, '_usdtf_usd_regular' ), 'a typed USD price is not re-based on a store price edited in the same save' );
+usdtf_it_assert_same( \USDTF\Calculator::to_price_string( \USDTF\Calculator::price_from_usd( 25, $pu_rate, usdtf_plugin()->settings()->rounding_args() ), 0 ), usdtf_it_price( $pa_product ), 'the store price follows the typed USD price' );
+
+// Refused values change nothing and are reported.
+foreach ( array( 'abc', '0', '-3', '0.001' ) as $pu_bad ) {
+	$pu_save( array( 'usdtf_usd_regular' => $pu_bad ) );
+	usdtf_it_assert_same( '25.00', usdtf_it_meta( $pa_product, '_usdtf_usd_regular' ), 'the USD price "' . $pu_bad . '" is refused' );
+	usdtf_it_assert( false !== strpos( $pu_error(), 'was not changed' ), 'the refused USD price "' . $pu_bad . '" is reported' );
+}
+
+$pu_save( array( 'usdtf_usd_sale' => '10' ) );
+usdtf_it_assert_same( '', usdtf_it_meta( $pa_product, '_usdtf_usd_sale' ), 'a sale USD price needs a sale price' );
+usdtf_it_assert( false !== strpos( $pu_error(), 'Enter a sale price' ), 'a sale USD price without a sale price is reported' );
+
+// An emptied field records the USD price again from the store price.
+$pu_save( array( 'usdtf_usd_regular' => '' ) );
+usdtf_it_assert_same( '', usdtf_it_meta( $pa_product, '_usdtf_usd_regular' ), 'an emptied USD field removes the USD price' );
+$pu_store_price = usdtf_it_price( $pa_product );
+$pu_recalculate( $pa_product );
+usdtf_it_assert_same( $pu_store_price, usdtf_it_price( $pa_product ), 'recording the USD price again keeps the store price' );
+usdtf_it_assert_same( number_format( round( (float) $pu_store_price / $pu_rate, 2 ), 2, '.', '' ), usdtf_it_meta( $pa_product, '_usdtf_usd_regular' ), 'the USD price is recorded again from the store price' );
+
+// A variation gets its own USD fields.
+$pu_variable  = usdtf_it_make_priced_variable_product( 'Admin pegged USD fields', array( array( 4000000 ) ) );
+$pu_variation = (int) $pu_variable->get_children()[0];
+usdtf_it_generate_usd( array( $pu_variable->get_id() ) );
+$pu_vbox = $pa_quiet(
+	function () use ( $pa_panel, $pu_variable ) {
+		$pa_panel->render_meta_box( get_post( $pu_variable->get_id() ) );
+	},
+	'the variable product panel with USD fields'
+);
+usdtf_it_assert( false !== strpos( $pu_vbox, 'name="usdtf_variation[' . $pu_variation . '][usd_regular]"' ), 'each variation gets a USD price field' );
+usdtf_it_assert( false === strpos( $pu_vbox, 'name="usdtf_usd_regular"' ), 'the variable parent has no USD price field of its own' );
+
+$_POST = array(
+	'usdtf_panel_nonce' => wp_create_nonce( \USDTF\Admin\Product_Panel::NONCE ),
+	'usdtf_variation'   => array( $pu_variation => array( 'usd_regular' => '30' ) ),
+);
+$pa_panel->save_product( $pu_variable->get_id() );
+$_POST = array();
+usdtf_it_assert_same( '30.00', usdtf_it_meta( $pu_variation, '_usdtf_usd_regular' ), 'a variation USD price is stored from the panel' );
+$pu_recalculate( $pu_variable->get_id() );
+usdtf_it_assert_same( \USDTF\Calculator::to_price_string( \USDTF\Calculator::price_from_usd( 30, $pu_rate, usdtf_plugin()->settings()->rounding_args() ), 0 ), usdtf_it_price( $pu_variation ), 'the variation price follows its typed USD price' );
+usdtf_it_pass( 'the USD price can be corrected by hand in the product panel' );
+
+// ---------------------------------------------------------------------------
 // The old Toman helpers are gone and the Persian catalogue knows the new labels.
 // ---------------------------------------------------------------------------
 foreach ( array( 'from_toman', 'from_usd', 'parse_toman', 'format_toman', 'to_persian_digits' ) as $pg_removed ) {
