@@ -4,6 +4,12 @@ All notable changes to this plugin are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.7] - 2026-10-14
+
+### Fixed
+
+- Let the USD price be corrected by hand in the product panel
+
 ## [1.2.6] - 2026-10-13
 
 ### Fixed
