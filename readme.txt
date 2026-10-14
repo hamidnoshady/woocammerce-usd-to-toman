@@ -6,7 +6,7 @@ Tested up to: 7.1
 Requires PHP: 7.4
 WC requires at least: 7.0
 WC tested up to: 9.9
-Stable tag: 1.2.7
+Stable tag: 1.2.8
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -145,6 +145,9 @@ Yes. Every string uses the `usd-to-toman-price-sync-for-woocommerce` text domain
 
 == Changelog ==
 
+= 1.2.8 =
+* Fixed: Add a 100,000 Toman (1,000,000 Rial) rounding step
+
 = 1.2.7 =
 * Fixed: Let the USD price be corrected by hand in the product panel
 
@@ -250,6 +253,9 @@ Production audit release: every finding of the production audit is fixed and cov
 * Diagnostics for the queue, the lock and the configured batch size.
 
 == Upgrade Notice ==
+
+= 1.2.8 =
+Add a 100,000 Toman (1,000,000 Rial) rounding step
 
 = 1.2.7 =
 Let the USD price be corrected by hand in the product panel

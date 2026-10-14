@@ -4,6 +4,12 @@ All notable changes to this plugin are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.8] - 2026-10-14
+
+### Fixed
+
+- Add a 100,000 Toman (1,000,000 Rial) rounding step
+
 ## [1.2.7] - 2026-10-14
 
 ### Fixed
