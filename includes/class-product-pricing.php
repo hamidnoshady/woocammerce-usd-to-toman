@@ -444,6 +444,85 @@ final class Product_Pricing {
 	}
 
 	/**
+	 * Set the USD price of one price field by hand.
+	 *
+	 * The store price as it is now is accepted as the seen price, so the next
+	 * update does not re-base the new USD price away, and the stored rate is
+	 * forgotten, so the next update rewrites the store price from the new USD
+	 * price at its rate. An empty value removes the USD price; the next update
+	 * then records it again from the store price.
+	 *
+	 * @param int|\WC_Product $product Product or variation.
+	 * @param string          $field   regular or sale.
+	 * @param mixed           $raw     USD price as typed.
+	 * @return bool|\WP_Error True when the USD price changed, false when it did not.
+	 */
+	public function set_usd_price( $product, $field, $raw ) {
+		$object = $product instanceof \WC_Product ? $product : wc_get_product( $product );
+
+		if ( ! $object || ! in_array( $field, array( 'regular', 'sale' ), true ) ) {
+			return false;
+		}
+
+		$product_id = (int) $object->get_id();
+		$usd_key    = 'sale' === $field ? self::META_USD_SALE : self::META_USD_REGULAR;
+		$seen_key   = 'sale' === $field ? self::META_SEEN_SALE : self::META_SEEN_REGULAR;
+		$stored     = (string) get_post_meta( $product_id, $usd_key, true );
+		$value      = Calculator::normalize_number( $raw );
+
+		if ( '' === $value ) {
+			if ( '' === trim( (string) $raw ) ) {
+				if ( '' === $stored ) {
+					return false;
+				}
+
+				self::without_hooks(
+					function () use ( $product_id, $usd_key ) {
+						delete_post_meta( $product_id, $usd_key );
+					}
+				);
+
+				return true;
+			}
+
+			return new \WP_Error( 'usdtf_invalid_usd', __( 'The USD price must be a number such as 44.44.', 'usd-to-toman-price-sync-for-woocommerce' ) );
+		}
+
+		$usd = round( (float) $value, 2 );
+
+		if ( ! is_finite( $usd ) || $usd < Price_Planner::MIN_USD ) {
+			return new \WP_Error( 'usdtf_invalid_usd', __( 'The USD price must be at least 0.01.', 'usd-to-toman-price-sync-for-woocommerce' ) );
+		}
+
+		$usd = number_format( $usd, 2, '.', '' );
+
+		if ( '' !== $stored && number_format( (float) $stored, 2, '.', '' ) === $usd ) {
+			return false;
+		}
+
+		$current = 'sale' === $field ? (string) $object->get_sale_price( 'edit' ) : (string) $object->get_regular_price( 'edit' );
+
+		if ( '' === $current ) {
+			return new \WP_Error(
+				'usdtf_usd_without_price',
+				'sale' === $field
+					? __( 'Enter a sale price in WooCommerce before setting its USD price.', 'usd-to-toman-price-sync-for-woocommerce' )
+					: __( 'Enter a regular price in WooCommerce before setting its USD price.', 'usd-to-toman-price-sync-for-woocommerce' )
+			);
+		}
+
+		self::without_hooks(
+			function () use ( $product_id, $usd_key, $seen_key, $usd, $current ) {
+				update_post_meta( $product_id, $usd_key, $usd );
+				update_post_meta( $product_id, $seen_key, $current );
+				delete_post_meta( $product_id, self::META_RATE );
+			}
+		);
+
+		return true;
+	}
+
+	/**
 	 * Resolve a product like value to an ID.
 	 *
 	 * @param mixed $product Product, variation or ID.

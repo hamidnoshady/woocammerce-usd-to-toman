@@ -9,7 +9,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-10-13 18:34+0000\n"
+"POT-Creation-Date: 2026-10-14 10:43+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: bin/make-pot.php\n"
 "X-Domain: usd-to-toman-price-sync-for-woocommerce\n"
@@ -138,7 +138,7 @@ msgstr ""
 msgid "All jobs"
 msgstr ""
 
-#: includes/admin/class-product-panel.php:465
+#: includes/admin/class-product-panel.php:529
 msgid "All pricing modes"
 msgstr ""
 
@@ -247,11 +247,11 @@ msgstr ""
 msgid "Confirm and save"
 msgstr ""
 
-#: includes/admin/class-admin.php:487 includes/admin/views/product-panel.php:98 assets/js/admin.js:214
+#: includes/admin/class-admin.php:487 includes/admin/views/product-panel.php:110 assets/js/admin.js:214
 msgid "Conflict"
 msgstr ""
 
-#: includes/admin/class-product-panel.php:434
+#: includes/admin/class-product-panel.php:498
 msgid "Conflict – recalculate"
 msgstr ""
 
@@ -261,6 +261,10 @@ msgstr ""
 
 #: includes/admin/views/settings.php:24
 msgid "Conversion"
+msgstr ""
+
+#: includes/admin/views/product-panel.php:80
+msgid "Correct the USD price here. The store price is rewritten from it at the next update, or right away with \"Recalculate this product\". Leave a field empty to record it again from the store price."
 msgstr ""
 
 #: includes/admin/views/items-table.php:25
@@ -363,8 +367,8 @@ msgstr ""
 msgid "Dry run."
 msgstr ""
 
-#: includes/admin/views/product-panel.php:113
-msgid "Each variation keeps its own USD price. The parent price range is recalculated by WooCommerce after each update."
+#: includes/admin/views/product-panel.php:125
+msgid "Each variation keeps its own USD price (regular, then sale), and you can correct it here. The parent price range is recalculated by WooCommerce after each update."
 msgstr ""
 
 #: includes/admin/views/health.php:153
@@ -377,6 +381,14 @@ msgstr ""
 
 #: assets/js/admin.js:651
 msgid "Enter a rate to preview."
+msgstr ""
+
+#: includes/class-product-pricing.php:510
+msgid "Enter a regular price in WooCommerce before setting its USD price."
+msgstr ""
+
+#: includes/class-product-pricing.php:509
+msgid "Enter a sale price in WooCommerce before setting its USD price."
 msgstr ""
 
 #: includes/class-rate-guard.php:146
@@ -420,7 +432,7 @@ msgstr ""
 msgid "Exchange rate saved."
 msgstr ""
 
-#: includes/admin/class-product-panel.php:447
+#: includes/admin/class-product-panel.php:511
 msgid "Excluded"
 msgstr ""
 
@@ -520,7 +532,7 @@ msgstr ""
 msgid "Last dry run"
 msgstr ""
 
-#: includes/admin/views/health.php:160 includes/admin/views/product-panel.php:104
+#: includes/admin/views/health.php:160 includes/admin/views/product-panel.php:116
 msgid "Last error"
 msgstr ""
 
@@ -532,7 +544,7 @@ msgstr ""
 msgid "Last product"
 msgstr ""
 
-#: includes/admin/views/product-panel.php:85
+#: includes/admin/views/product-panel.php:97
 msgid "Last sync"
 msgstr ""
 
@@ -548,7 +560,7 @@ msgstr ""
 msgid "Long-running item — the last heartbeat was %d seconds ago. The worker may still be processing this product."
 msgstr ""
 
-#: includes/admin/class-product-panel.php:446
+#: includes/admin/class-product-panel.php:510
 msgid "Managed"
 msgstr ""
 
@@ -580,11 +592,11 @@ msgstr ""
 msgid "Message"
 msgstr ""
 
-#: includes/admin/views/product-panel.php:119
+#: includes/admin/views/product-panel.php:131
 msgid "Mode"
 msgstr ""
 
-#: includes/admin/views/product-panel.php:91
+#: includes/admin/views/product-panel.php:103
 msgid "Never"
 msgstr ""
 
@@ -605,7 +617,7 @@ msgstr ""
 msgid "No"
 msgstr ""
 
-#: includes/admin/class-product-panel.php:428
+#: includes/admin/class-product-panel.php:492
 msgid "No USD price yet"
 msgstr ""
 
@@ -665,7 +677,7 @@ msgstr ""
 msgid "None"
 msgstr ""
 
-#: includes/admin/views/product-panel.php:66
+#: includes/admin/views/product-panel.php:67 includes/admin/views/product-panel.php:74
 msgid "Not recorded yet"
 msgstr ""
 
@@ -689,7 +701,7 @@ msgstr ""
 msgid "Only start a price update after a completed dry run with the same exchange rate, rounding settings and scope"
 msgstr ""
 
-#: includes/admin/views/product-panel.php:157
+#: includes/admin/views/product-panel.php:172
 msgid "Open jobs and history"
 msgstr ""
 
@@ -832,7 +844,7 @@ msgstr ""
 msgid "Rate rollback."
 msgstr ""
 
-#: includes/admin/views/product-panel.php:73 includes/admin/views/product-panel.php:122
+#: includes/admin/views/product-panel.php:85 includes/admin/views/product-panel.php:134
 msgid "Rate used"
 msgstr ""
 
@@ -863,7 +875,7 @@ msgstr ""
 msgid "Recalculate selected"
 msgstr ""
 
-#: includes/admin/views/product-panel.php:154
+#: includes/admin/views/product-panel.php:169
 msgid "Recalculate this product"
 msgstr ""
 
@@ -881,6 +893,14 @@ msgstr ""
 
 #: includes/class-job-repository.php:378
 msgid "Recovering after the background worker stopped."
+msgstr ""
+
+#: includes/admin/views/product-panel.php:73
+msgid "Regular"
+msgstr ""
+
+#: includes/admin/views/product-panel.php:157
+msgid "Regular USD price"
 msgstr ""
 
 #: includes/class-recorder.php:437
@@ -953,6 +973,14 @@ msgstr ""
 
 #: includes/admin/views/settings.php:72
 msgid "Safety"
+msgstr ""
+
+#: includes/admin/views/product-panel.php:77
+msgid "Sale"
+msgstr ""
+
+#: includes/admin/views/product-panel.php:158
+msgid "Sale USD price"
 msgstr ""
 
 #: includes/class-recorder.php:436
@@ -1090,12 +1118,25 @@ msgstr ""
 msgid "The REST route %s was not found on this site. Open the Diagnostics tab to see which routes are missing, then resave the permalink settings or reinstall the plugin."
 msgstr ""
 
+#: includes/class-product-pricing.php:488
+msgid "The USD price must be a number such as 44.44."
+msgstr ""
+
+#: includes/class-product-pricing.php:494
+msgid "The USD price must be at least 0.01."
+msgstr ""
+
+#: includes/admin/class-product-panel.php:292
+#. 1: product or variation ID, 2: reason.
+msgid "The USD price of #%1$d was not changed: %2$s"
+msgstr ""
+
 #: includes/admin/class-admin.php:647
 msgid "The USD-store mode was removed. Set the WooCommerce store currency to Iranian Toman or Rial and review your prices; the plugin does not update prices until then. The old Toman prices are kept in hidden product meta (_usdtf_source_regular and _usdtf_source_sale)."
 msgstr ""
 
 #: includes/admin/views/product-panel.php:40
-msgid "The WooCommerce price fields hold the store price. The first price update records a USD price from it; after that, a new exchange rate rewrites the store price from the USD price. Editing the store price by hand re-bases the USD price on the next update."
+msgid "The WooCommerce price fields hold the store price. The first price update records a USD price from it; after that, a new exchange rate rewrites the store price from the USD price. Editing the store price by hand re-bases the USD price on the next update; to correct the USD price itself, type it below."
 msgstr ""
 
 #: includes/class-health.php:355
@@ -1186,7 +1227,7 @@ msgstr ""
 msgid "The price was edited in WooCommerce while it was being synchronized, so nothing was written. The next update re-bases the USD price on the edited price."
 msgstr ""
 
-#: includes/admin/class-product-panel.php:259
+#: includes/admin/class-product-panel.php:323
 msgid "The pricing mode was not changed: choose Managed or Excluded."
 msgstr ""
 
@@ -1322,7 +1363,7 @@ msgstr ""
 msgid "USD / Toman pricing"
 msgstr ""
 
-#: includes/admin/class-product-panel.php:389 includes/admin/views/items-table.php:26 includes/admin/views/product-panel.php:61 includes/admin/views/product-panel.php:121
+#: includes/admin/class-product-panel.php:453 includes/admin/views/items-table.php:26 includes/admin/views/product-panel.php:61 includes/admin/views/product-panel.php:133
 msgid "USD price"
 msgstr ""
 
@@ -1354,15 +1395,15 @@ msgstr ""
 msgid "USD/Toman pricing:"
 msgstr ""
 
-#: includes/admin/class-product-panel.php:285
+#: includes/admin/class-product-panel.php:349
 msgid "USD/Toman: Recalculate selected"
 msgstr ""
 
-#: includes/admin/class-product-panel.php:284
+#: includes/admin/class-product-panel.php:348
 msgid "USD/Toman: set Excluded"
 msgstr ""
 
-#: includes/admin/class-product-panel.php:283
+#: includes/admin/class-product-panel.php:347
 msgid "USD/Toman: set Managed"
 msgstr ""
 
@@ -1399,11 +1440,11 @@ msgstr ""
 msgid "Variable products"
 msgstr ""
 
-#: includes/admin/views/product-panel.php:118
+#: includes/admin/views/product-panel.php:130
 msgid "Variation"
 msgstr ""
 
-#: includes/admin/views/dashboard.php:298 includes/admin/views/product-panel.php:112 assets/js/admin.js:342
+#: includes/admin/views/dashboard.php:298 includes/admin/views/product-panel.php:124 assets/js/admin.js:342
 msgid "Variations"
 msgstr ""
 
@@ -1457,7 +1498,7 @@ msgstr ""
 msgid "When"
 msgstr ""
 
-#: includes/admin/views/product-panel.php:57 includes/admin/views/product-panel.php:120
+#: includes/admin/views/product-panel.php:57 includes/admin/views/product-panel.php:132
 msgid "Woo price"
 msgstr ""
 
@@ -1503,7 +1544,7 @@ msgstr ""
 msgid "You are not allowed to manage USD/Toman pricing."
 msgstr ""
 
-#: includes/admin/class-product-panel.php:537
+#: includes/admin/class-product-panel.php:601
 msgid "You are not allowed to recalculate prices."
 msgstr ""
 
@@ -1511,7 +1552,7 @@ msgstr ""
 msgid "Your prices were last written for the removed USD-store mode, so review them before you run an update. The Toman prices are kept in hidden product meta (_usdtf_source_regular and _usdtf_source_sale)."
 msgstr ""
 
-#: includes/admin/views/product-panel.php:133
+#: includes/admin/views/product-panel.php:145
 msgid "conflict"
 msgstr ""
 
