@@ -54,7 +54,7 @@ Regular and sale prices each have their own USD price and follow the same rules.
 
 **Rounding**
 
-New prices are rounded **up** by default, which protects your margin. You can also round to the nearest value or down, in steps that depend on the unit: 1, 100, 1,000 or 10,000 for Toman (default 1,000), and 10, 1,000, 10,000 or 100,000 for Rial (default 10,000).
+New prices are rounded **up** by default, which protects your margin. You can also round to the nearest value or down, in steps that depend on the unit: 1, 100, 1,000, 10,000 or 100,000 for Toman (default 1,000), and 10, 1,000, 10,000, 100,000 or 1,000,000 for Rial (default 10,000).
 
 **Scopes**
 

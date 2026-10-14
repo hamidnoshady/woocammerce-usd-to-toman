@@ -46,10 +46,18 @@ usdtf_it_assert_same( 5500000.0, \USDTF\Calculator::price_from_usd( 18.52, 29700
 usdtf_it_assert_same( null, \USDTF\Calculator::price_from_usd( 18.52, 0 ), 'a zero rate has no store price' );
 usdtf_it_assert_same( null, \USDTF\Calculator::price_from_usd( 0, 300000 ), 'a zero USD anchor has no store price' );
 
-usdtf_it_assert_same( array( 1.0, 100.0, 1000.0, 10000.0 ), \USDTF\Calculator::increments_for_unit( 'toman' ), 'Toman rounding increments' );
-usdtf_it_assert_same( array( 10.0, 1000.0, 10000.0, 100000.0 ), \USDTF\Calculator::increments_for_unit( 'rial' ), 'Rial rounding increments' );
+usdtf_it_assert_same( array( 1.0, 100.0, 1000.0, 10000.0, 100000.0 ), \USDTF\Calculator::increments_for_unit( 'toman' ), 'Toman rounding increments' );
+usdtf_it_assert_same( array( 10.0, 1000.0, 10000.0, 100000.0, 1000000.0 ), \USDTF\Calculator::increments_for_unit( 'rial' ), 'Rial rounding increments' );
 usdtf_it_assert_same( 1000.0, \USDTF\Calculator::default_increment( 'toman' ), 'the Toman default increment' );
 usdtf_it_assert_same( 10000.0, \USDTF\Calculator::default_increment( 'rial' ), 'the Rial default increment' );
+$round_args = array(
+	'rounding'  => 'up',
+	'increment' => 100000,
+	'decimals'  => 0,
+);
+usdtf_it_assert_same( 5600000.0, \USDTF\Calculator::price_from_usd( 18.52, 300000, $round_args ), 'a 100,000 Toman step rounds 5,556,000 up to 5,600,000' );
+$round_args['increment'] = 1000000;
+usdtf_it_assert_same( 56000000.0, \USDTF\Calculator::price_from_usd( 18.52, 3000000, $round_args ), 'the same step in Rial (1,000,000) gives the same price ten times over' );
 usdtf_it_assert_same( '5,556,000', \USDTF\Calculator::format_price( 5556000 ), 'prices format with locale thousands separators' );
 usdtf_it_assert_same( '18.52', \USDTF\Calculator::format_price( 18.52, 2 ), 'prices format with the requested decimals' );
 usdtf_it_pass( 'the calculator maths for the pegged model' );
@@ -186,8 +194,8 @@ $removed_settings_keys = array( 'currency_mode', 'display_toman', 'display_toman
 usdtf_it_reset_plugin_state();
 usdtf_it_set_currency( 'IRT' );
 
-usdtf_it_assert_same( array( 1.0, 100.0, 1000.0, 10000.0 ), \USDTF\Settings::allowed_increments(), 'the allowed increments default to the store unit' );
-usdtf_it_assert_same( array( 10.0, 1000.0, 10000.0, 100000.0 ), \USDTF\Settings::allowed_increments( 'rial' ), 'the allowed increments can be asked for another unit' );
+usdtf_it_assert_same( array( 1.0, 100.0, 1000.0, 10000.0, 100000.0 ), \USDTF\Settings::allowed_increments(), 'the allowed increments default to the store unit' );
+usdtf_it_assert_same( array( 10.0, 1000.0, 10000.0, 100000.0, 1000000.0 ), \USDTF\Settings::allowed_increments( 'rial' ), 'the allowed increments can be asked for another unit' );
 usdtf_it_assert_same( 1000.0, \USDTF\Settings::sanitize( array( 'increment' => 5 ) )['increment'], 'an increment that is not allowed for Toman falls back to 1000' );
 usdtf_it_assert_same( 100.0, \USDTF\Settings::sanitize( array( 'increment' => 100 ) )['increment'], 'a Toman increment of 100 is kept' );
 usdtf_it_assert_same( 'up', \USDTF\Settings::defaults()['rounding'], 'rounding defaults to up' );
