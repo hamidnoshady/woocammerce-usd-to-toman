@@ -37,6 +37,11 @@ final class Product_Repository {
 	const VARIATION_PAGE_SIZE = 2000;
 
 	/**
+	 * Query variable that carries the meta conditions scope_clauses() adds.
+	 */
+	const META_FILTER_VAR = 'usdtf_meta_filter';
+
+	/**
 	 * Settings.
 	 *
 	 * @var Settings
@@ -215,20 +220,16 @@ final class Product_Repository {
 
 		$meta_query = array();
 
+		// "Managed" and "only outdated" are OR conditions that mix NOT EXISTS
+		// with a value test. WP_Query turns those into postmeta joins without a
+		// meta_key, which multiply every product by all of its meta rows; one
+		// count took seconds on each product screen. They are added as keyed
+		// joins by scope_clauses() instead.
+		$meta_filter = array();
+
 		if ( Product_Pricing::MODE_MANAGED === $scope['mode'] ) {
 			// A product without a stored mode is managed.
-			$meta_query[] = array(
-				'relation' => 'OR',
-				array(
-					'key'     => Product_Pricing::META_MODE,
-					'compare' => 'NOT EXISTS',
-				),
-				array(
-					'key'     => Product_Pricing::META_MODE,
-					'value'   => Product_Pricing::MODE_MANAGED,
-					'compare' => '=',
-				),
-			);
+			$meta_filter['managed'] = true;
 		} elseif ( Product_Pricing::MODE_EXCLUDED === $scope['mode'] ) {
 			// The retired native mode is stored by databases not upgraded yet and reads as excluded.
 			$meta_query[] = array(
@@ -266,27 +267,17 @@ final class Product_Repository {
 		}
 
 		if ( $scope['only_outdated'] && $rate > 0 ) {
-			$meta_query[] = array(
-				'relation' => 'OR',
-				array(
-					'key'     => Product_Pricing::META_USD_REGULAR,
-					'compare' => 'NOT EXISTS',
-				),
-				array(
-					'key'     => Product_Pricing::META_RATE,
-					'value'   => (string) (float) $rate,
-					'compare' => '!=',
-				),
-				array(
-					'key'     => Product_Pricing::META_RATE,
-					'compare' => 'NOT EXISTS',
-				),
-			);
+			// No USD price yet, no stored rate, or a stored rate that differs.
+			$meta_filter['outdated_rate'] = (string) (float) $rate;
 		}
 
 		if ( $meta_query ) {
 			$meta_query['relation'] = 'AND';
 			$args['meta_query']     = $meta_query; // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query
+		}
+
+		if ( $meta_filter ) {
+			$args[ self::META_FILTER_VAR ] = $meta_filter;
 		}
 
 		/**
@@ -312,7 +303,7 @@ final class Product_Repository {
 	 */
 	public function get_ids( array $scope, $page, $per_page, $object_type = 'product', $parent_id = 0, $rate = 0 ) {
 		$args  = $this->query_args( $scope, $page, $per_page, $object_type, $parent_id, $rate );
-		$query = new \WP_Query( $args );
+		$query = self::run_query( $args );
 
 		return array_map( 'intval', $query->posts );
 	}
@@ -332,9 +323,63 @@ final class Product_Repository {
 		$args['fields']         = 'ids';
 		$args['no_found_rows']  = false;
 
-		$query = new \WP_Query( $args );
+		$query = self::run_query( $args );
 
 		return (int) $query->found_posts;
+	}
+
+	/**
+	 * Run a discovery query with the plugin's meta conditions applied.
+	 *
+	 * @param array $args Arguments from query_args().
+	 * @return \WP_Query
+	 */
+	private static function run_query( array $args ) {
+		add_filter( 'posts_clauses', array( __CLASS__, 'scope_clauses' ), 10, 2 );
+
+		$query = new \WP_Query( $args );
+
+		remove_filter( 'posts_clauses', array( __CLASS__, 'scope_clauses' ), 10 );
+
+		return $query;
+	}
+
+	/**
+	 * Add the "managed" and "only outdated" conditions as keyed meta joins.
+	 *
+	 * Each join carries its meta_key, so a product contributes one row per
+	 * matching meta row instead of every combination of its meta rows.
+	 *
+	 * @param array     $clauses Query clauses.
+	 * @param \WP_Query $query   Query.
+	 * @return array
+	 */
+	public static function scope_clauses( $clauses, $query ) {
+		$filter = $query->get( self::META_FILTER_VAR );
+
+		if ( ! is_array( $filter ) || ! $filter ) {
+			return $clauses;
+		}
+
+		global $wpdb;
+
+		if ( ! empty( $filter['managed'] ) ) {
+			$clauses['join']  .= $wpdb->prepare( " LEFT JOIN {$wpdb->postmeta} AS usdtf_mode ON ( usdtf_mode.post_id = {$wpdb->posts}.ID AND usdtf_mode.meta_key = %s )", Product_Pricing::META_MODE );
+			$clauses['where'] .= $wpdb->prepare( ' AND ( usdtf_mode.meta_id IS NULL OR usdtf_mode.meta_value = %s )', Product_Pricing::MODE_MANAGED );
+		}
+
+		if ( isset( $filter['outdated_rate'] ) ) {
+			$clauses['join']  .= $wpdb->prepare( " LEFT JOIN {$wpdb->postmeta} AS usdtf_usd ON ( usdtf_usd.post_id = {$wpdb->posts}.ID AND usdtf_usd.meta_key = %s )", Product_Pricing::META_USD_REGULAR );
+			$clauses['join']  .= $wpdb->prepare( " LEFT JOIN {$wpdb->postmeta} AS usdtf_rate ON ( usdtf_rate.post_id = {$wpdb->posts}.ID AND usdtf_rate.meta_key = %s )", Product_Pricing::META_RATE );
+			$clauses['where'] .= $wpdb->prepare( ' AND ( usdtf_usd.meta_id IS NULL OR usdtf_rate.meta_id IS NULL OR usdtf_rate.meta_value != %s )', (string) $filter['outdated_rate'] );
+		}
+
+		// A product with duplicate meta rows must still be counted once.
+		if ( empty( $clauses['groupby'] ) ) {
+			$clauses['groupby'] = "{$wpdb->posts}.ID";
+		}
+
+		return $clauses;
 	}
 
 	/**
