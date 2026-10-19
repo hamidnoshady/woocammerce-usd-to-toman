@@ -2232,9 +2232,12 @@ final class Sync_Runner {
 	/**
 	 * Everything the dashboard needs to render its state.
 	 *
+	 * @param bool $with_summary Whether to count the products. The counts are
+	 *                           the expensive part and only the dashboard and
+	 *                           the REST state show them.
 	 * @return array
 	 */
-	public function state() {
+	public function state( $with_summary = true ) {
 		$rate         = $this->rates->get_rate();
 		$pending      = $this->rates->get_pending();
 		$active       = $this->jobs->active_write_job();
@@ -2303,7 +2306,7 @@ final class Sync_Runner {
 				'created_at'     => (int) $pending['created_at'],
 				'user'           => Job::user_display_name( (int) $pending['user_id'] ),
 			) : null,
-			'summary'          => $this->products->summary( $rate ),
+			'summary'          => $with_summary ? $this->products->summary( $rate ) : null,
 			'scope'            => $scope,
 			'active_job'       => $active ? $active->to_array() : null,
 			'last_job'         => $last ? $last->to_array() : null,

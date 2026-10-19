@@ -268,7 +268,9 @@ final class Admin {
 
 		$job_id = isset( $_GET['job'] ) ? (int) $_GET['job'] : 0; // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read only display parameter.
 
-		$state = $this->state();
+		// The script never reads the product counts, and this runs on every
+		// product list and product edit screen.
+		$state = $this->state( false );
 
 		$state['preview_scope'] = $this->preview_scope();
 
@@ -387,10 +389,11 @@ final class Admin {
 	/**
 	 * The engine state plus the store currency, as the screens and the script use it.
 	 *
+	 * @param bool $with_summary Whether to include the product counts.
 	 * @return array
 	 */
-	private function state() {
-		$state = $this->runner->state();
+	private function state( $with_summary = true ) {
+		$state = $this->runner->state( $with_summary );
 
 		$state['store_currency'] = self::store_currency();
 
