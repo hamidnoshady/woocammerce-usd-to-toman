@@ -419,6 +419,7 @@ final class Health {
 			'/jobs/(?P<id>\\d+)/status' => 'GET',
 			'/health'                   => 'GET',
 			'/products'                 => 'GET',
+			'/terms'                    => 'GET',
 		);
 
 		$routes = rest_get_server()->get_routes();

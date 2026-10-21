@@ -12,6 +12,7 @@
 use USDTF\Admin\Admin;
 use USDTF\Calculator;
 use USDTF\Job_Repository;
+use USDTF\Product_Repository;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -38,6 +39,10 @@ $usdtf_categories = get_terms(
 if ( is_wp_error( $usdtf_categories ) ) {
 	$usdtf_categories = array();
 }
+
+// Tags, attributes and custom product taxonomies. Their terms are searched on
+// demand, so a large attribute never loads all of its terms here.
+$usdtf_taxonomies = Product_Repository::scope_taxonomies();
 
 $usdtf_types = array(
 	'simple'   => __( 'Simple products', 'usd-to-toman-price-sync-for-woocommerce' ),
@@ -230,6 +235,9 @@ $usdtf_types = array(
 				<option value="outdated"><?php esc_html_e( 'Only products whose price may be outdated', 'usd-to-toman-price-sync-for-woocommerce' ); ?></option>
 				<option value="category"><?php esc_html_e( 'Selected categories', 'usd-to-toman-price-sync-for-woocommerce' ); ?></option>
 				<option value="type"><?php esc_html_e( 'Selected product types', 'usd-to-toman-price-sync-for-woocommerce' ); ?></option>
+				<?php if ( $usdtf_taxonomies ) : ?>
+					<option value="taxonomy"><?php esc_html_e( 'Selected tags, attributes or other taxonomies', 'usd-to-toman-price-sync-for-woocommerce' ); ?></option>
+				<?php endif; ?>
 				<option value="selected"><?php esc_html_e( 'Selected products', 'usd-to-toman-price-sync-for-woocommerce' ); ?></option>
 			</select>
 		</label>
@@ -254,6 +262,24 @@ $usdtf_types = array(
 				</label>
 			<?php endforeach; ?>
 		</div>
+
+		<?php if ( $usdtf_taxonomies ) : ?>
+			<div class="usdtf-scope-row" data-scope="taxonomy" hidden>
+				<label class="usdtf-field">
+					<span><?php esc_html_e( 'Taxonomy', 'usd-to-toman-price-sync-for-woocommerce' ); ?></span>
+					<select id="usdtf-scope-taxonomy">
+						<?php foreach ( $usdtf_taxonomies as $usdtf_taxonomy => $usdtf_taxonomy_label ) : ?>
+							<option value="<?php echo esc_attr( $usdtf_taxonomy ); ?>"><?php echo esc_html( $usdtf_taxonomy_label ); ?></option>
+						<?php endforeach; ?>
+					</select>
+				</label>
+				<span class="usdtf-label"><?php esc_html_e( 'Terms', 'usd-to-toman-price-sync-for-woocommerce' ); ?></span>
+				<input type="search" id="usdtf-term-search" class="regular-text" placeholder="<?php esc_attr_e( 'Search by name…', 'usd-to-toman-price-sync-for-woocommerce' ); ?>" />
+				<ul class="usdtf-chips" id="usdtf-selected-terms"></ul>
+				<ul class="usdtf-search-results" id="usdtf-term-results"></ul>
+				<p class="description"><?php esc_html_e( 'Products with any of the selected terms are updated.', 'usd-to-toman-price-sync-for-woocommerce' ); ?></p>
+			</div>
+		<?php endif; ?>
 
 		<div class="usdtf-scope-row" data-scope="selected" hidden>
 			<span class="usdtf-label"><?php esc_html_e( 'Products', 'usd-to-toman-price-sync-for-woocommerce' ); ?></span>

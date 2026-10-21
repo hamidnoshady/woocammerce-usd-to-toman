@@ -781,6 +781,10 @@ msgstr "محصولات"
 msgid "Products whose price may be outdated"
 msgstr "محصولاتی که قیمتشان ممکن است قدیمی باشد"
 
+#: includes/admin/views/dashboard.php:280
+msgid "Products with any of the selected terms are updated."
+msgstr "محصولاتی که دست‌کم یکی از موارد انتخاب‌شده را دارند به‌روزرسانی می‌شوند."
+
 #: includes/admin/views/jobs.php:152
 msgid "Progress"
 msgstr "پیشرفت"
@@ -991,6 +995,10 @@ msgstr "ثانیه در هر اجرای کارگر"
 msgid "Select at least one product first."
 msgstr "اول دست‌کم یک محصول را انتخاب کنید."
 
+#: assets/js/admin.js:514
+msgid "Select at least one term first."
+msgstr "اول دست‌کم یک مورد را انتخاب کنید."
+
 #: includes/admin/views/dashboard.php:231 includes/class-product-repository.php:156
 msgid "Selected categories"
 msgstr "دسته‌های انتخاب‌شده"
@@ -1002,6 +1010,15 @@ msgstr "نوع‌های محصول انتخاب‌شده"
 #: includes/admin/views/dashboard.php:233
 msgid "Selected products"
 msgstr "محصولات انتخاب‌شده"
+
+#: includes/admin/views/dashboard.php:239
+msgid "Selected tags, attributes or other taxonomies"
+msgstr "برچسب‌ها، ویژگی‌ها یا طبقه‌بندی‌های انتخاب‌شده"
+
+#. %s: taxonomy name, for example Product tags.
+#: includes/class-product-repository.php:217
+msgid "Selected terms of %s"
+msgstr "موارد انتخاب‌شده از %s"
 
 #: includes/admin/class-admin.php:591 includes/admin/views/settings.php:33 assets/js/admin.js:200
 msgid "Set the store currency to Iranian Toman or Rial"
@@ -1076,6 +1093,14 @@ msgstr "قیمت‌های فروشگاه به مضرب این مقدار گرد 
 #: includes/class-job.php:351
 msgid "System"
 msgstr "سامانه"
+
+#: includes/admin/views/dashboard.php:269
+msgid "Taxonomy"
+msgstr "طبقه‌بندی"
+
+#: includes/admin/views/dashboard.php:276
+msgid "Terms"
+msgstr "موارد"
 
 #: includes/admin/views/health.php:94
 msgid "Test background trigger"
@@ -1271,6 +1296,10 @@ msgstr "این محصول از قیمت‌گذاری دلاری کنار گذا�
 #: includes/class-rate-guard.php:155
 msgid "This rate is a very large move. Confirm it explicitly before it is stored."
 msgstr "این نرخ جابه‌جایی بسیار بزرگی است. پیش از ذخیره، آن را صریحاً تأیید کنید."
+
+#: includes/admin/class-rest-controller.php:1000
+msgid "This taxonomy cannot be used to select products."
+msgstr "از این طبقه‌بندی نمی‌توان برای انتخاب محصولات استفاده کرد."
 
 #: includes/class-sync-runner.php:1222 includes/class-sync-runner.php:1246
 msgid "This variable product has no variations, so there is nothing to synchronize."

@@ -42,6 +42,12 @@ final class Product_Repository {
 	const META_FILTER_VAR = 'usdtf_meta_filter';
 
 	/**
+	 * Product taxonomies the taxonomy scope never offers: WooCommerce uses them
+	 * internally, and categories and product types have scopes of their own.
+	 */
+	const INTERNAL_TAXONOMIES = array( 'product_cat', 'product_type', 'product_visibility', 'pos_product_visibility' );
+
+	/**
 	 * Settings.
 	 *
 	 * @var Settings
@@ -78,6 +84,8 @@ final class Product_Repository {
 			'exclude_ids'        => array(),
 			'category'           => array(),
 			'product_type'       => array(),
+			'taxonomy'           => '',
+			'terms'              => array(),
 			'statuses'           => self::STATUSES,
 			'only_outdated'      => false,
 			'changed_since'      => 0,
@@ -107,7 +115,7 @@ final class Product_Repository {
 			? $scope['mode']
 			: Product_Pricing::MODE_MANAGED;
 
-		foreach ( array( 'ids', 'exclude_ids', 'category', 'statuses' ) as $key ) {
+		foreach ( array( 'ids', 'exclude_ids', 'category', 'terms', 'statuses' ) as $key ) {
 			$values        = is_array( $scope[ $key ] ) ? $scope[ $key ] : array( $scope[ $key ] );
 			$values        = array_filter( array_map( 'intval', $values ) );
 			$clean[ $key ] = array_values( array_unique( $values ) );
@@ -124,12 +132,53 @@ final class Product_Repository {
 		$types                 = is_array( $scope['product_type'] ) ? $scope['product_type'] : array( $scope['product_type'] );
 		$clean['product_type'] = array_values( array_filter( array_map( 'sanitize_key', $types ) ) );
 
+		// Terms only count together with a taxonomy the scope may filter by.
+		$taxonomy = sanitize_key( (string) $scope['taxonomy'] );
+
+		if ( $clean['terms'] && '' !== $taxonomy && isset( self::scope_taxonomies()[ $taxonomy ] ) ) {
+			$clean['taxonomy'] = $taxonomy;
+		} else {
+			$clean['terms'] = array();
+		}
+
 		$clean['only_outdated']      = ! empty( $scope['only_outdated'] );
 		$clean['changed_since']      = max( 0, (int) $scope['changed_since'] );
 		$clean['include_variations'] = ! empty( $scope['include_variations'] );
 		$clean['label']              = isset( $scope['label'] ) ? sanitize_text_field( (string) $scope['label'] ) : '';
 
 		return $clean;
+	}
+
+	/**
+	 * Product taxonomies a scope can filter by: tags, attributes and every
+	 * other taxonomy registered for products, except the internal ones.
+	 *
+	 * @return array<string,string> Taxonomy name => label.
+	 */
+	public static function scope_taxonomies() {
+		$taxonomies = array();
+
+		foreach ( get_object_taxonomies( 'product', 'objects' ) as $name => $taxonomy ) {
+			if ( in_array( $name, self::INTERNAL_TAXONOMIES, true ) ) {
+				continue;
+			}
+
+			$taxonomies[ $name ] = isset( $taxonomy->labels->name ) ? (string) $taxonomy->labels->name : (string) $name;
+		}
+
+		asort( $taxonomies );
+
+		// Tags are the most common choice, so they come first.
+		if ( isset( $taxonomies['product_tag'] ) ) {
+			$taxonomies = array( 'product_tag' => $taxonomies['product_tag'] ) + $taxonomies;
+		}
+
+		/**
+		 * Filter the taxonomies the scope selector offers.
+		 *
+		 * @param array<string,string> $taxonomies Taxonomy name => label.
+		 */
+		return (array) apply_filters( 'usdtf_scope_taxonomies', $taxonomies );
 	}
 
 	/**
@@ -163,6 +212,16 @@ final class Product_Repository {
 
 		if ( $scope['product_type'] ) {
 			return __( 'Selected product types', 'usd-to-toman-price-sync-for-woocommerce' );
+		}
+
+		if ( $scope['terms'] ) {
+			$taxonomies = self::scope_taxonomies();
+
+			return sprintf(
+				/* translators: %s: taxonomy name, for example Product tags. */
+				__( 'Selected terms of %s', 'usd-to-toman-price-sync-for-woocommerce' ),
+				$taxonomies[ $scope['taxonomy'] ]
+			);
 		}
 
 		return __( 'Every managed product', 'usd-to-toman-price-sync-for-woocommerce' );
@@ -262,6 +321,20 @@ final class Product_Repository {
 					'terms'            => $scope['category'],
 					'operator'         => 'IN',
 					'include_children' => true,
+				);
+			}
+
+			if ( $scope['terms'] ) {
+				if ( ! isset( $args['tax_query'] ) ) {
+					$args['tax_query'] = array(); // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_tax_query
+				}
+
+				$args['tax_query'][] = array(
+					'taxonomy'         => $scope['taxonomy'],
+					'field'            => 'term_id',
+					'terms'            => $scope['terms'],
+					'operator'         => 'IN',
+					'include_children' => is_taxonomy_hierarchical( $scope['taxonomy'] ),
 				);
 			}
 		}

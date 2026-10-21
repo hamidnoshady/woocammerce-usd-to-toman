@@ -346,6 +346,7 @@ final class Admin {
 			'Restore the previous exchange rate and recalculate all managed products?',
 			'Resume',
 			'Select at least one product first.',
+			'Select at least one term first.',
 			'Set the store currency to Iranian Toman or Rial',
 			'Skipped',
 			'Something went wrong. Please check the log for details.',
