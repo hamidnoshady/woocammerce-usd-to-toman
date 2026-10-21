@@ -4,6 +4,12 @@ All notable changes to this plugin are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.10] - 2026-10-21
+
+### Fixed
+
+- Let the update scope select tags, attributes and custom product taxonomies
+
 ## [1.2.9] - 2026-10-19
 
 ### Fixed
