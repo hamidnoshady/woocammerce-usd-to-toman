@@ -168,6 +168,17 @@ $search_results = usdtf_it_rest_data( $search_response );
 usdtf_it_assert( count( $search_results ) >= 1, 'the product search must find the product' );
 usdtf_it_assert_same( \USDTF\Product_Pricing::MODE_MANAGED, $search_results[0]['mode'], 'the search must report the pricing mode' );
 
+$rest_tag = usdtf_it_term( 'REST scope tag', 'product_tag' );
+
+$terms_response = usdtf_it_rest( 'GET', '/terms', array( 'taxonomy' => 'product_tag', 'search' => 'REST scope' ) );
+
+usdtf_it_assert_same( 200, $terms_response->get_status(), 'the term search route must answer with 200' );
+usdtf_it_assert( in_array( $rest_tag, wp_list_pluck( usdtf_it_rest_data( $terms_response ), 'id' ), true ), 'the term search must find the tag' );
+
+$internal_terms_response = usdtf_it_rest( 'GET', '/terms', array( 'taxonomy' => 'product_visibility' ) );
+
+usdtf_it_assert_same( 'usdtf_invalid_taxonomy', usdtf_it_rest_error_code( $internal_terms_response ), 'an internal taxonomy must be refused by the term search' );
+
 // Recalculate a single product and roll the rate back, both over REST.
 $recalculate_response = usdtf_it_rest( 'POST', '/recalculate', array( 'ids' => array( $rest_product->get_id() ) ) );
 

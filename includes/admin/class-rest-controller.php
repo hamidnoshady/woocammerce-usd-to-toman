@@ -349,6 +349,26 @@ final class Rest_Controller {
 			)
 		);
 
+		register_rest_route(
+			self::NAMESPACE_V1,
+			'/terms',
+			array(
+				'methods'             => 'GET',
+				'callback'            => array( $this, 'search_terms' ),
+				'permission_callback' => $permission,
+				'args'                => array(
+					'taxonomy' => array(
+						'type'     => 'string',
+						'required' => true,
+					),
+					'search'   => array(
+						'type'    => 'string',
+						'default' => '',
+					),
+				),
+			)
+		);
+
 		// Test helpers: only registered when USDTF_ENABLE_TEST_ROUTES is true.
 		// Production installs must not expose them and must ignore fault-injection options.
 		if ( defined( 'USDTF_ENABLE_TEST_ROUTES' ) && USDTF_ENABLE_TEST_ROUTES ) {
@@ -958,6 +978,51 @@ final class Rest_Controller {
 				'type'        => $product->get_type(),
 				'mode'        => $this->pricing->get_mode( $product_id ),
 				'usd_regular' => (string) get_post_meta( $product_id, Product_Pricing::META_USD_REGULAR, true ),
+			);
+		}
+
+		return rest_ensure_response( $results );
+	}
+
+	/**
+	 * GET /terms – lightweight term search for the taxonomy scope picker.
+	 *
+	 * Returns at most 30 terms, so a taxonomy with thousands of terms, such
+	 * as a large attribute, never loads all of them at once.
+	 *
+	 * @param \WP_REST_Request $request Request.
+	 * @return \WP_REST_Response|\WP_Error
+	 */
+	public function search_terms( $request ) {
+		$taxonomy = sanitize_key( (string) $request->get_param( 'taxonomy' ) );
+
+		if ( ! isset( Product_Repository::scope_taxonomies()[ $taxonomy ] ) ) {
+			return new \WP_Error( 'usdtf_invalid_taxonomy', __( 'This taxonomy cannot be used to select products.', 'usd-to-toman-price-sync-for-woocommerce' ), array( 'status' => 400 ) );
+		}
+
+		$terms = get_terms(
+			array(
+				'taxonomy'               => $taxonomy,
+				'hide_empty'             => false,
+				'search'                 => sanitize_text_field( (string) $request->get_param( 'search' ) ),
+				'number'                 => 30,
+				'orderby'                => 'name',
+				'order'                  => 'ASC',
+				'update_term_meta_cache' => false,
+			)
+		);
+
+		if ( is_wp_error( $terms ) ) {
+			return rest_ensure_response( array() );
+		}
+
+		$results = array();
+
+		foreach ( $terms as $term ) {
+			$results[] = array(
+				'id'    => (int) $term->term_id,
+				'name'  => $term->name,
+				'count' => (int) $term->count,
 			);
 		}
 

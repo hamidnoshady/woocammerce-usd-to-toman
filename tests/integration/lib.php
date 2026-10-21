@@ -995,27 +995,28 @@ function usdtf_it_generate_usd( array $ids = array() ) {
 }
 
 /**
- * Get or create a product category term.
+ * Get or create a product term, a category unless another taxonomy is given.
  *
- * @param string $name Category name.
+ * @param string $name     Term name.
+ * @param string $taxonomy Taxonomy.
  * @return int Term ID, 0 on failure.
  */
-function usdtf_it_term( $name ) {
-	$term = get_term_by( 'name', $name, 'product_cat' );
+function usdtf_it_term( $name, $taxonomy = 'product_cat' ) {
+	$term = get_term_by( 'name', $name, $taxonomy );
 
 	if ( $term instanceof WP_Term ) {
 		return (int) $term->term_id;
 	}
 
-	$created = wp_insert_term( $name, 'product_cat' );
+	$created = wp_insert_term( $name, $taxonomy );
 
 	if ( is_wp_error( $created ) ) {
-		$term = get_term_by( 'name', $name, 'product_cat' );
+		$term = get_term_by( 'name', $name, $taxonomy );
 
 		return $term instanceof WP_Term ? (int) $term->term_id : 0;
 	}
 
-	// Only the categories this suite created are recorded: a category the store
+	// Only the terms this suite created are recorded: a term the store
 	// already had is never a candidate for cleanup.
 	usdtf_it_track_term( (int) $created['term_id'] );
 
@@ -1211,7 +1212,8 @@ function usdtf_it_delete_fixture_terms() {
 	$remaining = array();
 
 	foreach ( is_array( $terms ) ? array_map( 'intval', $terms ) : array() as $term_id ) {
-		$term = get_term( $term_id, 'product_cat' );
+		// Fixture terms are categories or tags; get_term() finds either.
+		$term = get_term( $term_id );
 
 		if ( ! $term instanceof WP_Term ) {
 			continue;
@@ -1224,7 +1226,7 @@ function usdtf_it_delete_fixture_terms() {
 			continue;
 		}
 
-		wp_delete_term( $term_id, 'product_cat' );
+		wp_delete_term( $term_id, $term->taxonomy );
 	}
 
 	if ( $remaining ) {

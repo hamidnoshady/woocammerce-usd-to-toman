@@ -225,6 +225,8 @@
 			ids: [],
 			category: [],
 			product_type: [],
+			taxonomy: '',
+			terms: [],
 			only_outdated: false,
 			include_variations: true,
 		};
@@ -256,6 +258,13 @@
 				return box.checked;
 			} ).map( function ( box ) {
 				return box.value;
+			} );
+		}
+
+		if ( 'taxonomy' === mode ) {
+			scope.taxonomy = ( $( '#usdtf-scope-taxonomy' ) || {} ).value || '';
+			scope.terms = $$( '#usdtf-selected-terms .usdtf-chip' ).map( function ( chip ) {
+				return parseInt( chip.getAttribute( 'data-id' ), 10 );
 			} );
 		}
 
@@ -496,6 +505,13 @@
 
 		if ( jobBlocker() ) {
 			toast( jobBlocker(), true );
+
+			return Promise.resolve( null );
+		}
+
+		// Without a term the server would fall back to every managed product.
+		if ( 'taxonomy' === ( $( '#usdtf-scope-mode' ) || {} ).value && ! payload.scope.terms.length ) {
+			toast( __( 'Select at least one term first.', 'usd-to-toman-price-sync-for-woocommerce' ), true );
 
 			return Promise.resolve( null );
 		}
@@ -758,6 +774,104 @@
 			chip.appendChild( remove );
 			list.appendChild( chip );
 		}
+
+		initTermPicker();
+	}
+
+	/**
+	 * Term picker of the taxonomy scope: choose a taxonomy, then search its
+	 * terms. Terms are fetched on demand, 30 at a time, so a taxonomy with
+	 * thousands of terms never loads all of them.
+	 */
+	function initTermPicker() {
+		var taxonomy = $( '#usdtf-scope-taxonomy' );
+		var search = $( '#usdtf-term-search' );
+		var results = $( '#usdtf-term-results' );
+		var chips = $( '#usdtf-selected-terms' );
+		var timer = null;
+		var request = 0;
+
+		if ( ! taxonomy || ! search || ! results || ! chips ) {
+			return;
+		}
+
+		function load() {
+			var current = ++request;
+
+			api( '/terms?taxonomy=' + encodeURIComponent( taxonomy.value ) + '&search=' + encodeURIComponent( search.value.trim() ) ).then( function ( terms ) {
+				// An older answer that arrives late must not replace a newer one.
+				if ( current !== request ) {
+					return;
+				}
+
+				results.innerHTML = '';
+
+				( terms || [] ).forEach( function ( term ) {
+					var item = document.createElement( 'li' );
+					var button = document.createElement( 'button' );
+
+					button.type = 'button';
+					button.className = 'button-link';
+
+					// Term names come from the database: textContent keeps them plain text.
+					button.textContent = term.name + ' (' + formatNumber( term.count ) + ')';
+					button.addEventListener( 'click', function () {
+						addTerm( term );
+					} );
+
+					item.appendChild( button );
+					results.appendChild( item );
+				} );
+			} ).catch( function ( error ) {
+				toast( errorMessage( error ), true );
+			} );
+		}
+
+		function addTerm( term ) {
+			if ( $( '.usdtf-chip[data-id="' + term.id + '"]', chips ) ) {
+				return;
+			}
+
+			var chip = document.createElement( 'li' );
+
+			chip.className = 'usdtf-chip';
+			chip.setAttribute( 'data-id', term.id );
+
+			var name = document.createElement( 'span' );
+			name.textContent = term.name;
+			chip.appendChild( name );
+
+			var remove = document.createElement( 'button' );
+			remove.type = 'button';
+			remove.className = 'usdtf-chip__remove';
+			remove.setAttribute( 'aria-label', __( 'Remove', 'usd-to-toman-price-sync-for-woocommerce' ) );
+			remove.textContent = '×';
+			remove.addEventListener( 'click', function () {
+				chip.remove();
+			} );
+
+			chip.appendChild( remove );
+			chips.appendChild( chip );
+		}
+
+		// Terms belong to one taxonomy, so switching it starts a new selection.
+		taxonomy.addEventListener( 'change', function () {
+			chips.innerHTML = '';
+			search.value = '';
+			load();
+		} );
+
+		search.addEventListener( 'input', function () {
+			window.clearTimeout( timer );
+			timer = window.setTimeout( load, 350 );
+		} );
+
+		// The first terms are listed once the scope is chosen, not on page load.
+		$( '#usdtf-scope-mode' ).addEventListener( 'change', function () {
+			if ( 'taxonomy' === this.value && ! results.children.length ) {
+				load();
+			}
+		} );
 	}
 
 	function initButtons() {

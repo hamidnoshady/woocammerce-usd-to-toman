@@ -513,7 +513,42 @@ $job = usdtf_it_create_job(
 usdtf_it_run_job( (int) $job['id'] );
 $outdated_job = $jobs->get( (int) $job['id'] );
 usdtf_it_assert_same( 0, (int) $outdated_job->data['changed'], 'the outdated scope must find nothing after a full update' );
-usdtf_it_pass( 'category, selection and outdated scopes work' );
+
+// Taxonomy term scope: only the tagged product is updated.
+$rates->save_rate( 330000 );
+$tag = usdtf_it_term( 'USDTF scope tag', 'product_tag' );
+wp_set_object_terms( $in_category_b->get_id(), array( (int) $tag ), 'product_tag' );
+
+$tag_scope = usdtf_plugin()->products()->normalize_scope(
+	array(
+		'taxonomy' => 'product_tag',
+		'terms'    => array( (int) $tag ),
+	)
+);
+usdtf_it_assert_same( 'product_tag', $tag_scope['taxonomy'], 'product tags must be accepted as a scope taxonomy' );
+
+$internal_scope = usdtf_plugin()->products()->normalize_scope(
+	array(
+		'taxonomy' => 'product_visibility',
+		'terms'    => array( (int) $tag ),
+	)
+);
+usdtf_it_assert_same( array(), $internal_scope['terms'], 'an internal taxonomy must be refused as a scope' );
+
+$job = usdtf_it_create_job(
+	array(
+		'type'  => \USDTF\Job::TYPE_SYNC,
+		'scope' => array(
+			'taxonomy' => 'product_tag',
+			'terms'    => array( (int) $tag ),
+		),
+	)
+);
+usdtf_it_run_job( (int) $job['id'] );
+usdtf_it_assert_same( '3300000', usdtf_it_price( $in_category_b->get_id() ), 'the tagged product must be updated' );
+usdtf_it_assert_same( '3000000', usdtf_it_price( $in_category_a->get_id() ), 'a product without the tag must stay untouched' );
+
+usdtf_it_pass( 'category, selection, taxonomy term and outdated scopes work' );
 
 // ---------------------------------------------------------------------------
 // 8. One job at a time, pause/resume/cancel.

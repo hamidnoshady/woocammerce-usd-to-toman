@@ -852,7 +852,7 @@ final class Sync_Runner {
 	 * Whether the independent variation discovery applies to a scope.
 	 *
 	 * Only scopes that address the whole managed catalog are eligible:
-	 * category, type and selection scopes cannot be expressed for variation
+	 * category, type, taxonomy term and selection scopes cannot be expressed for variation
 	 * posts, so guessing there would queue products nobody asked for. Scopes
 	 * that exclude variations never walk variations at all.
 	 *
@@ -866,7 +866,7 @@ final class Sync_Runner {
 			return false;
 		}
 
-		if ( $scope['ids'] || $scope['category'] || $scope['product_type'] ) {
+		if ( $scope['ids'] || $scope['category'] || $scope['product_type'] || $scope['terms'] ) {
 			return false;
 		}
 
