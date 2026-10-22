@@ -320,6 +320,8 @@ final class Admin {
 	 */
 	private function javascript_strings() {
 		$messages = array(
+			'%d selected',
+			'%s products',
 			'A dry run with the same rate, rounding settings and scope is required first.',
 			'Another price update is already running. Showing it instead.',
 			'Attempts: %d',

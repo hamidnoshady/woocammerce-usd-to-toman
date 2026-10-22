@@ -525,7 +525,7 @@ $tag_scope = usdtf_plugin()->products()->normalize_scope(
 		'terms'    => array( (int) $tag ),
 	)
 );
-usdtf_it_assert_same( 'product_tag', $tag_scope['taxonomy'], 'product tags must be accepted as a scope taxonomy' );
+usdtf_it_assert_same( array( 'product_tag' => array( (int) $tag ) ), $tag_scope['tax_terms'], 'a 1.2.10 tag scope must be read as ticked tag terms' );
 
 $internal_scope = usdtf_plugin()->products()->normalize_scope(
 	array(
@@ -533,7 +533,7 @@ $internal_scope = usdtf_plugin()->products()->normalize_scope(
 		'terms'    => array( (int) $tag ),
 	)
 );
-usdtf_it_assert_same( array(), $internal_scope['terms'], 'an internal taxonomy must be refused as a scope' );
+usdtf_it_assert_same( array(), $internal_scope['tax_terms'], 'an internal taxonomy must be refused as a scope' );
 
 $job = usdtf_it_create_job(
 	array(
@@ -547,6 +547,31 @@ $job = usdtf_it_create_job(
 usdtf_it_run_job( (int) $job['id'] );
 usdtf_it_assert_same( '3300000', usdtf_it_price( $in_category_b->get_id() ), 'the tagged product must be updated' );
 usdtf_it_assert_same( '3000000', usdtf_it_price( $in_category_a->get_id() ), 'a product without the tag must stay untouched' );
+
+// Terms ticked in two lists: a product with any of them is in scope.
+$rates->save_rate( 360000 );
+$brand = taxonomy_exists( 'product_brand' ) ? usdtf_it_term( 'USDTF scope brand', 'product_brand' ) : 0;
+
+if ( $brand ) {
+	wp_set_object_terms( $in_category_a->get_id(), array( (int) $brand ), 'product_brand' );
+
+	usdtf_it_assert( isset( \USDTF\Product_Repository::scope_taxonomies()['product_brand'] ), 'brands must be listed as a catalog taxonomy' );
+
+	$job = usdtf_it_create_job(
+		array(
+			'type'  => \USDTF\Job::TYPE_SYNC,
+			'scope' => array(
+				'tax_terms' => array(
+					'product_tag'   => array( (int) $tag ),
+					'product_brand' => array( (int) $brand ),
+				),
+			),
+		)
+	);
+	usdtf_it_run_job( (int) $job['id'] );
+	usdtf_it_assert_same( '3600000', usdtf_it_price( $in_category_a->get_id() ), 'the product with the ticked brand must be updated' );
+	usdtf_it_assert_same( '3600000', usdtf_it_price( $in_category_b->get_id() ), 'the product with the ticked tag must be updated' );
+}
 
 usdtf_it_pass( 'category, selection, taxonomy term and outdated scopes work' );
 

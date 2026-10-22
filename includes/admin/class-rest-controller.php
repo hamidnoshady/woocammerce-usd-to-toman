@@ -365,6 +365,12 @@ final class Rest_Controller {
 						'type'    => 'string',
 						'default' => '',
 					),
+					'page'     => array(
+						'type'              => 'integer',
+						'default'           => 1,
+						'minimum'           => 1,
+						'sanitize_callback' => 'absint',
+					),
 				),
 			)
 		);
@@ -985,10 +991,10 @@ final class Rest_Controller {
 	}
 
 	/**
-	 * GET /terms – lightweight term search for the taxonomy scope picker.
+	 * GET /terms – one page of a taxonomy's terms for the catalog lists.
 	 *
-	 * Returns at most 30 terms, so a taxonomy with thousands of terms, such
-	 * as a large attribute, never loads all of them at once.
+	 * A page holds 100 terms, so a taxonomy with thousands of terms, such as
+	 * a large attribute, is listed page by page instead of all at once.
 	 *
 	 * @param \WP_REST_Request $request Request.
 	 * @return \WP_REST_Response|\WP_Error
@@ -1000,12 +1006,17 @@ final class Rest_Controller {
 			return new \WP_Error( 'usdtf_invalid_taxonomy', __( 'This taxonomy cannot be used to select products.', 'usd-to-toman-price-sync-for-woocommerce' ), array( 'status' => 400 ) );
 		}
 
+		$per_page = 100;
+		$page     = max( 1, (int) $request->get_param( 'page' ) );
+
+		// One extra term tells whether another page follows.
 		$terms = get_terms(
 			array(
 				'taxonomy'               => $taxonomy,
 				'hide_empty'             => false,
 				'search'                 => sanitize_text_field( (string) $request->get_param( 'search' ) ),
-				'number'                 => 30,
+				'number'                 => $per_page + 1,
+				'offset'                 => ( $page - 1 ) * $per_page,
 				'orderby'                => 'name',
 				'order'                  => 'ASC',
 				'update_term_meta_cache' => false,
@@ -1013,20 +1024,26 @@ final class Rest_Controller {
 		);
 
 		if ( is_wp_error( $terms ) ) {
-			return rest_ensure_response( array() );
+			$terms = array();
 		}
 
 		$results = array();
 
-		foreach ( $terms as $term ) {
+		foreach ( array_slice( $terms, 0, $per_page ) as $term ) {
 			$results[] = array(
-				'id'    => (int) $term->term_id,
-				'name'  => $term->name,
-				'count' => (int) $term->count,
+				'id'     => (int) $term->term_id,
+				'name'   => $term->name,
+				'count'  => (int) $term->count,
+				'parent' => (int) $term->parent,
 			);
 		}
 
-		return rest_ensure_response( $results );
+		return rest_ensure_response(
+			array(
+				'terms'    => $results,
+				'has_more' => count( $terms ) > $per_page,
+			)
+		);
 	}
 
 	/**

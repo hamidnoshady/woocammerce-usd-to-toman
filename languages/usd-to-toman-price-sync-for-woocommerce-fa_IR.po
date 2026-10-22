@@ -93,10 +93,22 @@ msgstr "%1$s: دستی ویرایش شده بود، قیمت دلاری بر پ�
 msgid "%d product per run"
 msgstr "%d محصول در هر اجرا"
 
+#: assets/js/admin.js:835
+msgid "%d selected"
+msgstr "%d انتخاب‌شده"
+
 #. %d: number of selected products.
 #: includes/class-product-repository.php:146
 msgid "%d selected product"
 msgstr "%d محصول انتخاب‌شده"
+
+#: assets/js/admin.js:922
+msgid "%s products"
+msgstr "%s محصول"
+
+#: includes/admin/views/dashboard.php:235
+msgid "%s term"
+msgstr "%s مورد"
 
 #. %s: price field.
 #: includes/class-recorder.php:517
@@ -204,6 +216,10 @@ msgstr "توسط مدیر لغو شد."
 #: includes/class-sync-runner.php:1636
 msgid "Cancelled by an administrator. Prices that were already written are kept."
 msgstr "توسط مدیر لغو شد. قیمت‌هایی که پیش‌تر نوشته شده‌اند حفظ می‌شوند."
+
+#: includes/admin/views/dashboard.php:213
+msgid "Catalog by taxonomy"
+msgstr "کاتالوگ بر پایهٔ طبقه‌بندی"
 
 #: includes/admin/views/dashboard.php:184
 msgid "Catalog overview"
@@ -446,6 +462,10 @@ msgstr "ناموفق / تعارض‌ها"
 msgid "Failed worker actions"
 msgstr "کنش‌های ناموفق کارگر"
 
+#: includes/admin/views/dashboard.php:243
+msgid "Filter by name…"
+msgstr "پالایش بر پایهٔ نام…"
+
 #: includes/admin/views/health.php:64
 msgid "Free"
 msgstr "رایگان"
@@ -541,6 +561,10 @@ msgstr "اگر این گزینه را علامت نزنید، با حذف نصب
 #: includes/admin/views/jobs.php:259
 msgid "Level"
 msgstr "سطح"
+
+#: includes/admin/views/dashboard.php:245
+msgid "Load more"
+msgstr "نمایش بیشتر"
 
 #: assets/js/admin.js:375
 msgid "Long-running item — the last heartbeat was %d seconds ago. The worker may still be processing this product."
@@ -659,6 +683,10 @@ msgstr "هیچ کار همگام‌سازی‌ای قفل را در دست ند�
 msgid "No synchronization required."
 msgstr "نیازی به همگام‌سازی نیست."
 
+#: includes/admin/views/dashboard.php:312
+msgid "No term is ticked yet. Open a list under “Catalog by taxonomy” and tick the terms whose products should be updated."
+msgstr "هنوز هیچ موردی تیک نخورده است. یکی از فهرست‌های «کاتالوگ بر پایهٔ طبقه‌بندی» را باز کنید و مواردی را که محصولاتشان باید به‌روزرسانی شوند تیک بزنید."
+
 #: includes/admin/views/health.php:72 includes/admin/views/health.php:164
 msgid "None"
 msgstr "هیچ‌کدام"
@@ -686,6 +714,10 @@ msgstr "فقط محصولاتی که قیمتشان ممکن است قدیمی �
 #: includes/admin/views/settings.php:150
 msgid "Only start a price update after a completed dry run with the same exchange rate, rounding settings and scope"
 msgstr "به‌روزرسانی قیمت فقط پس از یک اجرای آزمایشی کامل‌شده با همان نرخ ارز، تنظیمات گرد کردن و دامنه آغاز شود"
+
+#: includes/admin/views/dashboard.php:215
+msgid "Open a list to see its terms and how many products use each one. Tick terms to update only their products."
+msgstr "هر فهرست را باز کنید تا موارد آن و شمار محصولات هر مورد را ببینید. موارد را تیک بزنید تا فقط محصولات آن‌ها به‌روزرسانی شوند."
 
 #: includes/admin/views/product-panel.php:157
 msgid "Open jobs and history"
@@ -1011,9 +1043,10 @@ msgstr "نوع‌های محصول انتخاب‌شده"
 msgid "Selected products"
 msgstr "محصولات انتخاب‌شده"
 
-#: includes/admin/views/dashboard.php:239
-msgid "Selected tags, attributes or other taxonomies"
-msgstr "برچسب‌ها، ویژگی‌ها یا طبقه‌بندی‌های انتخاب‌شده"
+#: includes/class-product-repository.php:276
+#. %d: number of taxonomies, such as tags and brands.
+msgid "Selected terms of %d taxonomy"
+msgstr "موارد انتخاب‌شده از %d طبقه‌بندی"
 
 #. %s: taxonomy name, for example Product tags.
 #: includes/class-product-repository.php:217
@@ -1094,13 +1127,13 @@ msgstr "قیمت‌های فروشگاه به مضرب این مقدار گرد 
 msgid "System"
 msgstr "سامانه"
 
-#: includes/admin/views/dashboard.php:269
-msgid "Taxonomy"
-msgstr "طبقه‌بندی"
-
 #: includes/admin/views/dashboard.php:276
 msgid "Terms"
 msgstr "موارد"
+
+#: includes/admin/views/dashboard.php:281
+msgid "Terms ticked in the catalog lists"
+msgstr "موارد تیک‌خورده در فهرست‌های کاتالوگ"
 
 #: includes/admin/views/health.php:94
 msgid "Test background trigger"
