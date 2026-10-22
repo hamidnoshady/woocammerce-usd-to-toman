@@ -4,6 +4,12 @@ All notable changes to this plugin are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.11] - 2026-10-22
+
+### Fixed
+
+- List every product taxonomy in the catalog overview and update only ticked terms
+
 ## [1.2.10] - 2026-10-21
 
 ### Fixed
