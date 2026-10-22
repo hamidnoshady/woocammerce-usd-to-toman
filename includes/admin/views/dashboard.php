@@ -40,8 +40,9 @@ if ( is_wp_error( $usdtf_categories ) ) {
 	$usdtf_categories = array();
 }
 
-// Tags, attributes and custom product taxonomies. Their terms are searched on
-// demand, so a large attribute never loads all of its terms here.
+// Categories, tags, brands, attributes and custom product taxonomies. Only
+// their term counts are read here; the terms themselves are loaded page by
+// page when a list is opened, so a large attribute never slows this screen.
 $usdtf_taxonomies = Product_Repository::scope_taxonomies();
 
 $usdtf_types = array(
@@ -207,6 +208,47 @@ $usdtf_types = array(
 			</li>
 		</ul>
 
+		<?php if ( $usdtf_taxonomies ) : ?>
+			<div class="usdtf-catalog-lists" id="usdtf-catalog-lists">
+				<h3><?php esc_html_e( 'Catalog by taxonomy', 'usd-to-toman-price-sync-for-woocommerce' ); ?></h3>
+				<p class="description">
+					<?php esc_html_e( 'Open a list to see its terms and how many products use each one. Tick terms to update only their products.', 'usd-to-toman-price-sync-for-woocommerce' ); ?>
+				</p>
+
+				<?php foreach ( $usdtf_taxonomies as $usdtf_taxonomy => $usdtf_taxonomy_label ) : ?>
+					<?php
+					$usdtf_term_count = wp_count_terms(
+						array(
+							'taxonomy'   => $usdtf_taxonomy,
+							'hide_empty' => false,
+						)
+					);
+					$usdtf_term_count = is_wp_error( $usdtf_term_count ) ? 0 : (int) $usdtf_term_count;
+					?>
+					<details class="usdtf-tax-list" data-taxonomy="<?php echo esc_attr( $usdtf_taxonomy ); ?>">
+						<summary>
+							<span class="usdtf-tax-list__name"><?php echo esc_html( $usdtf_taxonomy_label ); ?></span>
+							<span class="usdtf-tax-list__meta">
+								<?php
+								printf(
+									/* translators: %s: number of terms. */
+									esc_html( _n( '%s term', '%s terms', $usdtf_term_count, 'usd-to-toman-price-sync-for-woocommerce' ) ),
+									esc_html( number_format_i18n( $usdtf_term_count ) )
+								);
+								?>
+							</span>
+							<span class="usdtf-tax-list__selected" hidden></span>
+						</summary>
+						<?php if ( $usdtf_term_count > 0 ) : ?>
+							<input type="search" class="usdtf-tax-list__filter" placeholder="<?php esc_attr_e( 'Filter by name…', 'usd-to-toman-price-sync-for-woocommerce' ); ?>" />
+							<ul class="usdtf-tax-list__terms"></ul>
+							<button type="button" class="button-link usdtf-tax-list__more" hidden><?php esc_html_e( 'Load more', 'usd-to-toman-price-sync-for-woocommerce' ); ?></button>
+						<?php endif; ?>
+					</details>
+				<?php endforeach; ?>
+			</div>
+		<?php endif; ?>
+
 		<p class="description">
 			<?php esc_html_e( '“May need an update” counts managed products without a USD price or whose stored rate is not the current rate. The exact number of price changes is calculated by the dry run.', 'usd-to-toman-price-sync-for-woocommerce' ); ?>
 		</p>
@@ -236,7 +278,7 @@ $usdtf_types = array(
 				<option value="category"><?php esc_html_e( 'Selected categories', 'usd-to-toman-price-sync-for-woocommerce' ); ?></option>
 				<option value="type"><?php esc_html_e( 'Selected product types', 'usd-to-toman-price-sync-for-woocommerce' ); ?></option>
 				<?php if ( $usdtf_taxonomies ) : ?>
-					<option value="taxonomy"><?php esc_html_e( 'Selected tags, attributes or other taxonomies', 'usd-to-toman-price-sync-for-woocommerce' ); ?></option>
+					<option value="taxonomy"><?php esc_html_e( 'Terms ticked in the catalog lists', 'usd-to-toman-price-sync-for-woocommerce' ); ?></option>
 				<?php endif; ?>
 				<option value="selected"><?php esc_html_e( 'Selected products', 'usd-to-toman-price-sync-for-woocommerce' ); ?></option>
 			</select>
@@ -265,18 +307,9 @@ $usdtf_types = array(
 
 		<?php if ( $usdtf_taxonomies ) : ?>
 			<div class="usdtf-scope-row" data-scope="taxonomy" hidden>
-				<label class="usdtf-field">
-					<span><?php esc_html_e( 'Taxonomy', 'usd-to-toman-price-sync-for-woocommerce' ); ?></span>
-					<select id="usdtf-scope-taxonomy">
-						<?php foreach ( $usdtf_taxonomies as $usdtf_taxonomy => $usdtf_taxonomy_label ) : ?>
-							<option value="<?php echo esc_attr( $usdtf_taxonomy ); ?>"><?php echo esc_html( $usdtf_taxonomy_label ); ?></option>
-						<?php endforeach; ?>
-					</select>
-				</label>
 				<span class="usdtf-label"><?php esc_html_e( 'Terms', 'usd-to-toman-price-sync-for-woocommerce' ); ?></span>
-				<input type="search" id="usdtf-term-search" class="regular-text" placeholder="<?php esc_attr_e( 'Search by name…', 'usd-to-toman-price-sync-for-woocommerce' ); ?>" />
 				<ul class="usdtf-chips" id="usdtf-selected-terms"></ul>
-				<ul class="usdtf-search-results" id="usdtf-term-results"></ul>
+				<p class="description" id="usdtf-terms-empty"><?php esc_html_e( 'No term is ticked yet. Open a list under “Catalog by taxonomy” and tick the terms whose products should be updated.', 'usd-to-toman-price-sync-for-woocommerce' ); ?></p>
 				<p class="description"><?php esc_html_e( 'Products with any of the selected terms are updated.', 'usd-to-toman-price-sync-for-woocommerce' ); ?></p>
 			</div>
 		<?php endif; ?>

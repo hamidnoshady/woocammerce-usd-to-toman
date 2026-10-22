@@ -173,7 +173,7 @@ $rest_tag = usdtf_it_term( 'REST scope tag', 'product_tag' );
 $terms_response = usdtf_it_rest( 'GET', '/terms', array( 'taxonomy' => 'product_tag', 'search' => 'REST scope' ) );
 
 usdtf_it_assert_same( 200, $terms_response->get_status(), 'the term search route must answer with 200' );
-usdtf_it_assert( in_array( $rest_tag, wp_list_pluck( usdtf_it_rest_data( $terms_response ), 'id' ), true ), 'the term search must find the tag' );
+usdtf_it_assert( in_array( $rest_tag, wp_list_pluck( usdtf_it_rest_data( $terms_response )['terms'], 'id' ), true ), 'the term search must find the tag' );
 
 $internal_terms_response = usdtf_it_rest( 'GET', '/terms', array( 'taxonomy' => 'product_visibility' ) );
 

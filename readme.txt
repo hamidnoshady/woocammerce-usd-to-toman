@@ -58,7 +58,7 @@ New prices are rounded **up** by default, which protects your margin. You can al
 
 **Scopes**
 
-You can update every managed product, selected products, selected categories, selected product types, products with selected tags, attribute terms or terms of any other product taxonomy, or only products whose price may be outdated (no USD price yet, or last synchronized at a different rate).
+You can update every managed product, selected products, selected categories, selected product types, products with terms ticked in the catalog lists (one list per taxonomy: categories, tags, brands, attributes and any other product taxonomy, each term with its product count), or only products whose price may be outdated (no USD price yet, or last synchronized at a different rate).
 
 **Audit trail**
 

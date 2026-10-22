@@ -9,7 +9,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-10-21 10:59+0000\n"
+"POT-Creation-Date: 2026-10-22 08:21+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: bin/make-pot.php\n"
 "X-Domain: usd-to-toman-price-sync-for-woocommerce\n"
@@ -42,12 +42,12 @@ msgstr ""
 msgid "%1$s %2$s"
 msgstr ""
 
-#: includes/admin/views/dashboard.php:157
+#: includes/admin/views/dashboard.php:158
 #. 1: rate with its unit, 2: percentage change, 3: user name.
 msgid "%1$s (%2$s%% change) submitted by %3$s."
 msgstr ""
 
-#: includes/admin/class-admin.php:430
+#: includes/admin/class-admin.php:432
 #. 1: unit name (Toman or Rial), 2: WooCommerce currency code (IRT or IRR).
 msgid "%1$s (%2$s)"
 msgstr ""
@@ -57,12 +57,12 @@ msgstr ""
 msgid "%1$s / %2$s"
 msgstr ""
 
-#: includes/admin/views/dashboard.php:313
+#: includes/admin/views/dashboard.php:346
 #. 1: processed items, 2: total items, 3: percentage.
 msgid "%1$s / %2$s items (%3$s%%)"
 msgstr ""
 
-#: includes/admin/views/dashboard.php:491
+#: includes/admin/views/dashboard.php:524
 #. 1: checked, 2: changed.
 msgid "%1$s checked / %2$s changed"
 msgstr ""
@@ -93,10 +93,24 @@ msgid_plural "%d products per run"
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/class-product-repository.php:200
+#: assets/js/admin.js:835
+msgid "%d selected"
+msgstr ""
+
+#: includes/class-product-repository.php:246
 #. %d: number of selected products.
 msgid "%d selected product"
 msgid_plural "%d selected products"
+msgstr[0] ""
+msgstr[1] ""
+
+#: assets/js/admin.js:922
+msgid "%s products"
+msgstr ""
+
+#: includes/admin/views/dashboard.php:235
+msgid "%s term"
+msgid_plural "%s terms"
 msgstr[0] ""
 msgstr[1] ""
 
@@ -105,12 +119,12 @@ msgstr[1] ""
 msgid "%s: removed, USD price cleared."
 msgstr ""
 
-#: includes/admin/views/dashboard.php:110
+#: includes/admin/views/dashboard.php:111
 #. %s: percentage threshold.
 msgid "A change larger than %s%% must be confirmed explicitly. Saving a rate never rewrites product prices by itself."
 msgstr ""
 
-#: assets/js/admin.js:893
+#: assets/js/admin.js:982
 msgid "A dry run with the same rate, rounding settings and scope is required first."
 msgstr ""
 
@@ -118,7 +132,7 @@ msgstr ""
 msgid "A new store price is the USD price × the exchange rate, rounded to the increment below. Rounding up protects your margin."
 msgstr ""
 
-#: includes/admin/views/dashboard.php:153
+#: includes/admin/views/dashboard.php:154
 msgid "A rate is waiting for confirmation:"
 msgstr ""
 
@@ -158,11 +172,11 @@ msgstr ""
 msgid "Another price update is already running. Only one update can run at a time."
 msgstr ""
 
-#: includes/admin/class-admin.php:305 assets/js/admin.js:548
+#: includes/admin/class-admin.php:305 assets/js/admin.js:555
 msgid "Another price update is already running. Showing it instead."
 msgstr ""
 
-#: includes/admin/views/items-table.php:77 assets/js/admin.js:1085
+#: includes/admin/views/items-table.php:77 assets/js/admin.js:1174
 #. %d: attempts.
 msgid "Attempts: %d"
 msgstr ""
@@ -183,15 +197,15 @@ msgstr ""
 msgid "Batch size"
 msgstr ""
 
-#: includes/admin/views/dashboard.php:467 includes/admin/views/jobs.php:156 includes/admin/views/jobs.php:210
+#: includes/admin/views/dashboard.php:500 includes/admin/views/jobs.php:156 includes/admin/views/jobs.php:210
 msgid "By"
 msgstr ""
 
-#: includes/admin/views/dashboard.php:144 includes/admin/views/dashboard.php:354 includes/admin/views/jobs.php:96 assets/js/admin.js:424
+#: includes/admin/views/dashboard.php:145 includes/admin/views/dashboard.php:387 includes/admin/views/jobs.php:96 assets/js/admin.js:431
 msgid "Cancel"
 msgstr ""
 
-#: assets/js/admin.js:969
+#: assets/js/admin.js:1058
 msgid "Cancel this job? Prices that were already written are kept."
 msgstr ""
 
@@ -207,15 +221,19 @@ msgstr ""
 msgid "Cancelled by an administrator. Prices that were already written are kept."
 msgstr ""
 
-#: includes/admin/views/dashboard.php:189
+#: includes/admin/views/dashboard.php:213
+msgid "Catalog by taxonomy"
+msgstr ""
+
+#: includes/admin/views/dashboard.php:190
 msgid "Catalog overview"
 msgstr ""
 
-#: includes/admin/views/dashboard.php:246
+#: includes/admin/views/dashboard.php:288
 msgid "Categories"
 msgstr ""
 
-#: includes/admin/views/dashboard.php:466 includes/admin/views/jobs.php:208
+#: includes/admin/views/dashboard.php:499 includes/admin/views/jobs.php:208
 msgid "Change"
 msgstr ""
 
@@ -223,7 +241,7 @@ msgstr ""
 msgid "Change it in WooCommerce → Settings → General"
 msgstr ""
 
-#: includes/admin/views/dashboard.php:468 includes/admin/views/jobs.php:212
+#: includes/admin/views/dashboard.php:501 includes/admin/views/jobs.php:212
 msgid "Changed"
 msgstr ""
 
@@ -243,11 +261,11 @@ msgstr ""
 msgid "Completed with errors"
 msgstr ""
 
-#: includes/admin/views/dashboard.php:141
+#: includes/admin/views/dashboard.php:142
 msgid "Confirm and save"
 msgstr ""
 
-#: includes/admin/class-admin.php:491 includes/admin/views/product-panel.php:110 assets/js/admin.js:214
+#: includes/admin/class-admin.php:493 includes/admin/views/product-panel.php:110 assets/js/admin.js:214
 msgid "Conflict"
 msgstr ""
 
@@ -255,7 +273,7 @@ msgstr ""
 msgid "Conflict – recalculate"
 msgstr ""
 
-#: includes/admin/class-admin.php:462 includes/admin/class-admin.php:479 assets/js/admin.js:350
+#: includes/admin/class-admin.php:464 includes/admin/class-admin.php:481 assets/js/admin.js:357
 msgid "Conflicts"
 msgstr ""
 
@@ -271,11 +289,11 @@ msgstr ""
 msgid "Current Woo price"
 msgstr ""
 
-#: includes/admin/views/dashboard.php:299
+#: includes/admin/views/dashboard.php:332
 msgid "Current job"
 msgstr ""
 
-#: includes/admin/class-admin.php:302 assets/js/admin.js:331
+#: includes/admin/class-admin.php:302 assets/js/admin.js:338
 msgid "Currently processing"
 msgstr ""
 
@@ -291,7 +309,7 @@ msgstr ""
 msgid "DISABLE_WP_CRON is set, but Action Scheduler takes care of the queue through its own runner."
 msgstr ""
 
-#: includes/admin/class-admin.php:564
+#: includes/admin/class-admin.php:566
 msgid "Dashboard"
 msgstr ""
 
@@ -319,7 +337,7 @@ msgstr ""
 msgid "Details"
 msgstr ""
 
-#: includes/admin/class-admin.php:566 includes/admin/views/health.php:100
+#: includes/admin/class-admin.php:568 includes/admin/views/health.php:100
 msgid "Diagnostics"
 msgstr ""
 
@@ -327,11 +345,11 @@ msgstr ""
 msgid "Disabled"
 msgstr ""
 
-#: includes/admin/class-admin.php:666
+#: includes/admin/class-admin.php:668
 msgid "Dismiss this notice"
 msgstr ""
 
-#: includes/admin/class-rest-controller.php:916 assets/js/admin.js:976
+#: includes/admin/class-rest-controller.php:922 assets/js/admin.js:1065
 msgid "Done."
 msgstr ""
 
@@ -343,11 +361,11 @@ msgstr ""
 msgid "Download rate history CSV"
 msgstr ""
 
-#: includes/admin/views/dashboard.php:178
+#: includes/admin/views/dashboard.php:179
 msgid "Dry run"
 msgstr ""
 
-#: includes/admin/class-admin.php:297 assets/js/admin.js:465
+#: includes/admin/class-admin.php:297 assets/js/admin.js:472
 msgid "Dry run finished. Nothing was changed."
 msgstr ""
 
@@ -355,7 +373,7 @@ msgstr ""
 msgid "Dry run first"
 msgstr ""
 
-#: includes/admin/views/dashboard.php:169
+#: includes/admin/views/dashboard.php:170
 msgid "Dry run first: this store only starts a price update after a completed dry run that used the same exchange rate, rounding settings and scope."
 msgstr ""
 
@@ -363,7 +381,7 @@ msgstr ""
 msgid "Dry run, nothing was written."
 msgstr ""
 
-#: includes/admin/class-rest-controller.php:670
+#: includes/admin/class-rest-controller.php:676
 msgid "Dry run."
 msgstr ""
 
@@ -375,11 +393,11 @@ msgstr ""
 msgid "Enabled"
 msgstr ""
 
-#: assets/js/admin.js:606
+#: assets/js/admin.js:613
 msgid "Enter a rate first."
 msgstr ""
 
-#: assets/js/admin.js:667
+#: assets/js/admin.js:674
 msgid "Enter a rate to preview."
 msgstr ""
 
@@ -408,7 +426,7 @@ msgstr ""
 msgid "Every job either finished or is progressing normally."
 msgstr ""
 
-#: includes/admin/class-admin.php:385 includes/admin/views/dashboard.php:234 includes/class-product-repository.php:227
+#: includes/admin/class-admin.php:387 includes/admin/views/dashboard.php:276 includes/class-product-repository.php:281
 msgid "Every managed product"
 msgstr ""
 
@@ -428,7 +446,7 @@ msgstr ""
 msgid "Exchange rate"
 msgstr ""
 
-#: includes/admin/class-admin.php:295 assets/js/admin.js:625
+#: includes/admin/class-admin.php:295 assets/js/admin.js:632
 msgid "Exchange rate saved."
 msgstr ""
 
@@ -436,7 +454,7 @@ msgstr ""
 msgid "Excluded"
 msgstr ""
 
-#: includes/admin/views/dashboard.php:206
+#: includes/admin/views/dashboard.php:207
 msgid "Excluded products"
 msgstr ""
 
@@ -444,11 +462,11 @@ msgstr ""
 msgid "Excluded — never changed by this plugin"
 msgstr ""
 
-#: includes/admin/views/dashboard.php:51
+#: includes/admin/views/dashboard.php:52
 msgid "External products"
 msgstr ""
 
-#: includes/admin/class-admin.php:461 includes/admin/class-admin.php:478 includes/class-job.php:387 assets/js/admin.js:213 assets/js/admin.js:349 assets/js/admin.js:944
+#: includes/admin/class-admin.php:463 includes/admin/class-admin.php:480 includes/class-job.php:387 assets/js/admin.js:213 assets/js/admin.js:356 assets/js/admin.js:1033
 msgid "Failed"
 msgstr ""
 
@@ -460,15 +478,19 @@ msgstr ""
 msgid "Failed worker actions"
 msgstr ""
 
+#: includes/admin/views/dashboard.php:243
+msgid "Filter by name…"
+msgstr ""
+
 #: includes/admin/views/health.php:64
 msgid "Free"
 msgstr ""
 
-#: includes/admin/views/dashboard.php:502
+#: includes/admin/views/dashboard.php:535
 msgid "Full history and CSV export"
 msgstr ""
 
-#: includes/admin/views/dashboard.php:50
+#: includes/admin/views/dashboard.php:51
 msgid "Grouped products"
 msgstr ""
 
@@ -481,11 +503,11 @@ msgstr ""
 msgid "High-Performance Order Storage"
 msgstr ""
 
-#: includes/admin/views/dashboard.php:435 includes/admin/views/jobs.php:148
+#: includes/admin/views/dashboard.php:468 includes/admin/views/jobs.php:148
 msgid "ID"
 msgstr ""
 
-#: includes/admin/views/dashboard.php:293
+#: includes/admin/views/dashboard.php:326
 msgid "Include variations (recommended)"
 msgstr ""
 
@@ -501,7 +523,7 @@ msgstr ""
 msgid "Job"
 msgstr ""
 
-#: assets/js/admin.js:470
+#: assets/js/admin.js:477
 #. 1: job ID, 2: job status.
 msgid "Job #%1$d finished: %2$s"
 msgstr ""
@@ -524,11 +546,11 @@ msgstr ""
 msgid "Job lock"
 msgstr ""
 
-#: includes/admin/class-admin.php:565
+#: includes/admin/class-admin.php:567
 msgid "Jobs & history"
 msgstr ""
 
-#: includes/admin/views/dashboard.php:370
+#: includes/admin/views/dashboard.php:403
 msgid "Last dry run"
 msgstr ""
 
@@ -540,7 +562,7 @@ msgstr ""
 msgid "Last job error"
 msgstr ""
 
-#: includes/admin/class-admin.php:303 assets/js/admin.js:331
+#: includes/admin/class-admin.php:303 assets/js/admin.js:338
 msgid "Last product"
 msgstr ""
 
@@ -556,7 +578,11 @@ msgstr ""
 msgid "Level"
 msgstr ""
 
-#: assets/js/admin.js:384
+#: includes/admin/views/dashboard.php:245
+msgid "Load more"
+msgstr ""
+
+#: assets/js/admin.js:391
 msgid "Long-running item — the last heartbeat was %d seconds ago. The worker may still be processing this product."
 msgstr ""
 
@@ -564,11 +590,11 @@ msgstr ""
 msgid "Managed"
 msgstr ""
 
-#: includes/admin/views/dashboard.php:194
+#: includes/admin/views/dashboard.php:195
 msgid "Managed products"
 msgstr ""
 
-#: includes/admin/views/dashboard.php:198
+#: includes/admin/views/dashboard.php:199
 msgid "Managed variations"
 msgstr ""
 
@@ -576,11 +602,11 @@ msgstr ""
 msgid "Managed — the WooCommerce price follows the USD price and the exchange rate"
 msgstr ""
 
-#: includes/admin/views/dashboard.php:57
+#: includes/admin/views/dashboard.php:58
 msgid "Manual exchange rate"
 msgstr ""
 
-#: includes/admin/views/dashboard.php:202
+#: includes/admin/views/dashboard.php:203
 msgid "May need an update"
 msgstr ""
 
@@ -604,7 +630,7 @@ msgstr ""
 msgid "New Woo price"
 msgstr ""
 
-#: includes/admin/views/dashboard.php:90
+#: includes/admin/views/dashboard.php:91
 #. %s: unit of the rate, "Toman per 1 USD" or "Rial per 1 USD".
 msgid "New rate (%s)"
 msgstr ""
@@ -637,7 +663,7 @@ msgstr ""
 msgid "No exchange rate is stored yet, so no product price can be calculated."
 msgstr ""
 
-#: includes/admin/views/items-table.php:33 assets/js/admin.js:1116
+#: includes/admin/views/items-table.php:33 assets/js/admin.js:1205
 msgid "No items match this filter."
 msgstr ""
 
@@ -645,15 +671,15 @@ msgstr ""
 msgid "No jobs have been created yet."
 msgstr ""
 
-#: includes/admin/views/dashboard.php:430
+#: includes/admin/views/dashboard.php:463
 msgid "No jobs have run yet."
 msgstr ""
 
-#: includes/admin/views/dashboard.php:80
+#: includes/admin/views/dashboard.php:81
 msgid "No previous rate stored yet."
 msgstr ""
 
-#: includes/admin/views/dashboard.php:363
+#: includes/admin/views/dashboard.php:396
 msgid "No price update is running right now."
 msgstr ""
 
@@ -661,7 +687,7 @@ msgstr ""
 msgid "No products were selected."
 msgstr ""
 
-#: includes/admin/views/dashboard.php:460 includes/admin/views/jobs.php:201
+#: includes/admin/views/dashboard.php:493 includes/admin/views/jobs.php:201
 msgid "No rate has been saved yet."
 msgstr ""
 
@@ -671,6 +697,10 @@ msgstr ""
 
 #: includes/admin/class-admin.php:300
 msgid "No synchronization required."
+msgstr ""
+
+#: includes/admin/views/dashboard.php:312
+msgid "No term is ticked yet. Open a list under “Catalog by taxonomy” and tick the terms whose products should be updated."
 msgstr ""
 
 #: includes/admin/views/health.php:72 includes/admin/views/health.php:164
@@ -685,7 +715,7 @@ msgstr ""
 msgid "Nothing logged yet."
 msgstr ""
 
-#: assets/js/admin.js:944
+#: assets/js/admin.js:1033
 msgid "OK"
 msgstr ""
 
@@ -693,12 +723,16 @@ msgstr ""
 msgid "Oldest pending action age"
 msgstr ""
 
-#: includes/admin/views/dashboard.php:235
+#: includes/admin/views/dashboard.php:277
 msgid "Only products whose price may be outdated"
 msgstr ""
 
 #: includes/admin/views/settings.php:150
 msgid "Only start a price update after a completed dry run with the same exchange rate, rounding settings and scope"
+msgstr ""
+
+#: includes/admin/views/dashboard.php:215
+msgid "Open a list to see its terms and how many products use each one. Tick terms to update only their products."
 msgstr ""
 
 #: includes/admin/views/product-panel.php:172
@@ -709,15 +743,15 @@ msgstr ""
 msgid "Open the USD/Toman diagnostics"
 msgstr ""
 
-#: includes/admin/class-admin.php:597 includes/admin/class-admin.php:664
+#: includes/admin/class-admin.php:599 includes/admin/class-admin.php:666
 msgid "Open the WooCommerce currency settings"
 msgstr ""
 
-#: includes/admin/views/dashboard.php:417
+#: includes/admin/views/dashboard.php:450
 msgid "Open the dry run report"
 msgstr ""
 
-#: includes/admin/views/dashboard.php:344 includes/admin/views/jobs.php:90 assets/js/admin.js:404
+#: includes/admin/views/dashboard.php:377 includes/admin/views/jobs.php:90 assets/js/admin.js:411
 msgid "Pause"
 msgstr ""
 
@@ -745,7 +779,7 @@ msgstr ""
 msgid "Preview / dry run"
 msgstr ""
 
-#: includes/admin/views/dashboard.php:121
+#: includes/admin/views/dashboard.php:122
 msgid "Preview changes"
 msgstr ""
 
@@ -757,7 +791,7 @@ msgstr ""
 msgid "Previous rate restored."
 msgstr ""
 
-#: includes/admin/views/dashboard.php:75
+#: includes/admin/views/dashboard.php:76
 #. %s: previous rate.
 msgid "Previous rate: %s"
 msgstr ""
@@ -778,24 +812,24 @@ msgstr ""
 msgid "Product"
 msgstr ""
 
-#: includes/admin/class-rest-controller.php:1049 includes/admin/views/items-table.php:48 assets/js/admin.js:1024
+#: includes/admin/class-rest-controller.php:1066 includes/admin/views/items-table.php:48 assets/js/admin.js:1113
 #. %d: product ID.
 msgid "Product #%d"
 msgstr ""
 
-#: includes/admin/views/dashboard.php:257
+#: includes/admin/views/dashboard.php:299
 msgid "Product types"
 msgstr ""
 
-#: includes/admin/views/dashboard.php:285 includes/admin/views/dashboard.php:469 includes/class-health.php:364
+#: includes/admin/views/dashboard.php:318 includes/admin/views/dashboard.php:502 includes/class-health.php:364
 msgid "Products"
 msgstr ""
 
-#: includes/class-product-repository.php:206
+#: includes/class-product-repository.php:252
 msgid "Products whose price may be outdated"
 msgstr ""
 
-#: includes/admin/views/dashboard.php:280
+#: includes/admin/views/dashboard.php:313
 msgid "Products with any of the selected terms are updated."
 msgstr ""
 
@@ -803,11 +837,11 @@ msgstr ""
 msgid "Progress"
 msgstr ""
 
-#: assets/js/admin.js:491
+#: assets/js/admin.js:498
 msgid "Progress polling lost its connection. Retrying in five seconds."
 msgstr ""
 
-#: assets/js/admin.js:485
+#: assets/js/admin.js:492
 msgid "Progress polling was denied. Your session may have expired; reload this page."
 msgstr ""
 
@@ -823,11 +857,11 @@ msgstr ""
 msgid "REST API routes"
 msgstr ""
 
-#: includes/admin/views/dashboard.php:465 includes/admin/views/jobs.php:151 includes/admin/views/jobs.php:206
+#: includes/admin/views/dashboard.php:498 includes/admin/views/jobs.php:151 includes/admin/views/jobs.php:206
 msgid "Rate"
 msgstr ""
 
-#: assets/js/admin.js:582
+#: assets/js/admin.js:589
 #. 1: previous rate, 2: new rate, 3: change in percent, 4: number of affected products.
 msgid "Rate %1$s → %2$s (%3$s%%). Managed products that would be affected: about %4$s."
 msgstr ""
@@ -836,7 +870,7 @@ msgstr ""
 msgid "Rate change warning"
 msgstr ""
 
-#: includes/admin/views/dashboard.php:458 includes/admin/views/jobs.php:199
+#: includes/admin/views/dashboard.php:491 includes/admin/views/jobs.php:199
 msgid "Rate history"
 msgstr ""
 
@@ -856,7 +890,7 @@ msgstr ""
 msgid "Rate waiting for confirmation"
 msgstr ""
 
-#: includes/admin/class-admin.php:458 includes/admin/class-admin.php:475 assets/js/admin.js:210 assets/js/admin.js:346
+#: includes/admin/class-admin.php:460 includes/admin/class-admin.php:477 assets/js/admin.js:210 assets/js/admin.js:353
 msgid "Re-based"
 msgstr ""
 
@@ -883,7 +917,7 @@ msgstr ""
 msgid "Recalculate this product"
 msgstr ""
 
-#: includes/admin/views/dashboard.php:425
+#: includes/admin/views/dashboard.php:458
 msgid "Recent jobs"
 msgstr ""
 
@@ -911,7 +945,7 @@ msgstr ""
 msgid "Regular price"
 msgstr ""
 
-#: assets/js/admin.js:768 assets/js/admin.js:847
+#: assets/js/admin.js:775 assets/js/admin.js:850
 msgid "Remove"
 msgstr ""
 
@@ -923,11 +957,11 @@ msgstr ""
 msgid "Required capability"
 msgstr ""
 
-#: assets/js/admin.js:914
+#: assets/js/admin.js:1003
 msgid "Restore the previous exchange rate and recalculate all managed products?"
 msgstr ""
 
-#: includes/admin/views/dashboard.php:349 includes/admin/views/jobs.php:93 assets/js/admin.js:414
+#: includes/admin/views/dashboard.php:382 includes/admin/views/jobs.php:93 assets/js/admin.js:421
 msgid "Resume"
 msgstr ""
 
@@ -943,11 +977,11 @@ msgstr ""
 msgid "Rial"
 msgstr ""
 
-#: includes/admin/class-admin.php:443
+#: includes/admin/class-admin.php:445
 msgid "Rial per 1 USD"
 msgstr ""
 
-#: includes/admin/views/dashboard.php:182
+#: includes/admin/views/dashboard.php:183
 msgid "Roll back last rate change"
 msgstr ""
 
@@ -995,7 +1029,7 @@ msgstr ""
 msgid "Save a USD/Toman exchange rate before updating prices."
 msgstr ""
 
-#: includes/admin/views/dashboard.php:118
+#: includes/admin/views/dashboard.php:119
 msgid "Save rate"
 msgstr ""
 
@@ -1003,7 +1037,7 @@ msgstr ""
 msgid "Save settings"
 msgstr ""
 
-#: includes/admin/class-admin.php:610
+#: includes/admin/class-admin.php:612
 msgid "Save the exchange rate"
 msgstr ""
 
@@ -1011,11 +1045,11 @@ msgstr ""
 msgid "Scheduling backend"
 msgstr ""
 
-#: includes/admin/views/dashboard.php:232
+#: includes/admin/views/dashboard.php:274
 msgid "Scope"
 msgstr ""
 
-#: includes/admin/views/dashboard.php:277 includes/admin/views/dashboard.php:286
+#: includes/admin/views/dashboard.php:319
 msgid "Search by name…"
 msgstr ""
 
@@ -1023,36 +1057,39 @@ msgstr ""
 msgid "Seconds per worker run"
 msgstr ""
 
-#: assets/js/admin.js:885
+#: assets/js/admin.js:974
 msgid "Select at least one product first."
 msgstr ""
 
-#: assets/js/admin.js:514
+#: assets/js/admin.js:521
 msgid "Select at least one term first."
 msgstr ""
 
-#: includes/admin/views/dashboard.php:236 includes/class-product-repository.php:210
+#: includes/admin/views/dashboard.php:278 includes/class-product-repository.php:256
 msgid "Selected categories"
 msgstr ""
 
-#: includes/admin/views/dashboard.php:237 includes/class-product-repository.php:214
+#: includes/admin/views/dashboard.php:279 includes/class-product-repository.php:260
 msgid "Selected product types"
 msgstr ""
 
-#: includes/admin/views/dashboard.php:241
+#: includes/admin/views/dashboard.php:283
 msgid "Selected products"
 msgstr ""
 
-#: includes/admin/views/dashboard.php:239
-msgid "Selected tags, attributes or other taxonomies"
-msgstr ""
+#: includes/class-product-repository.php:276
+#. %d: number of taxonomies, such as tags and brands.
+msgid "Selected terms of %d taxonomy"
+msgid_plural "Selected terms of %d taxonomies"
+msgstr[0] ""
+msgstr[1] ""
 
-#: includes/class-product-repository.php:222
+#: includes/class-product-repository.php:268
 #. %s: taxonomy name, for example Product tags.
 msgid "Selected terms of %s"
 msgstr ""
 
-#: includes/admin/class-admin.php:595 includes/admin/views/settings.php:33 assets/js/admin.js:200
+#: includes/admin/class-admin.php:597 includes/admin/views/settings.php:33 assets/js/admin.js:200
 msgid "Set the store currency to Iranian Toman or Rial"
 msgstr ""
 
@@ -1060,11 +1097,11 @@ msgstr ""
 msgid "Set the store currency to Iranian Toman or Rial before updating prices."
 msgstr ""
 
-#: includes/admin/class-admin.php:181 includes/admin/class-admin.php:567
+#: includes/admin/class-admin.php:181 includes/admin/class-admin.php:569
 msgid "Settings"
 msgstr ""
 
-#: includes/admin/views/dashboard.php:412
+#: includes/admin/views/dashboard.php:445
 msgid "Showing up to 20 products. The full report is available in the job details, including a CSV download."
 msgstr ""
 
@@ -1072,11 +1109,11 @@ msgstr ""
 msgid "Showing up to 50 items. Use the CSV download for the complete report."
 msgstr ""
 
-#: includes/admin/views/dashboard.php:48
+#: includes/admin/views/dashboard.php:49
 msgid "Simple products"
 msgstr ""
 
-#: includes/admin/class-admin.php:460 includes/admin/class-admin.php:477 assets/js/admin.js:212 assets/js/admin.js:348
+#: includes/admin/class-admin.php:462 includes/admin/class-admin.php:479 assets/js/admin.js:212 assets/js/admin.js:355
 msgid "Skipped"
 msgstr ""
 
@@ -1092,15 +1129,15 @@ msgstr ""
 msgid "Source"
 msgstr ""
 
-#: assets/js/admin.js:890
+#: assets/js/admin.js:979
 msgid "Start the background price update now?"
 msgstr ""
 
-#: includes/admin/views/dashboard.php:439 includes/admin/views/jobs.php:155
+#: includes/admin/views/dashboard.php:472 includes/admin/views/jobs.php:155
 msgid "Started"
 msgstr ""
 
-#: includes/admin/views/dashboard.php:437 includes/admin/views/health.php:106 includes/admin/views/items-table.php:24 includes/admin/views/jobs.php:150 includes/admin/views/jobs.php:213
+#: includes/admin/views/dashboard.php:470 includes/admin/views/health.php:106 includes/admin/views/items-table.php:24 includes/admin/views/jobs.php:150 includes/admin/views/jobs.php:213
 msgid "Status"
 msgstr ""
 
@@ -1113,7 +1150,7 @@ msgstr ""
 msgid "Store currency"
 msgstr ""
 
-#: includes/admin/views/dashboard.php:218
+#: includes/admin/views/dashboard.php:260
 #. 1: store currency, such as "Toman (IRT)", 2: product count.
 msgid "Store currency: %1$s. Products in the catalog: %2$s."
 msgstr ""
@@ -1126,12 +1163,12 @@ msgstr ""
 msgid "System"
 msgstr ""
 
-#: includes/admin/views/dashboard.php:269
-msgid "Taxonomy"
+#: includes/admin/views/dashboard.php:310
+msgid "Terms"
 msgstr ""
 
-#: includes/admin/views/dashboard.php:276
-msgid "Terms"
+#: includes/admin/views/dashboard.php:281
+msgid "Terms ticked in the catalog lists"
 msgstr ""
 
 #: includes/admin/views/health.php:94
@@ -1156,7 +1193,7 @@ msgstr ""
 msgid "The USD price of #%1$d was not changed: %2$s"
 msgstr ""
 
-#: includes/admin/class-admin.php:651
+#: includes/admin/class-admin.php:653
 msgid "The USD-store mode was removed. Set the WooCommerce store currency to Iranian Toman or Rial and review your prices; the plugin does not update prices until then. The old Toman prices are kept in hidden product meta (_usdtf_source_regular and _usdtf_source_sale)."
 msgstr ""
 
@@ -1174,7 +1211,7 @@ msgstr ""
 msgid "The WooCommerce store currency is %s. Prices and the exchange rate use this unit."
 msgstr ""
 
-#: includes/admin/class-rest-controller.php:905
+#: includes/admin/class-rest-controller.php:911
 msgid "The action could not be applied to this job. Reload the page and try again."
 msgstr ""
 
@@ -1183,7 +1220,7 @@ msgstr ""
 msgid "The admin screen cannot reach these routes: %s. Every admin action would fail with \"no route found\". Reinstall the plugin or resave the permalink settings, then reload this screen."
 msgstr ""
 
-#: includes/admin/class-admin.php:296 assets/js/admin.js:530 assets/js/admin.js:919
+#: includes/admin/class-admin.php:296 assets/js/admin.js:537 assets/js/admin.js:1008
 msgid "The background job was queued."
 msgstr ""
 
@@ -1223,7 +1260,7 @@ msgstr ""
 msgid "The job could not be created. Check the plugin log for details."
 msgstr ""
 
-#: includes/admin/class-admin.php:753 includes/admin/class-rest-controller.php:776 includes/admin/class-rest-controller.php:840 includes/admin/class-rest-controller.php:849
+#: includes/admin/class-admin.php:755 includes/admin/class-rest-controller.php:782 includes/admin/class-rest-controller.php:846 includes/admin/class-rest-controller.php:855
 msgid "The job could not be found."
 msgstr ""
 
@@ -1281,7 +1318,7 @@ msgstr ""
 msgid "The referenced dry run could not be found. Run the dry run again and start the update from its result."
 msgstr ""
 
-#: assets/js/admin.js:487
+#: assets/js/admin.js:494
 msgid "The running job could not be found. Reload the job list."
 msgstr ""
 
@@ -1293,7 +1330,7 @@ msgstr ""
 msgid "The same checks are reported in Tools → Site Health. Rate history is kept forever; detailed product logs follow the retention setting."
 msgstr ""
 
-#: assets/js/admin.js:489
+#: assets/js/admin.js:496
 msgid "The server failed while checking progress. Retrying in five seconds."
 msgstr ""
 
@@ -1310,7 +1347,7 @@ msgstr ""
 msgid "The store currency unit changed from %1$s to %2$s since the rate was saved. Save the rate again in the new unit."
 msgstr ""
 
-#: includes/admin/class-admin.php:642
+#: includes/admin/class-admin.php:644
 msgid "The store currency was set to Iranian Toman (IRT, no decimals) to keep the storefront as it was. Earlier versions applied this only while the plugin was active; it is now a normal WooCommerce setting."
 msgstr ""
 
@@ -1346,7 +1383,7 @@ msgstr ""
 msgid "This rate is a very large move. Confirm it explicitly before it is stored."
 msgstr ""
 
-#: includes/admin/class-rest-controller.php:1000
+#: includes/admin/class-rest-controller.php:1006
 msgid "This taxonomy cannot be used to select products."
 msgstr ""
 
@@ -1358,7 +1395,7 @@ msgstr ""
 msgid "Toman"
 msgstr ""
 
-#: includes/admin/class-admin.php:446
+#: includes/admin/class-admin.php:448
 msgid "Toman per 1 USD"
 msgstr ""
 
@@ -1370,16 +1407,16 @@ msgstr ""
 msgid "Trigger queued worker runs with a non blocking loopback request"
 msgstr ""
 
-#: includes/admin/views/dashboard.php:436 includes/admin/views/jobs.php:149
+#: includes/admin/views/dashboard.php:469 includes/admin/views/jobs.php:149
 msgid "Type"
 msgstr ""
 
-#: includes/admin/class-rest-controller.php:634
+#: includes/admin/class-rest-controller.php:640
 #. %s: the word the admin has to type.
 msgid "Type %s in the confirmation field to confirm a large rate change."
 msgstr ""
 
-#: includes/admin/views/dashboard.php:132
+#: includes/admin/views/dashboard.php:133
 #. %s: confirmation word.
 msgid "Type %s to confirm this large rate change"
 msgstr ""
@@ -1396,7 +1433,7 @@ msgstr ""
 msgid "USD price"
 msgstr ""
 
-#: includes/admin/class-admin.php:457 includes/admin/class-admin.php:474 assets/js/admin.js:209 assets/js/admin.js:345
+#: includes/admin/class-admin.php:459 includes/admin/class-admin.php:476 assets/js/admin.js:209 assets/js/admin.js:352
 msgid "USD set"
 msgstr ""
 
@@ -1420,7 +1457,7 @@ msgstr ""
 msgid "USD/Toman pricing needs attention"
 msgstr ""
 
-#: includes/admin/class-admin.php:594 includes/admin/class-admin.php:607 includes/admin/class-admin.php:620 includes/admin/class-admin.php:661
+#: includes/admin/class-admin.php:596 includes/admin/class-admin.php:609 includes/admin/class-admin.php:622 includes/admin/class-admin.php:663
 msgid "USD/Toman pricing:"
 msgstr ""
 
@@ -1436,7 +1473,7 @@ msgstr ""
 msgid "USD/Toman: set Managed"
 msgstr ""
 
-#: includes/admin/class-admin.php:459 includes/admin/class-admin.php:476 assets/js/admin.js:211 assets/js/admin.js:347
+#: includes/admin/class-admin.php:461 includes/admin/class-admin.php:478 assets/js/admin.js:211 assets/js/admin.js:354
 msgid "Unchanged"
 msgstr ""
 
@@ -1444,19 +1481,19 @@ msgstr ""
 msgid "Uninstall"
 msgstr ""
 
-#: includes/admin/class-rest-controller.php:899
+#: includes/admin/class-rest-controller.php:905
 msgid "Unknown job action."
 msgstr ""
 
-#: includes/admin/class-admin.php:301 assets/js/admin.js:725 assets/js/admin.js:762
+#: includes/admin/class-admin.php:301 assets/js/admin.js:732 assets/js/admin.js:769
 msgid "Unknown product"
 msgstr ""
 
-#: includes/admin/views/dashboard.php:175
+#: includes/admin/views/dashboard.php:176
 msgid "Update prices now"
 msgstr ""
 
-#: includes/admin/class-admin.php:456 includes/admin/class-admin.php:473 includes/admin/views/dashboard.php:438 includes/admin/views/jobs.php:153 assets/js/admin.js:208 assets/js/admin.js:344
+#: includes/admin/class-admin.php:458 includes/admin/class-admin.php:475 includes/admin/views/dashboard.php:471 includes/admin/views/jobs.php:153 assets/js/admin.js:208 assets/js/admin.js:351
 msgid "Updated"
 msgstr ""
 
@@ -1465,7 +1502,7 @@ msgstr ""
 msgid "User #%d"
 msgstr ""
 
-#: includes/admin/views/dashboard.php:49
+#: includes/admin/views/dashboard.php:50
 msgid "Variable products"
 msgstr ""
 
@@ -1473,7 +1510,7 @@ msgstr ""
 msgid "Variation"
 msgstr ""
 
-#: includes/admin/views/dashboard.php:324 includes/admin/views/product-panel.php:124 assets/js/admin.js:351
+#: includes/admin/views/dashboard.php:357 includes/admin/views/product-panel.php:124 assets/js/admin.js:358
 msgid "Variations"
 msgstr ""
 
@@ -1494,12 +1531,12 @@ msgstr ""
 msgid "Variations processed"
 msgstr ""
 
-#: includes/admin/views/items-table.php:65 assets/js/admin.js:1076
+#: includes/admin/views/items-table.php:65 assets/js/admin.js:1165
 #. 1: processed variations, 2: total variations.
 msgid "Variations processed: %1$d / %2$d"
 msgstr ""
 
-#: includes/admin/views/dashboard.php:358 assets/js/admin.js:431
+#: includes/admin/views/dashboard.php:391 assets/js/admin.js:438
 msgid "View details"
 msgstr ""
 
@@ -1515,11 +1552,11 @@ msgstr ""
 msgid "WP-Cron is disabled and Action Scheduler is missing, so worker runs are triggered by non blocking loopback requests. A real cron job is strongly recommended."
 msgstr ""
 
-#: includes/admin/class-admin.php:621
+#: includes/admin/class-admin.php:623
 msgid "WP-Cron is disabled and WooCommerce Action Scheduler was not found. Background updates can only run through loopback requests; a real cron job on wp-cron.php is recommended."
 msgstr ""
 
-#: includes/admin/views/dashboard.php:228
+#: includes/admin/views/dashboard.php:270
 msgid "What should be updated?"
 msgstr ""
 
@@ -1548,15 +1585,15 @@ msgstr ""
 msgid "WooCommerce version"
 msgstr ""
 
-#: assets/js/admin.js:383
+#: assets/js/admin.js:390
 msgid "Worker stalled — no heartbeat for %d seconds. Recovery will requeue this job; if it becomes paused, check queue health and resume it."
 msgstr ""
 
-#: includes/admin/class-admin.php:299 assets/js/admin.js:315 assets/js/admin.js:525 assets/js/admin.js:939
+#: includes/admin/class-admin.php:299 assets/js/admin.js:322 assets/js/admin.js:532 assets/js/admin.js:1028
 msgid "Working…"
 msgstr ""
 
-#: includes/admin/views/dashboard.php:394
+#: includes/admin/views/dashboard.php:427
 #. 1: updated, 2: USD set, 3: re-based, 4: unchanged, 5: skipped, 6: failed, 7: conflicts.
 msgid "Would update: %1$s · USD set: %2$s · re-based: %3$s · unchanged: %4$s · skipped: %5$s · failed: %6$s · conflicts: %7$s"
 msgstr ""
@@ -1565,11 +1602,11 @@ msgstr ""
 msgid "Yes"
 msgstr ""
 
-#: includes/admin/class-admin.php:697
+#: includes/admin/class-admin.php:699
 msgid "You are not allowed to export this data."
 msgstr ""
 
-#: includes/admin/class-admin.php:527 includes/admin/class-admin.php:677
+#: includes/admin/class-admin.php:529 includes/admin/class-admin.php:679
 msgid "You are not allowed to manage USD/Toman pricing."
 msgstr ""
 
@@ -1577,7 +1614,7 @@ msgstr ""
 msgid "You are not allowed to recalculate prices."
 msgstr ""
 
-#: includes/admin/class-admin.php:645
+#: includes/admin/class-admin.php:647
 msgid "Your prices were last written for the removed USD-store mode, so review them before you run an update. The Toman prices are kept in hidden product meta (_usdtf_source_regular and _usdtf_source_sale)."
 msgstr ""
 
@@ -1589,7 +1626,7 @@ msgstr ""
 msgid "days"
 msgstr ""
 
-#: includes/admin/views/dashboard.php:335
+#: includes/admin/views/dashboard.php:368
 #. %s: user name.
 msgid "started by %s"
 msgstr ""
@@ -1598,7 +1635,7 @@ msgstr ""
 msgid "unlimited"
 msgstr ""
 
-#: includes/admin/views/items-table.php:42 assets/js/admin.js:1040
+#: includes/admin/views/items-table.php:42 assets/js/admin.js:1129
 msgid "variation"
 msgstr ""
 
@@ -1610,7 +1647,7 @@ msgstr ""
 msgid "worker lost"
 msgstr ""
 
-#: includes/admin/views/dashboard.php:211
+#: includes/admin/views/dashboard.php:253
 msgid "“May need an update” counts managed products without a USD price or whose stored rate is not the current rate. The exact number of price changes is calculated by the dry run."
 msgstr ""
 

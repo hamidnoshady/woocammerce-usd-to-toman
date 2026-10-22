@@ -217,6 +217,9 @@
 		return Object.prototype.hasOwnProperty.call( map, status ) ? map[ status ] : String( status || '' );
 	}
 
+	// Terms ticked in the catalog lists: taxonomy => { term ID: term name }.
+	var selectedTerms = {};
+
 	function collectScope() {
 		var select = $( '#usdtf-scope-mode' );
 		var mode = select ? select.value : 'all';
@@ -225,8 +228,7 @@
 			ids: [],
 			category: [],
 			product_type: [],
-			taxonomy: '',
-			terms: [],
+			tax_terms: {},
 			only_outdated: false,
 			include_variations: true,
 		};
@@ -262,9 +264,14 @@
 		}
 
 		if ( 'taxonomy' === mode ) {
-			scope.taxonomy = ( $( '#usdtf-scope-taxonomy' ) || {} ).value || '';
-			scope.terms = $$( '#usdtf-selected-terms .usdtf-chip' ).map( function ( chip ) {
-				return parseInt( chip.getAttribute( 'data-id' ), 10 );
+			Object.keys( selectedTerms ).forEach( function ( taxonomy ) {
+				var ids = Object.keys( selectedTerms[ taxonomy ] ).map( function ( id ) {
+					return parseInt( id, 10 );
+				} );
+
+				if ( ids.length ) {
+					scope.tax_terms[ taxonomy ] = ids;
+				}
 			} );
 		}
 
@@ -510,7 +517,7 @@
 		}
 
 		// Without a term the server would fall back to every managed product.
-		if ( 'taxonomy' === ( $( '#usdtf-scope-mode' ) || {} ).value && ! payload.scope.terms.length ) {
+		if ( 'taxonomy' === ( $( '#usdtf-scope-mode' ) || {} ).value && ! Object.keys( payload.scope.tax_terms ).length ) {
 			toast( __( 'Select at least one term first.', 'usd-to-toman-price-sync-for-woocommerce' ), true );
 
 			return Promise.resolve( null );
@@ -779,99 +786,181 @@
 	}
 
 	/**
-	 * Term picker of the taxonomy scope: choose a taxonomy, then search its
-	 * terms. Terms are fetched on demand, 30 at a time, so a taxonomy with
-	 * thousands of terms never loads all of them.
+	 * Catalog lists: one list per taxonomy with every term and the number of
+	 * products using it. Terms are loaded 100 at a time when a list is opened
+	 * or filtered. Ticking a term makes the update scope "ticked terms".
 	 */
 	function initTermPicker() {
-		var taxonomy = $( '#usdtf-scope-taxonomy' );
-		var search = $( '#usdtf-term-search' );
-		var results = $( '#usdtf-term-results' );
+		var lists = $$( '.usdtf-tax-list' );
 		var chips = $( '#usdtf-selected-terms' );
-		var timer = null;
-		var request = 0;
+		var mode = $( '#usdtf-scope-mode' );
 
-		if ( ! taxonomy || ! search || ! results || ! chips ) {
+		if ( ! lists.length || ! chips ) {
 			return;
 		}
 
-		function load() {
-			var current = ++request;
-
-			api( '/terms?taxonomy=' + encodeURIComponent( taxonomy.value ) + '&search=' + encodeURIComponent( search.value.trim() ) ).then( function ( terms ) {
-				// An older answer that arrives late must not replace a newer one.
-				if ( current !== request ) {
-					return;
-				}
-
-				results.innerHTML = '';
-
-				( terms || [] ).forEach( function ( term ) {
-					var item = document.createElement( 'li' );
-					var button = document.createElement( 'button' );
-
-					button.type = 'button';
-					button.className = 'button-link';
-
-					// Term names come from the database: textContent keeps them plain text.
-					button.textContent = term.name + ' (' + formatNumber( term.count ) + ')';
-					button.addEventListener( 'click', function () {
-						addTerm( term );
-					} );
-
-					item.appendChild( button );
-					results.appendChild( item );
-				} );
-			} ).catch( function ( error ) {
-				toast( errorMessage( error ), true );
-			} );
+		function isSelected( taxonomy, id ) {
+			return !! ( selectedTerms[ taxonomy ] && selectedTerms[ taxonomy ][ id ] );
 		}
 
-		function addTerm( term ) {
-			if ( $( '.usdtf-chip[data-id="' + term.id + '"]', chips ) ) {
+		function setSelected( taxonomy, term, on ) {
+			selectedTerms[ taxonomy ] = selectedTerms[ taxonomy ] || {};
+
+			if ( on ) {
+				selectedTerms[ taxonomy ][ term.id ] = term.name;
+			} else {
+				delete selectedTerms[ taxonomy ][ term.id ];
+			}
+
+			if ( on && mode && 'taxonomy' !== mode.value ) {
+				mode.value = 'taxonomy';
+				mode.dispatchEvent( new window.Event( 'change' ) );
+			}
+
+			render();
+		}
+
+		// Chips in the scope card and the per-list counters follow the selection.
+		function render() {
+			chips.innerHTML = '';
+
+			lists.forEach( function ( list ) {
+				var taxonomy = list.getAttribute( 'data-taxonomy' );
+				var label = $( '.usdtf-tax-list__name', list ).textContent;
+				var terms = selectedTerms[ taxonomy ] || {};
+				var ids = Object.keys( terms );
+				var counter = $( '.usdtf-tax-list__selected', list );
+
+				counter.hidden = ! ids.length;
+				counter.textContent = sprintf( __( '%d selected', 'usd-to-toman-price-sync-for-woocommerce' ), ids.length );
+
+				ids.forEach( function ( id ) {
+					var chip = document.createElement( 'li' );
+
+					chip.className = 'usdtf-chip';
+					chip.setAttribute( 'data-id', id );
+
+					var name = document.createElement( 'span' );
+					name.textContent = label + ': ' + terms[ id ];
+					chip.appendChild( name );
+
+					var remove = document.createElement( 'button' );
+					remove.type = 'button';
+					remove.className = 'usdtf-chip__remove';
+					remove.setAttribute( 'aria-label', __( 'Remove', 'usd-to-toman-price-sync-for-woocommerce' ) );
+					remove.textContent = '×';
+					remove.addEventListener( 'click', function () {
+						setSelected( taxonomy, { id: id }, false );
+
+						var box = $( 'input[type="checkbox"][value="' + id + '"]', list );
+
+						if ( box ) {
+							box.checked = false;
+						}
+					} );
+
+					chip.appendChild( remove );
+					chips.appendChild( chip );
+				} );
+			} );
+
+			var empty = $( '#usdtf-terms-empty' );
+
+			if ( empty ) {
+				empty.hidden = !! chips.children.length;
+			}
+		}
+
+		lists.forEach( function ( list ) {
+			var taxonomy = list.getAttribute( 'data-taxonomy' );
+			var filter = $( '.usdtf-tax-list__filter', list );
+			var terms = $( '.usdtf-tax-list__terms', list );
+			var more = $( '.usdtf-tax-list__more', list );
+			var page = 1;
+			var request = 0;
+			var timer = null;
+
+			if ( ! terms ) {
 				return;
 			}
 
-			var chip = document.createElement( 'li' );
+			function load( reset ) {
+				var current = ++request;
 
-			chip.className = 'usdtf-chip';
-			chip.setAttribute( 'data-id', term.id );
+				if ( reset ) {
+					page = 1;
+				}
 
-			var name = document.createElement( 'span' );
-			name.textContent = term.name;
-			chip.appendChild( name );
+				api( '/terms?taxonomy=' + encodeURIComponent( taxonomy ) + '&page=' + page + '&search=' + encodeURIComponent( filter ? filter.value.trim() : '' ) ).then( function ( response ) {
+					// An older answer that arrives late must not replace a newer one.
+					if ( current !== request ) {
+						return;
+					}
 
-			var remove = document.createElement( 'button' );
-			remove.type = 'button';
-			remove.className = 'usdtf-chip__remove';
-			remove.setAttribute( 'aria-label', __( 'Remove', 'usd-to-toman-price-sync-for-woocommerce' ) );
-			remove.textContent = '×';
-			remove.addEventListener( 'click', function () {
-				chip.remove();
+					if ( reset ) {
+						terms.innerHTML = '';
+					}
+
+					( response.terms || [] ).forEach( function ( term ) {
+						var item = document.createElement( 'li' );
+						var label = document.createElement( 'label' );
+						var box = document.createElement( 'input' );
+
+						box.type = 'checkbox';
+						box.value = term.id;
+						box.checked = isSelected( taxonomy, term.id );
+						box.addEventListener( 'change', function () {
+							setSelected( taxonomy, term, box.checked );
+						} );
+
+						// Term names come from the database: textContent keeps them plain text.
+						var name = document.createElement( 'span' );
+						name.textContent = term.name;
+
+						var count = document.createElement( 'span' );
+						count.className = 'usdtf-tax-list__count';
+						count.textContent = sprintf( __( '%s products', 'usd-to-toman-price-sync-for-woocommerce' ), formatNumber( term.count ) );
+
+						label.appendChild( box );
+						label.appendChild( name );
+						label.appendChild( count );
+						item.appendChild( label );
+						terms.appendChild( item );
+					} );
+
+					if ( more ) {
+						more.hidden = ! response.has_more;
+					}
+
+					page++;
+				} ).catch( function ( error ) {
+					toast( errorMessage( error ), true );
+				} );
+			}
+
+			list.addEventListener( 'toggle', function () {
+				if ( list.open && ! terms.children.length ) {
+					load( true );
+				}
 			} );
 
-			chip.appendChild( remove );
-			chips.appendChild( chip );
-		}
+			if ( filter ) {
+				filter.addEventListener( 'input', function () {
+					window.clearTimeout( timer );
+					timer = window.setTimeout( function () {
+						load( true );
+					}, 350 );
+				} );
+			}
 
-		// Terms belong to one taxonomy, so switching it starts a new selection.
-		taxonomy.addEventListener( 'change', function () {
-			chips.innerHTML = '';
-			search.value = '';
-			load();
-		} );
-
-		search.addEventListener( 'input', function () {
-			window.clearTimeout( timer );
-			timer = window.setTimeout( load, 350 );
-		} );
-
-		// The first terms are listed once the scope is chosen, not on page load.
-		$( '#usdtf-scope-mode' ).addEventListener( 'change', function () {
-			if ( 'taxonomy' === this.value && ! results.children.length ) {
-				load();
+			if ( more ) {
+				more.addEventListener( 'click', function () {
+					load( false );
+				} );
 			}
 		} );
+
+		render();
 	}
 
 	function initButtons() {

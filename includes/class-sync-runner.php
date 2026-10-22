@@ -866,7 +866,7 @@ final class Sync_Runner {
 			return false;
 		}
 
-		if ( $scope['ids'] || $scope['category'] || $scope['product_type'] || $scope['terms'] ) {
+		if ( $scope['ids'] || $scope['category'] || $scope['product_type'] || $scope['tax_terms'] ) {
 			return false;
 		}
 
